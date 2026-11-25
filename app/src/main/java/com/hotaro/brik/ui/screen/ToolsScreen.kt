@@ -82,6 +82,9 @@ import com.hotaro.brik.policy.DnsManager
 import com.hotaro.brik.policy.DnsMode
 import com.hotaro.brik.ui.component.QrScannerView
 import com.hotaro.brik.ui.component.RoundedPullRefreshPage
+import com.hotaro.brik.ui.component.TomatoSectionHeader
+import com.hotaro.brik.ui.component.TomatoSettingsItem
+import com.hotaro.brik.ui.component.segmentedItemShape
 import com.hotaro.brik.ui.viewmodel.KeyViewModel
 import com.hotaro.brik.ui.viewmodel.ToolsViewModel
 import com.hotaro.brik.util.QrUtils
@@ -162,234 +165,144 @@ fun ToolsScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(innerPadding)
-                .padding(horizontal = 20.dp, vertical = 16.dp)
+                .padding(horizontal = 16.dp, vertical = 12.dp)
                 .padding(bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // --- SECTION 1: APPLICATIONS & BAGS ---
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                TomatoSectionHeader(title = "APPLICATIONS & BAGS")
 
-        // Section 1: App Manager Card
-        ElevatedCard(
-            onClick = { showAppManagerSheet = true },
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.elevatedCardColors(
-                containerColor = colorScheme.surfaceContainerHigh
-            ),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = colorScheme.primaryContainer,
-                    modifier = Modifier.size(52.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
+                // 1. App Manager
+                TomatoSettingsItem(
+                    title = "App Manager",
+                    subtitle = if (installedApps.isNotEmpty()) "${installedApps.size} apps available" else "Manage and inspect applications",
+                    leadingIcon = R.drawable.apps_fill0,
+                    iconContainerColor = colorScheme.primaryContainer,
+                    iconTint = colorScheme.primary,
+                    trailingContent = {
                         Icon(
-                            painter = painterResource(R.drawable.apps_fill0),
+                            painter = painterResource(R.drawable.arrow_forward_big),
                             contentDescription = null,
-                            tint = colorScheme.onPrimaryContainer,
-                            modifier = Modifier.size(26.dp)
+                            modifier = Modifier.size(18.dp),
+                            tint = colorScheme.onSurfaceVariant
                         )
-                    }
-                }
-                Spacer(Modifier.width(16.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = "App Manager",
-                        style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = colorScheme.onSurface
-                    )
-                    Text(
-                        text = if (installedApps.isNotEmpty()) "${installedApps.size} apps available" else "Manage and inspect applications",
-                        style = typography.bodySmall,
-                        color = colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
+                    },
+                    shape = segmentedItemShape(0, 2),
+                    onClick = { showAppManagerSheet = true }
+                )
 
-        // Section 2: Bags Card
-        ElevatedCard(
-            onClick = { showBagsSheet = true },
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.elevatedCardColors(
-                containerColor = colorScheme.surfaceContainerHigh
-            ),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = colorScheme.secondaryContainer,
-                    modifier = Modifier.size(52.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
+                // 2. Bags
+                TomatoSettingsItem(
+                    title = "Bags",
+                    subtitle = if (bags.isNotEmpty()) "${bags.size} bags configured (${activeLocks.size} locked)" else "Pack apps into custom bundles",
+                    leadingIcon = R.drawable.backpack_fill0,
+                    iconContainerColor = colorScheme.secondaryContainer,
+                    iconTint = colorScheme.onSecondaryContainer,
+                    trailingContent = {
                         Icon(
-                            painter = painterResource(R.drawable.backpack_fill0),
+                            painter = painterResource(R.drawable.arrow_forward_big),
                             contentDescription = null,
-                            tint = colorScheme.onSecondaryContainer,
-                            modifier = Modifier.size(26.dp)
+                            modifier = Modifier.size(18.dp),
+                            tint = colorScheme.onSurfaceVariant
                         )
-                    }
-                }
-                Spacer(Modifier.width(16.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = "Bags",
-                        style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = colorScheme.onSurface
-                    )
-                    Text(
-                        text = if (bags.isNotEmpty()) "${bags.size} bags (${activeLocks.size} active)" else "Pack apps into custom bundles",
-                        style = typography.bodySmall,
-                        color = colorScheme.onSurfaceVariant
-                    )
-                }
+                    },
+                    shape = segmentedItemShape(1, 2),
+                    onClick = { showBagsSheet = true }
+                )
             }
-        }
 
-        // Section 3: Private DNS (DoT) Card
-        ElevatedCard(
-            onClick = {
-                dnsStatus = DnsManager.getCurrentDns(context)
-                showDnsSheet = true
-            },
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.elevatedCardColors(
-                containerColor = colorScheme.surfaceContainerHigh
-            ),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = colorScheme.tertiaryContainer,
-                    modifier = Modifier.size(52.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            painter = painterResource(R.drawable.dns_fill0),
-                            contentDescription = null,
-                            tint = colorScheme.onTertiaryContainer,
-                            modifier = Modifier.size(26.dp)
-                        )
+            // --- SECTION 2: PRIVACY & NETWORK ---
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                TomatoSectionHeader(title = "PRIVACY & NETWORK")
+
+                val dnsSub = when (dnsStatus.mode) {
+                    DnsMode.OFF -> "Disabled (Standard ISP DNS)"
+                    DnsMode.OPPORTUNISTIC -> "Automatic (Opportunistic)"
+                    DnsMode.SPECIFIED_HOST -> dnsStatus.host ?: "Custom Host"
+                }
+
+                // 1. Private DNS (DoT)
+                TomatoSettingsItem(
+                    title = "Private DNS (DoT)",
+                    subtitle = dnsSub,
+                    leadingIcon = R.drawable.dns_fill0,
+                    iconContainerColor = colorScheme.tertiaryContainer,
+                    iconTint = colorScheme.onTertiaryContainer,
+                    trailingContent = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Surface(
+                                shape = CircleShape,
+                                color = if (dnsStatus.mode == DnsMode.SPECIFIED_HOST) colorScheme.primaryContainer else if (dnsStatus.mode == DnsMode.OPPORTUNISTIC) colorScheme.secondaryContainer else colorScheme.surfaceContainerLowest
+                            ) {
+                                Text(
+                                    text = when (dnsStatus.mode) {
+                                        DnsMode.OFF -> "Off"
+                                        DnsMode.OPPORTUNISTIC -> "Auto"
+                                        DnsMode.SPECIFIED_HOST -> "Custom"
+                                    },
+                                    style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = if (dnsStatus.mode == DnsMode.SPECIFIED_HOST) colorScheme.onPrimaryContainer else if (dnsStatus.mode == DnsMode.OPPORTUNISTIC) colorScheme.onSecondaryContainer else colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                )
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Icon(
+                                painter = painterResource(R.drawable.arrow_forward_big),
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = colorScheme.onSurfaceVariant
+                            )
+                        }
+                    },
+                    shape = segmentedItemShape(0, 2),
+                    onClick = {
+                        dnsStatus = DnsManager.getCurrentDns(context)
+                        showDnsSheet = true
                     }
-                }
-                Spacer(Modifier.width(16.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = "Private DNS",
-                        style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = colorScheme.onSurface
-                    )
-                    val dnsSub = when (dnsStatus.mode) {
-                        DnsMode.OFF -> "Disabled (Standard ISP DNS)"
-                        DnsMode.OPPORTUNISTIC -> "Automatic (Opportunistic)"
-                        DnsMode.SPECIFIED_HOST -> dnsStatus.host ?: "Custom Host"
+                )
+
+                // 2. Stealth Mode
+                TomatoSettingsItem(
+                    title = "Stealth Mode (App Concealment)",
+                    subtitle = if (isAppHidden) "Hidden • Dial *#*#$dialerCode#*#*" else "Visible • Dial code: *#*#$dialerCode#*#*",
+                    leadingIcon = if (isAppHidden) R.drawable.visibility_off_fill0 else R.drawable.call_fill0,
+                    iconContainerColor = if (isAppHidden) colorScheme.errorContainer else colorScheme.surfaceContainerLowest,
+                    iconTint = if (isAppHidden) colorScheme.onErrorContainer else colorScheme.primary,
+                    trailingContent = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Surface(
+                                shape = CircleShape,
+                                color = if (isAppHidden) colorScheme.errorContainer else colorScheme.surfaceContainerHighest
+                            ) {
+                                Text(
+                                    text = if (isAppHidden) "Hidden" else "Visible",
+                                    style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = if (isAppHidden) colorScheme.onErrorContainer else colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                )
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Icon(
+                                painter = painterResource(R.drawable.arrow_forward_big),
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = colorScheme.onSurfaceVariant
+                            )
+                        }
+                    },
+                    shape = segmentedItemShape(1, 2),
+                    onClick = {
+                        isAppHidden = StealthUtils.isAppHidden(context)
+                        dialerCode = StealthUtils.getDialerCode(context)
+                        showStealthSheet = true
                     }
-                    Text(
-                        text = dnsSub,
-                        style = typography.bodySmall,
-                        color = colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                Surface(
-                    shape = CircleShape,
-                    color = if (dnsStatus.mode == DnsMode.SPECIFIED_HOST) colorScheme.primaryContainer else if (dnsStatus.mode == DnsMode.OPPORTUNISTIC) colorScheme.secondaryContainer else colorScheme.surfaceContainerLowest
-                ) {
-                    Text(
-                        text = when (dnsStatus.mode) {
-                            DnsMode.OFF -> "Off"
-                            DnsMode.OPPORTUNISTIC -> "Auto"
-                            DnsMode.SPECIFIED_HOST -> "Custom"
-                        },
-                        style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        color = if (dnsStatus.mode == DnsMode.SPECIFIED_HOST) colorScheme.onPrimaryContainer else if (dnsStatus.mode == DnsMode.OPPORTUNISTIC) colorScheme.onSecondaryContainer else colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                    )
-                }
+                )
             }
-        }
 
-        // Section 4: Stealth Mode (Hide Brik) Card
-        ElevatedCard(
-            onClick = {
-                isAppHidden = StealthUtils.isAppHidden(context)
-                dialerCode = StealthUtils.getDialerCode(context)
-                showStealthSheet = true
-            },
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.elevatedCardColors(
-                containerColor = colorScheme.surfaceContainerHigh
-            ),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = if (isAppHidden) colorScheme.errorContainer else colorScheme.surfaceContainerLowest,
-                    modifier = Modifier.size(52.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            painter = painterResource(if (isAppHidden) R.drawable.visibility_off_fill0 else R.drawable.call_fill0),
-                            contentDescription = null,
-                            tint = if (isAppHidden) colorScheme.onErrorContainer else colorScheme.primary,
-                            modifier = Modifier.size(26.dp)
-                        )
-                    }
-                }
-                Spacer(Modifier.width(16.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = "Stealth Mode (Hide Brik)",
-                        style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = colorScheme.onSurface
-                    )
-                    Text(
-                        text = if (isAppHidden) "Hidden • Dial *#*#$dialerCode#*#*" else "Visible • Dial code: *#*#$dialerCode#*#*",
-                        style = typography.bodySmall,
-                        color = colorScheme.onSurfaceVariant
-                    )
-                }
-                Surface(
-                    shape = CircleShape,
-                    color = if (isAppHidden) colorScheme.errorContainer else colorScheme.surfaceContainerLowest
-                ) {
-                    Text(
-                        text = if (isAppHidden) "Hidden" else "Visible",
-                        style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        color = if (isAppHidden) colorScheme.onErrorContainer else colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                    )
-                }
-            }
+            Spacer(Modifier.height(130.dp))
         }
-
-        Spacer(Modifier.height(130.dp))
     }
-}
 
     // --- App Manager Bottom Sheet ---
     if (showAppManagerSheet) {

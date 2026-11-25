@@ -64,8 +64,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hotaro.brik.R
 import com.hotaro.brik.data.model.BagLock
 import com.hotaro.brik.data.model.KeyType
+import androidx.compose.runtime.rememberCoroutineScope
 import com.hotaro.brik.ui.component.QrScannerView
+import com.hotaro.brik.ui.component.RoundedPullRefreshPage
 import com.hotaro.brik.ui.viewmodel.KeyViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,12 +77,14 @@ fun KeyScreen(
     keyViewModel: KeyViewModel = viewModel()
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var isUnlockPillVisible by remember { mutableStateOf(false) }
     var showUnlockSheet by remember { mutableStateOf(false) }
     var selectedLockForUnlock by remember { mutableStateOf<BagLock?>(null) }
     var passwordInput by remember { mutableStateOf("") }
     var showPasswordDialog by remember { mutableStateOf(false) }
     var showQrScannerDialog by remember { mutableStateOf(false) }
+    var isRefreshing by remember { mutableStateOf(false) }
 
     val activeLocks by keyViewModel.activeLocks.collectAsState()
 
@@ -89,15 +94,46 @@ fun KeyScreen(
         label = "keyScale"
     )
 
-    Box(
-        modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+    RoundedPullRefreshPage(
+        isRefreshing = isRefreshing,
+        onRefresh = {
+            coroutineScope.launch {
+                isRefreshing = true
+                kotlinx.coroutines.delay(650)
+                isRefreshing = false
+            }
+        },
+        topBar = {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Key",
+                    style = typography.headlineMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 28.sp,
+                        letterSpacing = (-0.5).sp
+                    ),
+                    color = colorScheme.onSurface
+                )
+            }
+        }
+    ) { innerPadding ->
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(bottom = 96.dp),
+            contentAlignment = Alignment.Center
         ) {
-            // Tappable Key Icon Surface
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                // Tappable Key Icon Surface
             Surface(
                 shape = CircleShape,
                 color = if (isUnlockPillVisible) colorScheme.primaryContainer else colorScheme.surfaceContainerHigh,
@@ -177,6 +213,7 @@ fun KeyScreen(
             }
         }
     }
+}
 
     // --- Unlock Drawer (Bottom Sheet) ---
     if (showUnlockSheet) {

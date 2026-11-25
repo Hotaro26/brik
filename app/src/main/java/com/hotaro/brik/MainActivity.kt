@@ -135,8 +135,8 @@ fun BrikMainScreen() {
         ),
         FloatingNavItem(
             label = "Tools",
-            selectedIcon = painterResource(R.drawable.backpack_fill0),
-            unselectedIcon = painterResource(R.drawable.backpack_fill0)
+            selectedIcon = painterResource(R.drawable.tools_fill0),
+            unselectedIcon = painterResource(R.drawable.tools_outlined)
         ),
         FloatingNavItem(
             label = "Settings",
