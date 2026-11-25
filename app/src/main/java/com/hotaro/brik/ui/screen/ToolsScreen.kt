@@ -189,6 +189,8 @@ fun ToolsScreen(
                 }
             }
         }
+
+        Spacer(Modifier.height(130.dp))
     }
 
     // --- App Manager Bottom Sheet ---

@@ -100,27 +100,31 @@ fun BrikMainScreen() {
                 ),
                 modifier = Modifier.statusBarsPadding()
             )
-        },
-        bottomBar = {
-            BrikFloatingNavBar(
-                items = navItems,
-                selectedIndex = selectedIndex,
-                onItemSelected = { selectedIndex = it }
-            )
         }
     ) { innerPadding ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                .padding(top = innerPadding.calculateTopPadding())
         ) {
-            Crossfade(targetState = selectedIndex, label = "tab_transition") { tab ->
+            Crossfade(
+                targetState = selectedIndex,
+                label = "tab_transition",
+                modifier = Modifier.fillMaxSize()
+            ) { tab ->
                 when (tab) {
                     0 -> KeyScreen()
                     1 -> ToolsScreen()
                     2 -> SettingsScreen()
                 }
             }
+
+            BrikFloatingNavBar(
+                items = navItems,
+                selectedIndex = selectedIndex,
+                onItemSelected = { selectedIndex = it },
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
         }
     }
 }

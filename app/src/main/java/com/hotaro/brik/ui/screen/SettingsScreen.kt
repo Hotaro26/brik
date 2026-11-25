@@ -471,7 +471,7 @@ fun SettingsScreen(
             }
         }
 
-        Spacer(Modifier.height(80.dp))
+        Spacer(Modifier.height(130.dp))
     }
 
     // --- APP BLOCKING SHEET ---
