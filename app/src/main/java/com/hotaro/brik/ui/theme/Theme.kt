@@ -71,7 +71,7 @@ private val DarkColorScheme = darkColorScheme(
 @Composable
 fun BrikTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
@@ -89,6 +89,7 @@ fun BrikTheme(
             val window = (context as? Activity)?.window
             if (window != null) {
                 WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+                window.decorView.setBackgroundColor(if (darkTheme) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
             }
         }
     }

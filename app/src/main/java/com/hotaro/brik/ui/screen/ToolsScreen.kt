@@ -3,6 +3,8 @@ package com.hotaro.brik.ui.screen
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
@@ -24,8 +26,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -74,10 +78,13 @@ import com.hotaro.brik.R
 import com.hotaro.brik.data.model.AppBag
 import com.hotaro.brik.data.model.AppInfo
 import com.hotaro.brik.data.model.KeyType
+import com.hotaro.brik.policy.DnsManager
+import com.hotaro.brik.policy.DnsMode
 import com.hotaro.brik.ui.component.QrScannerView
 import com.hotaro.brik.ui.viewmodel.KeyViewModel
 import com.hotaro.brik.ui.viewmodel.ToolsViewModel
 import com.hotaro.brik.util.QrUtils
+import com.hotaro.brik.util.StealthUtils
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -95,6 +102,12 @@ fun ToolsScreen(
     var showBagsSheet by remember { mutableStateOf(false) }
     var showCreateBagDialog by remember { mutableStateOf(false) }
     var bagToLock by remember { mutableStateOf<AppBag?>(null) }
+    var showDnsSheet by remember { mutableStateOf(false) }
+    var showStealthSheet by remember { mutableStateOf(false) }
+
+    var dnsStatus by remember { mutableStateOf(DnsManager.getCurrentDns(context)) }
+    var isAppHidden by remember { mutableStateOf(StealthUtils.isAppHidden(context)) }
+    var dialerCode by remember { mutableStateOf(StealthUtils.getDialerCode(context)) }
 
     val bags by viewModel.bags.collectAsState()
     val installedApps by viewModel.installedApps.collectAsState()
@@ -106,10 +119,13 @@ fun ToolsScreen(
 
     val appManagerSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val bagsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val dnsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val stealthSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     Column(
         modifier = modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -204,6 +220,136 @@ fun ToolsScreen(
                         text = if (bags.isNotEmpty()) "${bags.size} bags (${activeLocks.size} active)" else "Pack apps into custom bundles",
                         style = typography.bodySmall,
                         color = colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+
+        // Section 3: Private DNS (DoT) Card
+        ElevatedCard(
+            onClick = {
+                dnsStatus = DnsManager.getCurrentDns(context)
+                showDnsSheet = true
+            },
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.elevatedCardColors(
+                containerColor = colorScheme.surfaceContainerHigh
+            ),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = colorScheme.tertiaryContainer,
+                    modifier = Modifier.size(52.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            painter = painterResource(R.drawable.dns_fill0),
+                            contentDescription = null,
+                            tint = colorScheme.onTertiaryContainer,
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+                }
+                Spacer(Modifier.width(16.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = "Private DNS",
+                        style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = colorScheme.onSurface
+                    )
+                    val dnsSub = when (dnsStatus.mode) {
+                        DnsMode.OFF -> "Disabled (Standard ISP DNS)"
+                        DnsMode.OPPORTUNISTIC -> "Automatic (Opportunistic)"
+                        DnsMode.SPECIFIED_HOST -> dnsStatus.host ?: "Custom Host"
+                    }
+                    Text(
+                        text = dnsSub,
+                        style = typography.bodySmall,
+                        color = colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Surface(
+                    shape = CircleShape,
+                    color = if (dnsStatus.mode == DnsMode.SPECIFIED_HOST) colorScheme.primaryContainer else if (dnsStatus.mode == DnsMode.OPPORTUNISTIC) colorScheme.secondaryContainer else colorScheme.surfaceContainerLowest
+                ) {
+                    Text(
+                        text = when (dnsStatus.mode) {
+                            DnsMode.OFF -> "Off"
+                            DnsMode.OPPORTUNISTIC -> "Auto"
+                            DnsMode.SPECIFIED_HOST -> "Custom"
+                        },
+                        style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = if (dnsStatus.mode == DnsMode.SPECIFIED_HOST) colorScheme.onPrimaryContainer else if (dnsStatus.mode == DnsMode.OPPORTUNISTIC) colorScheme.onSecondaryContainer else colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
+            }
+        }
+
+        // Section 4: Stealth Mode (Hide Brik) Card
+        ElevatedCard(
+            onClick = {
+                isAppHidden = StealthUtils.isAppHidden(context)
+                dialerCode = StealthUtils.getDialerCode(context)
+                showStealthSheet = true
+            },
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.elevatedCardColors(
+                containerColor = colorScheme.surfaceContainerHigh
+            ),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = if (isAppHidden) colorScheme.errorContainer else colorScheme.surfaceContainerLowest,
+                    modifier = Modifier.size(52.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            painter = painterResource(if (isAppHidden) R.drawable.visibility_off_fill0 else R.drawable.call_fill0),
+                            contentDescription = null,
+                            tint = if (isAppHidden) colorScheme.onErrorContainer else colorScheme.primary,
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+                }
+                Spacer(Modifier.width(16.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = "Stealth Mode (Hide Brik)",
+                        style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = colorScheme.onSurface
+                    )
+                    Text(
+                        text = if (isAppHidden) "Hidden • Dial *#*#$dialerCode#*#*" else "Visible • Dial code: *#*#$dialerCode#*#*",
+                        style = typography.bodySmall,
+                        color = colorScheme.onSurfaceVariant
+                    )
+                }
+                Surface(
+                    shape = CircleShape,
+                    color = if (isAppHidden) colorScheme.errorContainer else colorScheme.surfaceContainerLowest
+                ) {
+                    Text(
+                        text = if (isAppHidden) "Hidden" else "Visible",
+                        style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = if (isAppHidden) colorScheme.onErrorContainer else colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                     )
                 }
             }
@@ -927,6 +1073,366 @@ fun ToolsScreen(
                 },
                 shape = RoundedCornerShape(24.dp)
             )
+        }
+    }
+
+    // --- Private DNS Bottom Sheet ---
+    if (showDnsSheet) {
+        var selectedMode by remember { mutableStateOf(dnsStatus.mode) }
+        var hostInput by remember { mutableStateOf(dnsStatus.host ?: "dns.adguard-dns.com") }
+
+        ModalBottomSheet(
+            onDismissRequest = { showDnsSheet = false },
+            sheetState = dnsSheetState,
+            containerColor = colorScheme.surfaceContainerLowest,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 36.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text(
+                            text = "Private DNS",
+                            style = typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                            color = colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Route device traffic through secure encrypted DNS",
+                            style = typography.bodySmall,
+                            color = colorScheme.onSurfaceVariant
+                        )
+                    }
+                    IconButton(onClick = {
+                        coroutineScope.launch {
+                            dnsSheetState.hide()
+                            showDnsSheet = false
+                        }
+                    }) {
+                        Icon(painterResource(R.drawable.close_fill0), contentDescription = "Close")
+                    }
+                }
+
+                Spacer(Modifier.height(18.dp))
+
+                // Mode Selector Segmented Tabs
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(colorScheme.surfaceContainerHigh)
+                        .padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    listOf(
+                        DnsMode.OFF to "Off",
+                        DnsMode.OPPORTUNISTIC to "Automatic",
+                        DnsMode.SPECIFIED_HOST to "Custom DNS"
+                    ).forEach { (m, label) ->
+                        Surface(
+                            onClick = { selectedMode = m },
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (selectedMode == m) colorScheme.primaryContainer else Color.Transparent,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(40.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = label,
+                                    style = typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                                    color = if (selectedMode == m) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(18.dp))
+
+                if (selectedMode == DnsMode.SPECIFIED_HOST) {
+                    Text(
+                        text = "Quick Presets",
+                        style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        color = colorScheme.onSurface
+                    )
+                    Spacer(Modifier.height(8.dp))
+
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(vertical = 4.dp)
+                    ) {
+                        items(DnsManager.PRESETS) { preset ->
+                            val isSelected = hostInput.trim().equals(preset.host, ignoreCase = true)
+                            Surface(
+                                onClick = { hostInput = preset.host },
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isSelected) colorScheme.primaryContainer else colorScheme.surfaceContainerHigh,
+                                modifier = Modifier.height(36.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier.padding(horizontal = 12.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = preset.name,
+                                        style = typography.labelMedium.copy(fontWeight = FontWeight.Medium),
+                                        color = if (isSelected) colorScheme.onPrimaryContainer else colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+
+                    OutlinedTextField(
+                        value = hostInput,
+                        onValueChange = { hostInput = it },
+                        label = { Text("DNS Provider Hostname") },
+                        placeholder = { Text("e.g. dns.adguard-dns.com") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "Android will establish an encrypted TLS connection directly to this DNS provider host.",
+                        style = typography.bodySmall,
+                        color = colorScheme.onSurfaceVariant
+                    )
+                } else if (selectedMode == DnsMode.OPPORTUNISTIC) {
+                    Text(
+                        text = "Automatic mode will attempt to use encrypted DNS with your existing network's servers when available.",
+                        style = typography.bodySmall,
+                        color = colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    Text(
+                        text = "Private DNS is turned off. Your ISP's standard unencrypted DNS will be used.",
+                        style = typography.bodySmall,
+                        color = colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Spacer(Modifier.height(24.dp))
+
+                Button(
+                    onClick = {
+                        val (ok, msg) = DnsManager.setDns(context, selectedMode, hostInput)
+                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                        if (ok) {
+                            dnsStatus = DnsManager.getCurrentDns(context)
+                            coroutineScope.launch {
+                                dnsSheetState.hide()
+                                showDnsSheet = false
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Apply DNS Settings")
+                }
+            }
+        }
+    }
+
+    // --- Stealth Mode Bottom Sheet ---
+    if (showStealthSheet) {
+        var tempCode by remember { mutableStateOf(dialerCode) }
+
+        ModalBottomSheet(
+            onDismissRequest = { showStealthSheet = false },
+            sheetState = stealthSheetState,
+            containerColor = colorScheme.surfaceContainerLowest,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 36.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text(
+                            text = "Stealth Mode",
+                            style = typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                            color = colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Hide Brik icon & reopen via Phone dialer",
+                            style = typography.bodySmall,
+                            color = colorScheme.onSurfaceVariant
+                        )
+                    }
+                    IconButton(onClick = {
+                        coroutineScope.launch {
+                            stealthSheetState.hide()
+                            showStealthSheet = false
+                        }
+                    }) {
+                        Icon(painterResource(R.drawable.close_fill0), contentDescription = "Close")
+                    }
+                }
+
+                Spacer(Modifier.height(18.dp))
+
+                // Toggle Card
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = colorScheme.surfaceContainerHigh,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(18.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                text = "Hide Brik from Launcher",
+                                style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = colorScheme.onSurface
+                            )
+                            Text(
+                                text = if (isAppHidden) "App icon is currently hidden" else "App icon is visible in launcher drawer",
+                                style = typography.bodySmall,
+                                color = if (isAppHidden) colorScheme.error else colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = isAppHidden,
+                            onCheckedChange = { hide ->
+                                StealthUtils.setAppHidden(context, hide)
+                                isAppHidden = StealthUtils.isAppHidden(context)
+                                Toast.makeText(
+                                    context,
+                                    if (hide) "Brik icon hidden! Dial *#*#$dialerCode#*#* to open." else "Brik icon restored to launcher.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(20.dp))
+
+                // Dialer Code Card
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = colorScheme.surfaceContainerHigh,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(18.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Dialer Secret Code",
+                            style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = colorScheme.onSurface
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = "To open Brik while hidden, open your Phone dialer and type:",
+                            style = typography.bodySmall,
+                            color = colorScheme.onSurfaceVariant,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+
+                        Spacer(Modifier.height(12.dp))
+
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = colorScheme.primaryContainer,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "*#*#$dialerCode#*#*",
+                                style = typography.headlineSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace,
+                                    letterSpacing = 2.sp
+                                ),
+                                color = colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                            )
+                        }
+
+                        Spacer(Modifier.height(16.dp))
+
+                        OutlinedTextField(
+                            value = tempCode,
+                            onValueChange = { input ->
+                                tempCode = input.filter { it.isDigit() }
+                            },
+                            label = { Text("Change Code (digits only)") },
+                            placeholder = { Text("e.g. 2745") },
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Spacer(Modifier.height(10.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    if (tempCode.isNotBlank()) {
+                                        StealthUtils.setDialerCode(context, tempCode)
+                                        dialerCode = StealthUtils.getDialerCode(context)
+                                        Toast.makeText(context, "Secret code saved to *#*#$dialerCode#*#*", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Save Code")
+                            }
+
+                            Button(
+                                onClick = {
+                                    val dialIntent = Intent(Intent.ACTION_DIAL).apply {
+                                        data = Uri.parse("tel:*#*#$dialerCode#*#*")
+                                    }
+                                    try {
+                                        context.startActivity(dialIntent)
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "Dial *#*#$dialerCode#*#* in Phone app", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Test in Dialer")
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
