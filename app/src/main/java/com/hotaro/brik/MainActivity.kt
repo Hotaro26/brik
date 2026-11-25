@@ -52,6 +52,8 @@ import com.hotaro.brik.ui.screen.AppManagerWindow
 import com.hotaro.brik.ui.screen.BagsWindow
 import com.hotaro.brik.ui.screen.KeyScreen
 import com.hotaro.brik.ui.screen.KeysWindow
+import com.hotaro.brik.ui.screen.ModesWindow
+import com.hotaro.brik.ui.screen.RoutinesWindow
 import com.hotaro.brik.ui.screen.SettingsScreen
 import com.hotaro.brik.ui.screen.ToolsScreen
 import com.hotaro.brik.ui.theme.ThemePreferences
@@ -208,7 +210,9 @@ fun BrikMainScreen() {
                         0 -> KeyScreen()
                         1 -> ToolsScreen(
                             onNavigateToAppManager = { onNavigateToSubScreen("app_manager") },
-                            onNavigateToBags = { onNavigateToSubScreen("bags") }
+                            onNavigateToBags = { onNavigateToSubScreen("bags") },
+                            onNavigateToRoutines = { onNavigateToSubScreen("routines") },
+                            onNavigateToModes = { onNavigateToSubScreen("modes") }
                         )
                         2 -> SettingsScreen(onNavigateToKeys = { onNavigateToSubScreen("keys") })
                     }
@@ -223,7 +227,7 @@ fun BrikMainScreen() {
             }
         }
 
-        // Top layer: Sub-screen (KeysWindow, AppManagerWindow, BagsWindow) with predictive slide transition
+        // Top layer: Sub-screen (KeysWindow, AppManagerWindow, BagsWindow, RoutinesWindow, ModesWindow) with predictive slide transition
         if (isSubScreenVisible) {
             val keyOffsetX = screenWidthPx * p
             val keyScale = 1f - (p * 0.05f)
@@ -247,6 +251,8 @@ fun BrikMainScreen() {
                     "keys" -> KeysWindow(onBack = onBackFromSubScreen)
                     "app_manager" -> AppManagerWindow(onBack = onBackFromSubScreen)
                     "bags" -> BagsWindow(onBack = onBackFromSubScreen)
+                    "routines" -> RoutinesWindow(onBack = onBackFromSubScreen)
+                    "modes" -> ModesWindow(onBack = onBackFromSubScreen)
                 }
             }
         }

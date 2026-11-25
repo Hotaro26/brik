@@ -37,27 +37,6 @@ object DnsManager {
     )
 
     fun getCurrentDns(context: Context): DnsStatus {
-        val dpm = context.getSystemService(DevicePolicyManager::class.java)
-        val isDeviceOwner = dpm?.isDeviceOwnerApp(context.packageName) == true
-        val dar = BrikAdminReceiver.getComponentName(context)
-
-        if (isDeviceOwner && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            try {
-                val dpmMode = dpm.getGlobalPrivateDnsMode(dar)
-                val dpmHost = dpm.getGlobalPrivateDnsHost(dar)
-                val mode = when (dpmMode) {
-                    DevicePolicyManager.PRIVATE_DNS_MODE_OFF -> DnsMode.OFF
-                    DevicePolicyManager.PRIVATE_DNS_MODE_OPPORTUNISTIC -> DnsMode.OPPORTUNISTIC
-                    DevicePolicyManager.PRIVATE_DNS_MODE_PROVIDER_HOSTNAME -> DnsMode.SPECIFIED_HOST
-                    else -> DnsMode.OPPORTUNISTIC
-                }
-                return DnsStatus(mode, dpmHost)
-            } catch (e: Throwable) {
-                // fallback to Settings.Global
-            }
-        }
-
-        // Fallback to reading system settings directly
         return try {
             val modeStr = Settings.Global.getString(context.contentResolver, "private_dns_mode") ?: "opportunistic"
             val hostStr = Settings.Global.getString(context.contentResolver, "private_dns_specifier")
@@ -77,53 +56,100 @@ object DnsManager {
         val isDeviceOwner = dpm?.isDeviceOwnerApp(context.packageName) == true
         val dar = BrikAdminReceiver.getComponentName(context)
 
-        // Try Device Owner (DPM) first
+        // 1. Try Device Owner (DPM)
         if (isDeviceOwner) {
             try {
-                return when (mode) {
+                when (mode) {
                     DnsMode.OFF -> {
                         dpm.setGlobalSetting(dar, "private_dns_mode", "off")
-                        true to "Private DNS turned off"
+                        return true to "Private DNS turned off"
                     }
                     DnsMode.OPPORTUNISTIC -> {
-                        val result = dpm.setGlobalPrivateDnsModeOpportunistic(dar)
-                        if (result == DevicePolicyManager.PRIVATE_DNS_SET_NO_ERROR) {
-                            true to "Automatic DNS enabled"
-                        } else {
-                            false to "Failed to set Automatic DNS"
-                        }
+                        dpm.setGlobalSetting(dar, "private_dns_mode", "opportunistic")
+                        try {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                dpm.setGlobalPrivateDnsModeOpportunistic(dar)
+                            }
+                        } catch (e: Throwable) { }
+                        return true to "Automatic DNS enabled"
                     }
                     DnsMode.SPECIFIED_HOST -> {
                         val host = hostname?.trim() ?: ""
                         if (host.isEmpty()) return false to "Hostname cannot be empty"
-                        val result = dpm.setGlobalPrivateDnsModeSpecifiedHost(dar, host)
-                        when (result) {
-                            DevicePolicyManager.PRIVATE_DNS_SET_NO_ERROR -> true to "Custom DNS set to $host"
-                            DevicePolicyManager.PRIVATE_DNS_SET_ERROR_HOST_NOT_SERVING -> false to "DNS host does not support DNS-over-TLS (DoT)"
-                            DevicePolicyManager.PRIVATE_DNS_SET_ERROR_FAILURE_SETTING -> false to "Failed to set Private DNS"
-                            else -> true to "DNS mode updated"
-                        }
+
+                        dpm.setGlobalSetting(dar, "private_dns_specifier", host)
+                        dpm.setGlobalSetting(dar, "private_dns_mode", "hostname")
+
+                        try {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                dpm.setGlobalPrivateDnsModeSpecifiedHost(dar, host)
+                            }
+                        } catch (e: Throwable) { }
+
+                        return true to "Custom DNS set to $host"
                     }
                 }
             } catch (e: Throwable) {
-                // Continue to shell fallback
+                e.printStackTrace()
             }
         }
 
-        // Fallback via Root shell
+        // 2. Try Dhizuku
+        try {
+            val dhizukuInstalled = com.rosan.dhizuku.api.Dhizuku.init(context)
+            if (dhizukuInstalled && com.rosan.dhizuku.api.Dhizuku.isPermissionGranted()) {
+                val dhizukuDpm = PolicyBridgeManager.getDhizukuDpm(context)
+                val owner = com.rosan.dhizuku.api.Dhizuku.getOwnerComponent()
+                when (mode) {
+                    DnsMode.OFF -> {
+                        dhizukuDpm.setGlobalSetting(owner, "private_dns_mode", "off")
+                        return true to "Private DNS turned off"
+                    }
+                    DnsMode.OPPORTUNISTIC -> {
+                        dhizukuDpm.setGlobalSetting(owner, "private_dns_mode", "opportunistic")
+                        return true to "Automatic DNS enabled"
+                    }
+                    DnsMode.SPECIFIED_HOST -> {
+                        val host = hostname?.trim() ?: ""
+                        if (host.isEmpty()) return false to "Hostname cannot be empty"
+                        dhizukuDpm.setGlobalSetting(owner, "private_dns_specifier", host)
+                        dhizukuDpm.setGlobalSetting(owner, "private_dns_mode", "hostname")
+                        return true to "Custom DNS set to $host"
+                    }
+                }
+            }
+        } catch (e: Throwable) {
+            e.printStackTrace()
+        }
+
+        // 3. Fallback via Shizuku ADB or Root shell
         val cmd = when (mode) {
             DnsMode.OFF -> "settings put global private_dns_mode off"
             DnsMode.OPPORTUNISTIC -> "settings put global private_dns_mode opportunistic"
             DnsMode.SPECIFIED_HOST -> {
                 val host = hostname?.trim() ?: ""
                 if (host.isEmpty()) return false to "Hostname cannot be empty"
-                "settings put global private_dns_mode hostname && settings put global private_dns_specifier '$host'"
+                "settings put global private_dns_specifier '$host' && settings put global private_dns_mode hostname"
             }
         }
 
         val success = try {
             if (Shell.isAppGrantedRoot() == true) {
                 Shell.cmd(cmd).exec().isSuccess
+            } else if (rikka.shizuku.Shizuku.pingBinder() && rikka.shizuku.Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                try {
+                    val method = rikka.shizuku.Shizuku::class.java.getDeclaredMethod(
+                        "newProcess",
+                        Array<String>::class.java,
+                        Array<String>::class.java,
+                        String::class.java
+                    )
+                    method.isAccessible = true
+                    val process = method.invoke(null, arrayOf("sh", "-c", cmd), null, null) as Process
+                    process.waitFor() == 0
+                } catch (e: Throwable) {
+                    false
+                }
             } else {
                 false
             }
@@ -134,7 +160,7 @@ object DnsManager {
         return if (success) {
             true to "Private DNS updated successfully"
         } else {
-            false to "Cannot configure DNS: requires Device Owner or Root"
+            false to "Cannot configure DNS: requires Device Owner, Dhizuku, Shizuku, or Root"
         }
     }
 }

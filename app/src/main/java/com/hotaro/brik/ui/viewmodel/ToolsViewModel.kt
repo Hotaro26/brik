@@ -31,16 +31,18 @@ class ToolsViewModel(application: Application) : AndroidViewModel(application) {
     val isLoadingApps: StateFlow<Boolean> = _isLoadingApps.asStateFlow()
 
     val searchQuery = MutableStateFlow("")
+    val showSystemApps = MutableStateFlow(false)
 
     private val _selectedPackages = MutableStateFlow<Set<String>>(emptySet())
     val selectedPackages: StateFlow<Set<String>> = _selectedPackages.asStateFlow()
 
-    val filteredApps: StateFlow<List<AppInfo>> = combine(_installedApps, searchQuery) { apps, query ->
+    val filteredApps: StateFlow<List<AppInfo>> = combine(_installedApps, searchQuery, showSystemApps) { apps, query, includeSystem ->
+        val baseList = if (includeSystem) apps else apps.filter { !it.isSystemApp }
         if (query.isBlank()) {
-            apps
+            baseList
         } else {
             val q = query.trim().lowercase()
-            apps.filter {
+            baseList.filter {
                 it.label.lowercase().contains(q) || it.packageName.lowercase().contains(q)
             }
         }

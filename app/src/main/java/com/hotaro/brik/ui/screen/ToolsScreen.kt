@@ -98,6 +98,8 @@ fun ToolsScreen(
     modifier: Modifier = Modifier,
     onNavigateToAppManager: () -> Unit = {},
     onNavigateToBags: () -> Unit = {},
+    onNavigateToRoutines: () -> Unit = {},
+    onNavigateToModes: () -> Unit = {},
     viewModel: ToolsViewModel = viewModel(),
     keyViewModel: KeyViewModel = viewModel()
 ) {
@@ -204,7 +206,53 @@ fun ToolsScreen(
                 )
             }
 
-            // --- SECTION 2: PRIVACY & NETWORK ---
+            // --- SECTION 2: ROUTINES ---
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                TomatoSectionHeader(title = "ROUTINES")
+
+                TomatoSettingsItem(
+                    title = "Automated Routines",
+                    subtitle = "Scheduled locks, intervals & smart triggers",
+                    leadingIcon = R.drawable.schedule_fill0,
+                    iconContainerColor = colorScheme.tertiaryContainer,
+                    iconTint = colorScheme.onTertiaryContainer,
+                    trailingContent = {
+                        Icon(
+                            painter = painterResource(R.drawable.arrow_forward_big),
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = colorScheme.onSurfaceVariant
+                        )
+                    },
+                    shape = segmentedItemShape(0, 1),
+                    onClick = onNavigateToRoutines
+                )
+            }
+
+            // --- SECTION 3: MODES ---
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                TomatoSectionHeader(title = "MODES")
+
+                TomatoSettingsItem(
+                    title = "Focus Modes",
+                    subtitle = "Deep work, study & sleep restriction profiles",
+                    leadingIcon = R.drawable.mode_fill0,
+                    iconContainerColor = colorScheme.primaryContainer,
+                    iconTint = colorScheme.onPrimaryContainer,
+                    trailingContent = {
+                        Icon(
+                            painter = painterResource(R.drawable.arrow_forward_big),
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = colorScheme.onSurfaceVariant
+                        )
+                    },
+                    shape = segmentedItemShape(0, 1),
+                    onClick = onNavigateToModes
+                )
+            }
+
+            // --- SECTION 4: PRIVACY & NETWORK ---
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 TomatoSectionHeader(title = "PRIVACY & NETWORK")
 
