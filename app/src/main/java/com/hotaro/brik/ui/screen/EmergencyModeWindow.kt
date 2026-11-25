@@ -72,6 +72,7 @@ fun EmergencyModeWindow(
     val isEmergencyActive by EmergencyManager.isEmergencyModeActive.collectAsState()
     val hasEmergencyKey by EmergencyManager.hasEmergencyKey.collectAsState()
     val autoDeactivateOnLock by EmergencyManager.autoDeactivateOnScreenLock.collectAsState()
+    val allowCommonKeyDpm by EmergencyManager.allowCommonKeyDpm.collectAsState()
     val savedKeys by keyViewModel.savedKeys.collectAsState()
 
     var showSetKeyDialog by remember { mutableStateOf(false) }
@@ -343,6 +344,109 @@ fun EmergencyModeWindow(
                         style = typography.bodySmall,
                         color = colorScheme.onSurfaceVariant
                     )
+                }
+            }
+
+            // --- Section: Common Key & DPM Override ---
+            TomatoSectionHeader(title = "COMMON KEY & DPM OVERRIDE")
+            ElevatedCard(
+                shape = RoundedCornerShape(20.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(colorScheme.surfaceContainerHigh)
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = colorScheme.secondaryContainer,
+                                modifier = Modifier.size(38.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.shield_fill0),
+                                        contentDescription = null,
+                                        tint = colorScheme.onSecondaryContainer,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "Common Key & Disable DPM",
+                                    style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Unlock emergency mode & disable DPM with common key",
+                                    style = typography.bodySmall,
+                                    color = colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        Switch(
+                            checked = allowCommonKeyDpm,
+                            onCheckedChange = { enabled ->
+                                view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                EmergencyManager.setAllowCommonKeyDpm(context, enabled)
+                                Toast.makeText(
+                                    context,
+                                    if (enabled) "Common key & DPM override enabled" else "Common key & DPM override disabled",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        )
+                    }
+
+                    Text(
+                        text = "When enabled, any configured protection key can unlock emergency mode, and Device Owner (DPM) can be deactivated directly during an active emergency session.",
+                        style = typography.bodySmall,
+                        color = colorScheme.onSurfaceVariant
+                    )
+
+                    if (isEmergencyActive && allowCommonKeyDpm) {
+                        Spacer(Modifier.height(4.dp))
+                        OutlinedButton(
+                            onClick = {
+                                val res = com.hotaro.brik.policy.PolicyBridgeManager.clearDeviceOwner(context)
+                                keyViewModel.removeDpmUninstallLock()
+                                if (res.isSuccess) {
+                                    Toast.makeText(context, "Device Owner (DPM) disabled successfully", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "DPM status updated", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.delete_fill0),
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = colorScheme.error
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "Disable Device Owner (DPM) Now",
+                                color = colorScheme.error,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
             }
 

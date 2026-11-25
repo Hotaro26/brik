@@ -2,6 +2,7 @@ package com.hotaro.brik.util
 
 import android.content.Context
 import com.hotaro.brik.data.model.KeyType
+import com.hotaro.brik.data.repository.KeyRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -14,6 +15,7 @@ object EmergencyManager {
     private const val KEY_EMERGENCY_SECRET_HASH = "pref_emergency_secret_hash"
     private const val KEY_EMERGENCY_QR_TOKEN = "pref_emergency_qr_token"
     private const val KEY_AUTO_DEACTIVATE_SCREEN_LOCK = "pref_auto_deactivate_screen_lock"
+    private const val KEY_ALLOW_COMMON_KEY_DPM = "pref_allow_common_key_dpm"
 
     private val _isEmergencyModeActive = MutableStateFlow(false)
     val isEmergencyModeActive: StateFlow<Boolean> = _isEmergencyModeActive.asStateFlow()
@@ -24,12 +26,16 @@ object EmergencyManager {
     private val _autoDeactivateOnScreenLock = MutableStateFlow(true)
     val autoDeactivateOnScreenLock: StateFlow<Boolean> = _autoDeactivateOnScreenLock.asStateFlow()
 
+    private val _allowCommonKeyDpm = MutableStateFlow(true)
+    val allowCommonKeyDpm: StateFlow<Boolean> = _allowCommonKeyDpm.asStateFlow()
+
     fun init(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         _isEmergencyModeActive.value = prefs.getBoolean(KEY_EMERGENCY_ACTIVE, false)
         val hash = prefs.getString(KEY_EMERGENCY_SECRET_HASH, null)
         _hasEmergencyKey.value = !hash.isNullOrBlank()
         _autoDeactivateOnScreenLock.value = prefs.getBoolean(KEY_AUTO_DEACTIVATE_SCREEN_LOCK, true)
+        _allowCommonKeyDpm.value = prefs.getBoolean(KEY_ALLOW_COMMON_KEY_DPM, true)
     }
 
     fun hasKey(context: Context): Boolean {
@@ -57,9 +63,27 @@ object EmergencyManager {
 
     fun verifyEmergencyKey(context: Context, inputSecret: String): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val expectedHash = prefs.getString(KEY_EMERGENCY_SECRET_HASH, null) ?: return false
+        val expectedHash = prefs.getString(KEY_EMERGENCY_SECRET_HASH, null)
         val inputHash = QrUtils.sha256(inputSecret)
-        return expectedHash.equals(inputHash, ignoreCase = true)
+        if (expectedHash != null && expectedHash.equals(inputHash, ignoreCase = true)) {
+            return true
+        }
+        if (_allowCommonKeyDpm.value) {
+            val dpmLock = KeyRepository(context).getDpmUninstallLock()
+            if (dpmLock != null && dpmLock.secretHash.equals(inputHash, ignoreCase = true)) {
+                return true
+            }
+            if (ZenManager.verifySecurityKey(context, inputSecret)) {
+                return true
+            }
+        }
+        return false
+    }
+
+    fun setAllowCommonKeyDpm(context: Context, enabled: Boolean) {
+        _allowCommonKeyDpm.value = enabled
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_ALLOW_COMMON_KEY_DPM, enabled).apply()
     }
 
     fun clearEmergencyKey(context: Context) {

@@ -157,6 +157,11 @@ class KeyRepository(context: Context) {
         return _activeLocks.value.find { it.id == "dpm_uninstall_lock" }
     }
 
+    fun removeDpmUninstallLock() {
+        val updated = _activeLocks.value.filterNot { it.id == "dpm_uninstall_lock" }
+        persistLocks(updated)
+    }
+
     fun verifyDpmUninstallKey(inputSecret: String): Boolean {
         val lock = getDpmUninstallLock() ?: return true
         val inputHash = QrUtils.sha256(inputSecret)

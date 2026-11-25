@@ -173,4 +173,8 @@ class KeyViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
+
+    fun removeDpmUninstallLock() {
+        repository.removeDpmUninstallLock()
+    }
 }
