@@ -8,6 +8,12 @@ plugins {
 
 android {
     signingConfigs {
+        create("release") {
+            storeFile = file(project.findProperty("StoreFile") ?: "../keys/brik-release.jks")
+            storePassword = (project.findProperty("StorePassword") as String?) ?: "brik123"
+            keyPassword = (project.findProperty("KeyPassword") as String?) ?: "brik123"
+            keyAlias = (project.findProperty("KeyAlias") as String?) ?: "brik_key"
+        }
         create("defaultSignature") {
             storeFile = file(project.findProperty("StoreFile") ?: "testkey.jks")
             storePassword = (project.findProperty("StorePassword") as String?) ?: "testkey"
@@ -38,7 +44,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("defaultSignature")
+            signingConfig = signingConfigs.getByName("release")
         }
         debug {
             signingConfig = signingConfigs.getByName("defaultSignature")

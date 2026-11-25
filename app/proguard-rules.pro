@@ -24,3 +24,12 @@
 -dontwarn android.app.ActivityThread
 -dontwarn android.app.ContextImpl
 -dontwarn android.app.LoadedApk
+
+-keep class rikka.shizuku.** { *; }
+-keep interface rikka.shizuku.** { *; }
+-keep class com.rosan.dhizuku.** { *; }
+-keep interface com.rosan.dhizuku.** { *; }
+-keep class org.lsposed.hiddenapibypass.** { *; }
+-keep class com.google.zxing.** { *; }
+-keep class com.hotaro.brik.data.model.** { *; }
+-keepclassmembers class com.hotaro.brik.data.model.** { *; }
