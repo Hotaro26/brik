@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -1575,19 +1576,20 @@ fun SettingsScreen(
 
     // --- APP ICONS BOTTOM SHEET ---
     if (showIconSheet) {
-        val iconSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        val iconSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
         ModalBottomSheet(
             onDismissRequest = { showIconSheet = false },
             sheetState = iconSheetState,
             containerColor = colorScheme.surfaceContainerHigh,
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         ) {
             val currentAppIcon by ThemePreferences.appIcon.collectAsState()
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .fillMaxHeight(0.5f)
                     .padding(horizontal = 20.dp, vertical = 8.dp)
-                    .padding(bottom = 36.dp)
+                    .navigationBarsPadding()
             ) {
                 Text(
                     text = "App Icon",
@@ -1788,14 +1790,14 @@ fun SettingsScreen(
             onDismissRequest = { showPaletteSheet = false },
             sheetState = paletteSheetState,
             containerColor = colorScheme.surfaceContainerHigh,
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         ) {
             val currentPalette by ThemePreferences.colorPalette.collectAsState()
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 8.dp)
-                    .padding(bottom = 36.dp)
+                    .navigationBarsPadding()
             ) {
                 Text(
                     text = "Colour Scheme",
