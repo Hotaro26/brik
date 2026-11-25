@@ -336,59 +336,59 @@ fun BrikMainScreen() {
                             )
                         }
                     }
+                }
 
-                    when (navBarStyle) {
-                        NavBarStyle.FLOATING -> {
-                            BrikFloatingNavBar(
-                                items = navItems,
-                                selectedIndex = selectedIndex,
-                                onItemSelected = { selectedIndex = it },
-                                modifier = Modifier.align(Alignment.BottomCenter)
-                            )
-                        }
-                        NavBarStyle.GLASS -> {
-                            BrikGlassNavBar(
-                                items = navItems,
-                                selectedIndex = selectedIndex,
-                                onItemSelected = { selectedIndex = it },
-                                modifier = Modifier.align(Alignment.BottomCenter)
-                            )
-                        }
-                        NavBarStyle.CLASSIC -> {
-                            NavigationBar(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .align(Alignment.BottomCenter),
-                                containerColor = if (isDark) Color.Black else MaterialTheme.colorScheme.surfaceContainer,
-                                tonalElevation = 4.dp
-                            ) {
-                                navItems.forEachIndexed { index, item ->
-                                    val isSelected = selectedIndex == index
-                                    NavigationBarItem(
-                                        selected = isSelected,
-                                        onClick = { selectedIndex = index },
-                                        icon = {
-                                            Icon(
-                                                painter = if (isSelected) item.selectedIcon else item.unselectedIcon,
-                                                contentDescription = item.label,
-                                                modifier = Modifier.size(24.dp)
-                                            )
-                                        },
-                                        label = {
-                                            Text(
-                                                text = item.label,
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                            )
-                                        },
-                                        colors = NavigationBarItemDefaults.colors(
-                                            selectedIconColor = MaterialTheme.colorScheme.primary,
-                                            selectedTextColor = MaterialTheme.colorScheme.primary,
-                                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                when (navBarStyle) {
+                    NavBarStyle.FLOATING -> {
+                        BrikFloatingNavBar(
+                            items = navItems,
+                            selectedIndex = selectedIndex,
+                            onItemSelected = { selectedIndex = it },
+                            modifier = Modifier.align(Alignment.BottomCenter)
+                        )
+                    }
+                    NavBarStyle.GLASS -> {
+                        BrikGlassNavBar(
+                            items = navItems,
+                            selectedIndex = selectedIndex,
+                            onItemSelected = { selectedIndex = it },
+                            modifier = Modifier.align(Alignment.BottomCenter)
+                        )
+                    }
+                    NavBarStyle.CLASSIC -> {
+                        NavigationBar(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .align(Alignment.BottomCenter),
+                            containerColor = if (isDark) Color.Black else MaterialTheme.colorScheme.surfaceContainer,
+                            tonalElevation = 4.dp
+                        ) {
+                            navItems.forEachIndexed { index, item ->
+                                val isSelected = selectedIndex == index
+                                NavigationBarItem(
+                                    selected = isSelected,
+                                    onClick = { selectedIndex = index },
+                                    icon = {
+                                        Icon(
+                                            painter = if (isSelected) item.selectedIcon else item.unselectedIcon,
+                                            contentDescription = item.label,
+                                            modifier = Modifier.size(24.dp)
                                         )
+                                    },
+                                    label = {
+                                        Text(
+                                            text = item.label,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                        )
+                                    },
+                                    colors = NavigationBarItemDefaults.colors(
+                                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                                        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                }
+                                )
                             }
                         }
                     }
