@@ -4,29 +4,29 @@
     android:viewportWidth="24"
     android:viewportHeight="24">
 
-    <!-- Top Face -->
+    <!-- Top Face (Rectangular Brick) -->
     <path
         android:fillColor="#E55B2B"
-        android:pathData="M12,4 L20,9 L12,14 L4,9 Z" />
+        android:pathData="M10,6.5 L18,11 L14,13.5 L6,9 Z" />
 
-    <!-- Left Face -->
+    <!-- Front-Left Long Face -->
     <path
         android:fillColor="#B83E15"
-        android:pathData="M4,9 L12,14 L12,20 L4,15 Z" />
+        android:pathData="M6,9 L14,13.5 L14,17.5 L6,13 Z" />
 
-    <!-- Right Face -->
+    <!-- Front-Right Short End Face -->
     <path
         android:fillColor="#8C2A0A"
-        android:pathData="M12,14 L20,9 L20,15 L12,20 Z" />
+        android:pathData="M14,13.5 L18,11 L18,15 L14,17.5 Z" />
 
     <!-- Three Minimal Recessed Holes -->
     <path
         android:fillColor="#4A1404"
-        android:pathData="M8,6.8 L10,8 L8,9.2 L6,8 Z" />
+        android:pathData="M9.5,8.8 L10.8,9.5 L10.2,9.9 L8.9,9.2 Z" />
     <path
         android:fillColor="#4A1404"
-        android:pathData="M12,9.2 L14,10.4 L12,11.6 L10,10.4 Z" />
+        android:pathData="M11.5,9.9 L12.8,10.6 L12.2,11 L10.9,10.3 Z" />
     <path
         android:fillColor="#4A1404"
-        android:pathData="M16,11.6 L18,12.8 L16,14 L14,12.8 Z" />
+        android:pathData="M13.5,11 L14.8,11.7 L14.2,12.1 L12.9,11.4 Z" />
 </vector>

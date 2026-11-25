@@ -5,37 +5,34 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Single Minimal Isometric Brick -->
+    <!-- Single Minimal Isometric Rectangular Brick -->
     <group>
-        <!-- Top Face -->
+        <!-- Top Face (Elongated Rhombus) -->
         <path
             android:fillColor="#E55B2B"
-            android:pathData="M54,30 L78,44 L54,58 L30,44 Z" />
+            android:pathData="M44,30 L80,50 L62,60 L26,40 Z" />
 
-        <!-- Left Face -->
+        <!-- Front-Left Long Face -->
         <path
             android:fillColor="#B83E15"
-            android:pathData="M30,44 L54,58 L54,78 L30,64 Z" />
+            android:pathData="M26,40 L62,60 L62,78 L26,58 Z" />
 
-        <!-- Right Face -->
+        <!-- Front-Right Short End Face -->
         <path
             android:fillColor="#8C2A0A"
-            android:pathData="M54,58 L78,44 L78,64 L54,78 Z" />
+            android:pathData="M62,60 L80,50 L80,68 L62,78 Z" />
 
-        <!-- Three Minimal Recessed Brick Holes -->
-        <!-- Left Hole -->
+        <!-- Three Recessed Holes along Long Axis -->
         <path
             android:fillColor="#4A1404"
-            android:pathData="M42,37 L46,39.5 L42,42 L38,39.5 Z" />
+            android:pathData="M41.5,38.5 L46.5,41.5 L44,43 L39,40 Z" />
 
-        <!-- Center Hole -->
         <path
             android:fillColor="#4A1404"
-            android:pathData="M54,44 L58,46.5 L54,49 L50,46.5 Z" />
+            android:pathData="M50.5,43.5 L55.5,46.5 L53,48 L48,45 Z" />
 
-        <!-- Right Hole -->
         <path
             android:fillColor="#4A1404"
-            android:pathData="M66,51 L70,53.5 L66,56 L62,53.5 Z" />
+            android:pathData="M59.5,48.5 L64.5,51.5 L62,53 L57,50 Z" />
     </group>
 </vector>

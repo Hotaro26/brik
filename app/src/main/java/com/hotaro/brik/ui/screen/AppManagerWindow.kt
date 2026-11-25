@@ -138,12 +138,22 @@ fun AppManagerWindow(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            painter = painterResource(R.drawable.arrow_back_fill0),
-                            contentDescription = "Back",
-                            tint = colorScheme.onSurface
-                        )
+                    Surface(
+                        shape = CircleShape,
+                        color = colorScheme.secondaryContainer,
+                        modifier = Modifier
+                            .padding(start = 12.dp)
+                            .size(40.dp),
+                        onClick = onBack
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                painter = painterResource(R.drawable.arrow_back_fill0),
+                                contentDescription = "Back",
+                                tint = colorScheme.onSecondaryContainer,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 },
                 actions = {

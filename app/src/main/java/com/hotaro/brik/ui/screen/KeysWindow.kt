@@ -30,6 +30,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme.colorScheme
@@ -134,12 +135,22 @@ fun KeysWindow(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            painter = painterResource(R.drawable.arrow_back_fill0),
-                            contentDescription = "Back",
-                            tint = colorScheme.onSurface
-                        )
+                    Surface(
+                        shape = CircleShape,
+                        color = colorScheme.secondaryContainer,
+                        modifier = Modifier
+                            .padding(start = 12.dp)
+                            .size(40.dp),
+                        onClick = onBack
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                painter = painterResource(R.drawable.arrow_back_fill0),
+                                contentDescription = "Back",
+                                tint = colorScheme.onSecondaryContainer,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -260,7 +271,7 @@ fun KeysWindow(
                     }
                 }
             } else {
-                items(savedKeys, key = { it.id }) { key ->
+                item {
                     ElevatedCard(
                         shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.elevatedCardColors(
@@ -268,90 +279,100 @@ fun KeysWindow(
                         ),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = colorScheme.surfaceContainerLowest,
-                                modifier = Modifier.size(48.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.qr_code_fill0),
-                                        contentDescription = null,
-                                        tint = colorScheme.primary,
-                                        modifier = Modifier.size(26.dp)
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            savedKeys.forEachIndexed { index, key ->
+                                if (index > 0) {
+                                    HorizontalDivider(
+                                        color = colorScheme.surfaceContainerHighest,
+                                        modifier = Modifier.padding(horizontal = 16.dp)
                                     )
                                 }
-                            }
-
-                            Spacer(Modifier.width(14.dp))
-
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = key.name,
-                                    style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = colorScheme.onSurface,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                if (key.description.isNotBlank()) {
-                                    Text(
-                                        text = key.description,
-                                        style = typography.bodySmall,
-                                        color = colorScheme.onSurfaceVariant,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                                val dateStr = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date(key.createdAt))
-                                Text(
-                                    text = "Saved $dateStr",
-                                    style = typography.bodySmall.copy(fontSize = 10.sp),
-                                    color = colorScheme.outline
-                                )
-                            }
-
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                IconButton(
-                                    onClick = {
-                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                        clipboard.setPrimaryClip(ClipData.newPlainText("Brik Saved Key", key.token))
-                                        Toast.makeText(context, "Key token copied!", Toast.LENGTH_SHORT).show()
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = colorScheme.surfaceContainerLowest,
+                                        modifier = Modifier.size(48.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.qr_code_fill0),
+                                                contentDescription = null,
+                                                tint = colorScheme.primary,
+                                                modifier = Modifier.size(26.dp)
+                                            )
+                                        }
                                     }
-                                ) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.content_copy_fill0),
-                                        contentDescription = "Copy Token",
-                                        tint = colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
 
-                                IconButton(
-                                    onClick = { viewSavedKey = key }
-                                ) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.qr_code_scanner_fill0),
-                                        contentDescription = "View QR",
-                                        tint = colorScheme.primary,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
+                                    Spacer(Modifier.width(14.dp))
 
-                                IconButton(
-                                    onClick = { deleteSavedKeyTarget = key }
-                                ) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.delete_fill0),
-                                        contentDescription = "Delete Key",
-                                        tint = colorScheme.error,
-                                        modifier = Modifier.size(20.dp)
-                                    )
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = key.name,
+                                            style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                            color = colorScheme.onSurface,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        if (key.description.isNotBlank()) {
+                                            Text(
+                                                text = key.description,
+                                                style = typography.bodySmall,
+                                                color = colorScheme.onSurfaceVariant,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                        val dateStr = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date(key.createdAt))
+                                        Text(
+                                            text = "Saved $dateStr",
+                                            style = typography.bodySmall.copy(fontSize = 10.sp),
+                                            color = colorScheme.outline
+                                        )
+                                    }
+
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        IconButton(
+                                            onClick = {
+                                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                                clipboard.setPrimaryClip(ClipData.newPlainText("Brik Saved Key", key.token))
+                                                Toast.makeText(context, "Key token copied!", Toast.LENGTH_SHORT).show()
+                                            }
+                                        ) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.content_copy_fill0),
+                                                contentDescription = "Copy Token",
+                                                tint = colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+
+                                        IconButton(
+                                            onClick = { viewSavedKey = key }
+                                        ) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.qr_code_scanner_fill0),
+                                                contentDescription = "View QR",
+                                                tint = colorScheme.primary,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+
+                                        IconButton(
+                                            onClick = { deleteSavedKeyTarget = key }
+                                        ) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.delete_fill0),
+                                                contentDescription = "Delete Key",
+                                                tint = colorScheme.error,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
