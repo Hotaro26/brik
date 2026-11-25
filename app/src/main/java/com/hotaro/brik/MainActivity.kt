@@ -1,5 +1,6 @@
 package com.hotaro.brik
 
+import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.BackEventCompat
 import androidx.activity.ComponentActivity
@@ -62,6 +63,7 @@ import com.hotaro.brik.ui.screen.ModesWindow
 import com.hotaro.brik.ui.screen.RoutinesWindow
 import com.hotaro.brik.ui.screen.SettingsScreen
 import com.hotaro.brik.ui.screen.ToolsScreen
+import com.hotaro.brik.util.StealthUtils
 import com.hotaro.brik.ui.screen.ZenWindow
 import com.hotaro.brik.ui.screen.GrayscaleWindow
 import com.hotaro.brik.ui.screen.AboutWindow
@@ -75,6 +77,25 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         ThemePreferences.init(this)
+
+        // Ensure active launcher alias is enabled if stealth mode is inactive
+        if (!StealthUtils.isAppHidden(this)) {
+            try {
+                val pm = packageManager
+                val activeAlias = StealthUtils.getActiveAliasComponent(this)
+                val state = pm.getComponentEnabledSetting(activeAlias)
+                if (state != PackageManager.COMPONENT_ENABLED_STATE_ENABLED) {
+                    pm.setComponentEnabledSetting(
+                        activeAlias,
+                        PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                        PackageManager.DONT_KILL_APP
+                    )
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
         enableEdgeToEdge()
         setContent {
             BrikTheme {

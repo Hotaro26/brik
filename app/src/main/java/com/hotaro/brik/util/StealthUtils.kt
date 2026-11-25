@@ -8,6 +8,7 @@ import com.hotaro.brik.ui.theme.ThemePreferences
 object StealthUtils {
     private const val PREFS_NAME = "brik_stealth_prefs"
     private const val KEY_DIALER_CODE = "dialer_secret_code"
+    private const val KEY_IS_STEALTH_ACTIVE = "is_stealth_active"
     const val DEFAULT_CODE = "2745" // Spells "BRIK" on phone keypad
 
     fun getActiveAliasComponent(context: Context): ComponentName {
@@ -17,12 +18,14 @@ object StealthUtils {
     }
 
     fun isAppHidden(context: Context): Boolean {
-        val pm = context.packageManager
-        val state = pm.getComponentEnabledSetting(getActiveAliasComponent(context))
-        return state == PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_IS_STEALTH_ACTIVE, false)
     }
 
     fun setAppHidden(context: Context, hidden: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_IS_STEALTH_ACTIVE, hidden).apply()
+
         val pm = context.packageManager
         val currentAlias = getActiveAliasComponent(context)
         val newState = if (hidden) {
@@ -30,11 +33,15 @@ object StealthUtils {
         } else {
             PackageManager.COMPONENT_ENABLED_STATE_ENABLED
         }
-        pm.setComponentEnabledSetting(
-            currentAlias,
-            newState,
-            PackageManager.DONT_KILL_APP
-        )
+        try {
+            pm.setComponentEnabledSetting(
+                currentAlias,
+                newState,
+                PackageManager.DONT_KILL_APP
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     fun getDialerCode(context: Context): String {

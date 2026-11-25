@@ -103,19 +103,33 @@ object AppIconManager {
         val pm = context.packageManager
         val isHidden = StealthUtils.isAppHidden(context)
 
-        icons.forEach { icon ->
-            val comp = ComponentName(context, icon.alias)
-            val targetState = if (!isHidden && icon.id == option.id) {
-                PackageManager.COMPONENT_ENABLED_STATE_ENABLED
-            } else {
-                PackageManager.COMPONENT_ENABLED_STATE_DISABLED
-            }
+        // First enable the target alias so launcher always has an active component
+        val targetComp = ComponentName(context, option.alias)
+        if (!isHidden) {
             try {
-                if (pm.getComponentEnabledSetting(comp) != targetState) {
-                    pm.setComponentEnabledSetting(comp, targetState, PackageManager.DONT_KILL_APP)
-                }
+                pm.setComponentEnabledSetting(
+                    targetComp,
+                    PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                    PackageManager.DONT_KILL_APP
+                )
             } catch (e: Exception) {
                 e.printStackTrace()
+            }
+        }
+
+        // Then disable all other aliases
+        icons.forEach { icon ->
+            if (icon.id != option.id) {
+                val comp = ComponentName(context, icon.alias)
+                try {
+                    pm.setComponentEnabledSetting(
+                        comp,
+                        PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                        PackageManager.DONT_KILL_APP
+                    )
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
             }
         }
     }
