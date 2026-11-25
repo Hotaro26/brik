@@ -514,9 +514,9 @@ fun SettingsScreen(
             TomatoSettingsItem(
                 title = "About Brik",
                 subtitle = "v1.0.3 (Build 4) • App info, GitHub repo & privacy policy",
-                leadingIcon = R.drawable.ic_brik,
-                iconTint = Color.Unspecified,
-                iconContainerColor = colorScheme.surfaceContainerLowest,
+                leadingIcon = R.drawable.ic_launcher_monochrome,
+                iconTint = colorScheme.primary,
+                iconContainerColor = colorScheme.primaryContainer,
                 trailingContent = {
                     Icon(
                         painter = painterResource(R.drawable.arrow_forward_big),

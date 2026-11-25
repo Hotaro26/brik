@@ -1,14 +1,15 @@
 package com.hotaro.brik.ui.screen
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.view.HapticFeedbackConstants
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,8 +26,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.MaterialTheme.typography
 import androidx.compose.material3.Scaffold
@@ -37,12 +41,17 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hotaro.brik.R
@@ -56,8 +65,19 @@ fun AboutWindow(
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
+    val view = LocalView.current
     val isDark = colorScheme.surface.luminance() < 0.5f
     val appBackground = if (isDark) Color.Black else colorScheme.surface
+
+    val openUrl: (String) -> Unit = { url ->
+        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+            context.startActivity(intent)
+        } catch (e: Throwable) {
+            Toast.makeText(context, "Unable to open link", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -68,10 +88,11 @@ fun AboutWindow(
                             text = "About",
                             fontWeight = FontWeight.Bold,
                             fontSize = 20.sp,
+                            letterSpacing = (-0.3).sp,
                             color = colorScheme.onSurface
                         )
                         Text(
-                            text = "Application info & open source details",
+                            text = "Brik information & developer profile",
                             style = typography.bodySmall,
                             color = colorScheme.onSurfaceVariant
                         )
@@ -110,70 +131,78 @@ fun AboutWindow(
                 .fillMaxSize()
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-                .padding(bottom = 64.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .padding(bottom = 72.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Hero Card
+            // ==========================================
+            // HERO MOMENT 1: APP HERO (M3 EXPRESSIVE)
+            // ==========================================
             Surface(
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(32.dp),
                 color = colorScheme.surfaceContainerHigh,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(24.dp),
+                        .padding(26.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    // Monochrome Themed Icon Container
                     Surface(
-                        shape = CircleShape,
-                        color = if (isDark) Color.Black else colorScheme.surfaceContainerLowest,
-                        shadowElevation = 4.dp,
-                        modifier = Modifier.size(80.dp)
+                        shape = RoundedCornerShape(24.dp),
+                        color = colorScheme.primaryContainer,
+                        modifier = Modifier.size(84.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Image(
-                                painter = painterResource(R.drawable.ic_brik),
-                                contentDescription = "Brik Logo",
-                                modifier = Modifier.size(48.dp)
+                                painter = painterResource(R.drawable.ic_launcher_monochrome),
+                                contentDescription = "Brik Monochrome Icon",
+                                colorFilter = ColorFilter.tint(colorScheme.primary),
+                                modifier = Modifier.size(54.dp)
                             )
                         }
                     }
 
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(18.dp))
 
                     Text(
                         text = "Brik",
-                        style = typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                        style = typography.headlineMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 30.sp,
+                            letterSpacing = (-0.8).sp
+                        ),
                         color = colorScheme.onSurface
                     )
 
+                    Spacer(Modifier.height(4.dp))
+
                     Text(
-                        text = "Version 1.0.3 (Build 4)",
-                        style = typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                        color = colorScheme.onSurfaceVariant
+                        text = "Version 1.0.3 • Build 4 (Release)",
+                        style = typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = colorScheme.primary
                     )
 
                     Spacer(Modifier.height(10.dp))
 
                     Surface(
                         shape = CircleShape,
-                        color = colorScheme.primaryContainer,
-                        modifier = Modifier.padding(top = 2.dp)
+                        color = colorScheme.secondaryContainer
                     ) {
                         Text(
                             text = "Free & Open Source Software",
                             style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
+                            color = colorScheme.onSecondaryContainer,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 5.dp)
                         )
                     }
 
                     Spacer(Modifier.height(12.dp))
 
                     Text(
-                        text = "A zero-compromise, open-source focus & device policy controller built for Android.",
+                        text = "A zero-compromise, open-source focus & device policy controller built with modern Jetpack Compose & Material 3 Expressive.",
                         style = typography.bodySmall,
                         color = colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
@@ -182,14 +211,185 @@ fun AboutWindow(
                 }
             }
 
-            // Section 1: REPOSITORY & PROJECT
+            // ==========================================
+            // HERO MOMENT 2: HIGHLIGHTED DEVELOPER CARD
+            // ==========================================
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                TomatoSectionHeader(title = "DEVELOPER")
+
+                Surface(
+                    shape = RoundedCornerShape(28.dp),
+                    color = colorScheme.surfaceContainerHighest,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(
+                            width = 1.5.dp,
+                            color = colorScheme.primary.copy(alpha = 0.35f),
+                            shape = RoundedCornerShape(28.dp)
+                        )
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            // Avatar from GitHub Profile
+                            Surface(
+                                shape = CircleShape,
+                                color = colorScheme.surfaceContainerLowest,
+                                shadowElevation = 4.dp,
+                                modifier = Modifier.size(68.dp)
+                            ) {
+                                Image(
+                                    painter = painterResource(R.drawable.avatar_hotaro),
+                                    contentDescription = "Hotaro Avatar",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(CircleShape)
+                                )
+                            }
+
+                            Spacer(Modifier.width(16.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = "Hotaro",
+                                        style = typography.titleLarge.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            letterSpacing = (-0.3).sp
+                                        ),
+                                        color = colorScheme.onSurface
+                                    )
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = colorScheme.primary
+                                    ) {
+                                        Text(
+                                            text = "CREATOR",
+                                            style = typography.labelSmall.copy(
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold
+                                            ),
+                                            color = colorScheme.onPrimary,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+
+                                Spacer(Modifier.height(2.dp))
+
+                                Text(
+                                    text = "@Hotaro26",
+                                    style = typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                    color = colorScheme.primary
+                                )
+
+                                Spacer(Modifier.height(2.dp))
+
+                                Text(
+                                    text = "46 Repositories • 41 Followers",
+                                    style = typography.bodySmall,
+                                    color = colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.height(16.dp))
+
+                        Text(
+                            text = "Crafting minimalist, high-performance privacy utilities and system controllers for Android.",
+                            style = typography.bodySmall,
+                            color = colorScheme.onSurfaceVariant,
+                            lineHeight = 18.sp
+                        )
+
+                        Spacer(Modifier.height(16.dp))
+
+                        // Social Icon-Only Buttons (Website, Pinterest, GitHub)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            // 1. Website (aki101.in)
+                            FilledTonalIconButton(
+                                onClick = { openUrl("https://aki101.in") },
+                                shape = CircleShape,
+                                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                    containerColor = colorScheme.secondaryContainer,
+                                    contentColor = colorScheme.onSecondaryContainer
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp)
+                            ) {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_globe),
+                                    contentDescription = "Website (aki101.in)",
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+
+                            // 2. Pinterest (hotaro26)
+                            FilledTonalIconButton(
+                                onClick = { openUrl("https://www.pinterest.com/hotaro26/") },
+                                shape = CircleShape,
+                                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                    containerColor = colorScheme.tertiaryContainer,
+                                    contentColor = colorScheme.onTertiaryContainer
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp)
+                            ) {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_pinterest),
+                                    contentDescription = "Pinterest (hotaro26)",
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+
+                            // 3. GitHub (Hotaro26)
+                            FilledTonalIconButton(
+                                onClick = { openUrl("https://github.com/Hotaro26") },
+                                shape = CircleShape,
+                                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                    containerColor = colorScheme.primaryContainer,
+                                    contentColor = colorScheme.onPrimaryContainer
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp)
+                            ) {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_github),
+                                    contentDescription = "GitHub (Hotaro26)",
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ==========================================
+            // SECTION: REPOSITORY & CODE
+            // ==========================================
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 TomatoSectionHeader(title = "REPOSITORY & CODE")
 
                 TomatoSettingsItem(
                     title = "GitHub Repository",
                     subtitle = "Hotaro26/brik • Source code, issues & releases",
-                    leadingIcon = R.drawable.tools_fill0,
+                    leadingIcon = R.drawable.ic_github,
                     iconContainerColor = colorScheme.primaryContainer,
                     iconTint = colorScheme.primary,
                     trailingContent = {
@@ -200,35 +400,20 @@ fun AboutWindow(
                             tint = colorScheme.onSurfaceVariant
                         )
                     },
-                    shape = segmentedItemShape(0, 2),
-                    onClick = {
-                        val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/Hotaro26/brik"))
-                        context.startActivity(browserIntent)
-                    }
-                )
-
-                TomatoSettingsItem(
-                    title = "Copy Repository URL",
-                    subtitle = "https://github.com/Hotaro26/brik",
-                    leadingIcon = R.drawable.content_copy_fill0,
-                    iconContainerColor = colorScheme.surfaceContainerLowest,
-                    iconTint = colorScheme.onSurfaceVariant,
-                    shape = segmentedItemShape(1, 2),
-                    onClick = {
-                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        clipboard.setPrimaryClip(ClipData.newPlainText("Brik Repo", "https://github.com/Hotaro26/brik"))
-                        Toast.makeText(context, "Repository URL copied!", Toast.LENGTH_SHORT).show()
-                    }
+                    shape = segmentedItemShape(0, 1),
+                    onClick = { openUrl("https://github.com/Hotaro26/brik") }
                 )
             }
 
-            // Section 2: PRIVACY POLICY
+            // ==========================================
+            // SECTION: PRIVACY POLICY
+            // ==========================================
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 TomatoSectionHeader(title = "PRIVACY POLICY")
 
                 TomatoSettingsItem(
                     title = "100% Offline & Private",
-                    subtitle = "Brik contains no ads, analytics, tracking SDKs, or cloud telemetry. All locks, bags, and routines are stored locally on your device.",
+                    subtitle = "Brik contains zero ads, analytics, tracking SDKs, or cloud telemetry. All locks, bags, and routines are stored locally on your device.",
                     leadingIcon = R.drawable.shield_fill0,
                     iconContainerColor = colorScheme.primaryContainer,
                     iconTint = colorScheme.primary,
@@ -245,33 +430,9 @@ fun AboutWindow(
                 )
             }
 
-            // Section 3: DEVELOPER
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                TomatoSectionHeader(title = "DEVELOPER")
-
-                TomatoSettingsItem(
-                    title = "Hotaro",
-                    subtitle = "github.com/Hotaro26 • Tap to view profile",
-                    leadingIcon = R.drawable.mode_fill0,
-                    iconContainerColor = colorScheme.secondaryContainer,
-                    iconTint = colorScheme.onSecondaryContainer,
-                    trailingContent = {
-                        Icon(
-                            painter = painterResource(R.drawable.arrow_forward_big),
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = colorScheme.onSurfaceVariant
-                        )
-                    },
-                    shape = segmentedItemShape(0, 1),
-                    onClick = {
-                        val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/Hotaro26"))
-                        context.startActivity(browserIntent)
-                    }
-                )
-            }
-
-            // Section 4: ENVIRONMENT & DEVICE
+            // ==========================================
+            // SECTION: SYSTEM & RUNTIME
+            // ==========================================
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 TomatoSectionHeader(title = "SYSTEM & RUNTIME")
 
@@ -297,7 +458,7 @@ fun AboutWindow(
             Spacer(Modifier.height(12.dp))
 
             Text(
-                text = "Built with Kotlin & Jetpack Compose\nMaterial You Expressive Design",
+                text = "Built with Kotlin & Jetpack Compose\nMaterial 3 Expressive UI",
                 style = typography.labelSmall,
                 color = colorScheme.outline,
                 textAlign = TextAlign.Center,
