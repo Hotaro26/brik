@@ -24,7 +24,7 @@ android {
 
     defaultConfig {
         applicationId = "com.hotaro.brik"
-        minSdk = 23
+        minSdk = 26
         targetSdk = 37
         versionCode = 1
         versionName = "1.0.0"
@@ -80,4 +80,9 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     implementation(libs.accompanist.drawablepainter)
     implementation(libs.serialization)
+    implementation(libs.shizuku.provider)
+    implementation(libs.shizuku.api)
+    implementation(libs.dhizuku.api)
+    implementation(libs.hiddenApiBypass)
+    implementation(libs.libsu.core)
 }
