@@ -8,12 +8,16 @@ import android.graphics.drawable.Drawable
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,6 +26,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -65,17 +70,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -89,7 +99,10 @@ import com.hotaro.brik.data.model.AppInfo
 import com.hotaro.brik.ui.component.SetEmergencyKeyDialog
 import com.hotaro.brik.ui.component.VerifyEmergencyKeyDialog
 import com.hotaro.brik.util.ZenManager
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -107,6 +120,7 @@ fun ZenWindow(
     val allowedPackages by ZenManager.allowedPackages.collectAsState()
     val useKiosk by ZenManager.useKiosk.collectAsState()
     val hasKey by ZenManager.hasSecurityKey.collectAsState()
+    val holdDurationSeconds by ZenManager.holdDurationSeconds.collectAsState()
 
     var showSetKeyDialog by remember { mutableStateOf(false) }
     var showVerifyKeyDialog by remember { mutableStateOf(false) }
@@ -116,6 +130,7 @@ fun ZenWindow(
             sessionEndTime = sessionEndTime,
             isInfinite = isInfinite,
             allowedPackages = allowedPackages,
+            holdDurationSeconds = holdDurationSeconds,
             onExitRequested = {
                 if (ZenManager.isSessionExpired()) {
                     ZenManager.endZenSession(context, activity)
@@ -130,6 +145,7 @@ fun ZenWindow(
             allowedPackages = allowedPackages,
             useKiosk = useKiosk,
             hasKey = hasKey,
+            holdDurationSeconds = holdDurationSeconds,
             onBack = onBack,
             onSetKeyRequested = { showSetKeyDialog = true },
             onStartZen = { durationMinutes, infinite ->
@@ -189,6 +205,7 @@ private fun InactiveZenConfigScreen(
     allowedPackages: Set<String>,
     useKiosk: Boolean,
     hasKey: Boolean,
+    holdDurationSeconds: Int,
     onBack: () -> Unit,
     onSetKeyRequested: () -> Unit,
     onStartZen: (durationMinutes: Int, isInfinite: Boolean) -> Unit
@@ -650,6 +667,85 @@ private fun InactiveZenConfigScreen(
                 }
             }
 
+            // Extras Card: Hold to Reveal Customization
+            ElevatedCard(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.elevatedCardColors(
+                    containerColor = colorScheme.surfaceContainerHigh
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                painter = painterResource(R.drawable.tune_fill0),
+                                contentDescription = null,
+                                tint = colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                text = "Extras",
+                                style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = colorScheme.onSurface
+                            )
+                        }
+
+                        Surface(
+                            shape = CircleShape,
+                            color = colorScheme.primaryContainer
+                        ) {
+                            Text(
+                                text = "${holdDurationSeconds}s Hold",
+                                style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "Continuous press duration required to reveal remaining time & exit button on the Zen desktop. Hides after 2 seconds.",
+                        style = typography.bodySmall,
+                        color = colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(Modifier.height(14.dp))
+
+                    val holdPresets = listOf(1, 2, 3, 4, 5)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        holdPresets.forEach { seconds ->
+                            val isSelected = holdDurationSeconds == seconds
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { ZenManager.setHoldDurationSeconds(context, seconds) },
+                                label = {
+                                    Text(
+                                        text = "${seconds}s",
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = colorScheme.primaryContainer,
+                                    selectedLabelColor = colorScheme.onPrimaryContainer
+                                ),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+            }
+
             Spacer(Modifier.height(4.dp))
 
             // Start Zen Button
@@ -861,18 +957,24 @@ private fun ActiveZenDesktop(
     sessionEndTime: Long,
     isInfinite: Boolean,
     allowedPackages: Set<String>,
+    holdDurationSeconds: Int,
     onExitRequested: () -> Unit
 ) {
     val context = LocalContext.current
     val pm = context.packageManager
+    val haptic = LocalHapticFeedback.current
+    val coroutineScope = rememberCoroutineScope()
 
     // Intercept back key to prevent navigating back without unlock
     BackHandler(enabled = true) {
-        Toast.makeText(context, "Zen Mode is active. Tap 'Exit Zen' to unlock.", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "Zen Mode is active. Hold screen to reveal exit.", Toast.LENGTH_SHORT).show()
     }
 
     var currentTime by remember { mutableStateOf(Date()) }
     var remainingMillis by remember { mutableLongStateOf(0L) }
+    var isControlsRevealed by remember { mutableStateOf(false) }
+    var holdProgress by remember { mutableFloatStateOf(0f) }
+    var hideJob by remember { mutableStateOf<Job?>(null) }
 
     LaunchedEffect(sessionEndTime, isInfinite) {
         while (true) {
@@ -897,32 +999,58 @@ private fun ActiveZenDesktop(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF0C0D10))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) { /* Absorb any blank desktop clicks */ }
+            .pointerInput(holdDurationSeconds) {
+                val holdMillis = (holdDurationSeconds.coerceAtLeast(1)) * 1000L
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val start = System.currentTimeMillis()
+
+                    val job = coroutineScope.launch {
+                        while (isActive) {
+                            val elapsed = System.currentTimeMillis() - start
+                            val progress = (elapsed.toFloat() / holdMillis).coerceIn(0f, 1f)
+                            holdProgress = progress
+                            if (elapsed >= holdMillis) {
+                                holdProgress = 0f
+                                isControlsRevealed = true
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                hideJob?.cancel()
+                                hideJob = coroutineScope.launch {
+                                    delay(2000L)
+                                    isControlsRevealed = false
+                                }
+                                break
+                            }
+                            delay(16L)
+                        }
+                    }
+
+                    do {
+                        val event = awaitPointerEvent()
+                    } while (event.changes.any { it.pressed })
+
+                    job.cancel()
+                    holdProgress = 0f
+                }
+            }
             .statusBarsPadding()
             .navigationBarsPadding()
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) { /* Absorb any column blank clicks */ }
                 .padding(horizontal = 24.dp, vertical = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // Top: Minimalist Clock & Status Pill
+            // Top: Minimalist Clock & Revealed Status Pill
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.padding(top = 32.dp)
             ) {
                 Text(
                     text = timeFormat.format(currentTime),
-                    fontSize = 72.sp,
+                    fontSize = 76.sp,
                     fontWeight = FontWeight.Light,
                     fontFamily = FontFamily.SansSerif,
                     color = Color.White,
@@ -937,53 +1065,59 @@ private fun ActiveZenDesktop(
 
                 Spacer(Modifier.height(18.dp))
 
-                Surface(
-                    shape = CircleShape,
-                    color = if (isInfinite || remainingMillis > 0L) Color(0xFF1E2024) else colorScheme.primaryContainer,
-                    border = BorderStroke(1.dp, Color(0xFF2A2C32))
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = isControlsRevealed,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically()
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    Surface(
+                        shape = CircleShape,
+                        color = if (isInfinite || remainingMillis > 0L) Color(0xFF1E2024) else colorScheme.primaryContainer,
+                        border = BorderStroke(1.dp, Color(0xFF2A2C32))
                     ) {
-                        Icon(
-                            painter = painterResource(
-                                if (isInfinite) R.drawable.self_improvement_fill0
-                                else if (remainingMillis > 0L) R.drawable.schedule_fill0
-                                else R.drawable.check_fill0
-                            ),
-                            contentDescription = null,
-                            tint = if (remainingMillis == 0L && !isInfinite) colorScheme.primary else Color(0xFFE0E0E0),
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = if (isInfinite) {
-                                "Infinite Focus Active"
-                            } else if (remainingMillis > 0L) {
-                                val totalSeconds = remainingMillis / 1000
-                                val hours = totalSeconds / 3600
-                                val minutes = (totalSeconds % 3600) / 60
-                                val seconds = totalSeconds % 60
-                                if (hours > 0) {
-                                    String.format(Locale.getDefault(), "%02d:%02d:%02d remaining", hours, minutes, seconds)
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                painter = painterResource(
+                                    if (isInfinite) R.drawable.self_improvement_fill0
+                                    else if (remainingMillis > 0L) R.drawable.schedule_fill0
+                                    else R.drawable.check_fill0
+                                ),
+                                contentDescription = null,
+                                tint = if (remainingMillis == 0L && !isInfinite) colorScheme.primary else Color(0xFFE0E0E0),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = if (isInfinite) {
+                                    "Infinite Focus Active"
+                                } else if (remainingMillis > 0L) {
+                                    val totalSeconds = remainingMillis / 1000
+                                    val hours = totalSeconds / 3600
+                                    val minutes = (totalSeconds % 3600) / 60
+                                    val seconds = totalSeconds % 60
+                                    if (hours > 0) {
+                                        String.format(Locale.getDefault(), "%02d:%02d:%02d remaining", hours, minutes, seconds)
+                                    } else {
+                                        String.format(Locale.getDefault(), "%02d:%02d remaining", minutes, seconds)
+                                    }
                                 } else {
-                                    String.format(Locale.getDefault(), "%02d:%02d remaining", minutes, seconds)
-                                }
-                            } else {
-                                "Session Finished"
-                            },
-                            style = typography.labelMedium.copy(
-                                fontWeight = FontWeight.SemiBold,
-                                fontFamily = FontFamily.Monospace
-                            ),
-                            color = if (remainingMillis == 0L && !isInfinite) colorScheme.primary else Color(0xFFE0E0E0)
-                        )
+                                    "Session Finished"
+                                },
+                                style = typography.labelMedium.copy(
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontFamily = FontFamily.Monospace
+                                ),
+                                color = if (remainingMillis == 0L && !isInfinite) colorScheme.primary else Color(0xFFE0E0E0)
+                            )
+                        }
                     }
                 }
             }
 
-            // Center: Permitted Minimal Apps Launcher
+            // Center: Minimalist Text-Only Launcher (No icons)
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
@@ -1002,89 +1136,99 @@ private fun ActiveZenDesktop(
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxWidth(0.85f),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         items(permittedApps, key = { it.packageName }) { app ->
-                            Surface(
-                                onClick = {
-                                    val launchIntent = pm.getLaunchIntentForPackage(app.packageName)
-                                    if (launchIntent != null) {
-                                        context.startActivity(launchIntent)
-                                    } else {
-                                        Toast.makeText(context, "Cannot launch app", Toast.LENGTH_SHORT).show()
+                            Text(
+                                text = app.label,
+                                style = typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Normal,
+                                    letterSpacing = 0.5.sp
+                                ),
+                                color = Color(0xFFE2E2E6),
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable {
+                                        val launchIntent = pm.getLaunchIntentForPackage(app.packageName)
+                                        if (launchIntent != null) {
+                                            context.startActivity(launchIntent)
+                                        } else {
+                                            Toast.makeText(context, "Cannot launch app", Toast.LENGTH_SHORT).show()
+                                        }
                                     }
-                                },
-                                shape = RoundedCornerShape(16.dp),
-                                color = Color(0xFF181A1F),
-                                border = BorderStroke(1.dp, Color(0xFF26282E)),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    if (app.icon != null) {
-                                        Image(
-                                            painter = rememberDrawablePainter(drawable = app.icon),
-                                            contentDescription = null,
-                                            modifier = Modifier
-                                                .size(36.dp)
-                                                .clip(RoundedCornerShape(8.dp))
-                                        )
-                                    } else {
-                                        Icon(
-                                            painter = painterResource(R.drawable.apps_fill0),
-                                            contentDescription = null,
-                                            tint = Color.White,
-                                            modifier = Modifier.size(36.dp)
-                                        )
-                                    }
-                                    Spacer(Modifier.width(14.dp))
-                                    Text(
-                                        text = app.label,
-                                        style = typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
-                                        color = Color.White,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                            }
+                                    .padding(horizontal = 24.dp, vertical = 8.dp)
+                            )
                         }
                     }
                 }
             }
 
-            // Bottom: Exit / Unlock Button
-            Surface(
-                onClick = onExitRequested,
-                shape = CircleShape,
-                color = Color(0xFF1F2128),
-                border = BorderStroke(1.dp, Color(0xFF333640)),
+            // Bottom: Revealed Exit Button & Hold Progress Bar
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth(0.6f)
-                    .height(48.dp)
+                    .fillMaxWidth()
+                    .height(56.dp),
+                contentAlignment = Alignment.Center
             ) {
-                Row(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
+                if (holdProgress > 0f && !isControlsRevealed) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.35f)
+                            .height(3.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF26282E)),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(holdProgress)
+                                .fillMaxHeight()
+                                .background(Color.White)
+                        )
+                    }
+                }
+
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = isControlsRevealed,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically()
                 ) {
-                    Icon(
-                        painter = painterResource(
-                            if (!isInfinite && remainingMillis == 0L) R.drawable.check_fill0
-                            else R.drawable.key_fill0
-                        ),
-                        contentDescription = null,
-                        tint = Color(0xFFCCCCCC),
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = if (!isInfinite && remainingMillis == 0L) "Complete & Exit" else "Exit Zen Mode",
-                        style = typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
-                        color = Color.White
-                    )
+                    Surface(
+                        onClick = {
+                            hideJob?.cancel()
+                            onExitRequested()
+                        },
+                        shape = CircleShape,
+                        color = Color(0xFF1F2128),
+                        border = BorderStroke(1.dp, Color(0xFF333640)),
+                        modifier = Modifier
+                            .fillMaxWidth(0.6f)
+                            .height(48.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(
+                                    if (!isInfinite && remainingMillis == 0L) R.drawable.check_fill0
+                                    else R.drawable.key_fill0
+                                ),
+                                contentDescription = null,
+                                tint = Color(0xFFCCCCCC),
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = if (!isInfinite && remainingMillis == 0L) "Complete & Exit" else "Exit Zen Mode",
+                                style = typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                                color = Color.White
+                            )
+                        }
+                    }
                 }
             }
         }

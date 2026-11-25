@@ -21,6 +21,7 @@ object ZenManager {
     private const val KEY_ZEN_KEY_TYPE = "pref_zen_key_type"
     private const val KEY_ZEN_SECRET_HASH = "pref_zen_secret_hash"
     private const val KEY_ZEN_QR_TOKEN = "pref_zen_qr_token"
+    private const val KEY_ZEN_HOLD_DURATION_SECONDS = "pref_zen_hold_duration_seconds"
 
     private val _isZenActive = MutableStateFlow(false)
     val isZenActive: StateFlow<Boolean> = _isZenActive.asStateFlow()
@@ -39,6 +40,9 @@ object ZenManager {
 
     private val _hasSecurityKey = MutableStateFlow(false)
     val hasSecurityKey: StateFlow<Boolean> = _hasSecurityKey.asStateFlow()
+
+    private val _holdDurationSeconds = MutableStateFlow(3)
+    val holdDurationSeconds: StateFlow<Int> = _holdDurationSeconds.asStateFlow()
 
     fun init(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -61,6 +65,7 @@ object ZenManager {
         _useKiosk.value = prefs.getBoolean(KEY_ZEN_USE_KIOSK, true)
         val hash = prefs.getString(KEY_ZEN_SECRET_HASH, null)
         _hasSecurityKey.value = !hash.isNullOrBlank() || EmergencyManager.hasKey(context)
+        _holdDurationSeconds.value = prefs.getInt(KEY_ZEN_HOLD_DURATION_SECONDS, 3)
     }
 
     fun getDefaultEssentialPackages(context: Context): Set<String> {
@@ -89,6 +94,12 @@ object ZenManager {
         _useKiosk.value = useKiosk
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putBoolean(KEY_ZEN_USE_KIOSK, useKiosk).apply()
+    }
+
+    fun setHoldDurationSeconds(context: Context, seconds: Int) {
+        _holdDurationSeconds.value = seconds
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putInt(KEY_ZEN_HOLD_DURATION_SECONDS, seconds).apply()
     }
 
     fun startZenSession(
