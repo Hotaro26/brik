@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.provider.Telephony
 import android.telecom.TelecomManager
+import com.hotaro.brik.data.model.KeyType
 import com.hotaro.brik.policy.PolicyBridgeManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,6 +20,10 @@ object WindDownManager {
     private const val KEY_WAKE_MINUTE = "pref_wd_wake_minute"
     private const val KEY_NO_APPS_MODE = "pref_wd_no_apps_mode"
     private const val KEY_ALLOWED_PACKAGES = "pref_wd_allowed_packages"
+    private const val KEY_ALLOW_EMERGENCY = "pref_wd_allow_emergency"
+    private const val KEY_KEY_TYPE = "pref_wd_key_type"
+    private const val KEY_SECRET_HASH = "pref_wd_secret_hash"
+    private const val KEY_QR_TOKEN = "pref_wd_qr_token"
     private const val KEY_IS_PREVIEW = "pref_wd_is_preview"
 
     private val _isEnabled = MutableStateFlow(false)
@@ -42,6 +47,12 @@ object WindDownManager {
     private val _allowedPackages = MutableStateFlow<Set<String>>(emptySet())
     val allowedPackages: StateFlow<Set<String>> = _allowedPackages.asStateFlow()
 
+    private val _allowEmergencyUnlock = MutableStateFlow(true)
+    val allowEmergencyUnlock: StateFlow<Boolean> = _allowEmergencyUnlock.asStateFlow()
+
+    private val _hasSecurityKey = MutableStateFlow(false)
+    val hasSecurityKey: StateFlow<Boolean> = _hasSecurityKey.asStateFlow()
+
     private val _isWindDownActive = MutableStateFlow(false)
     val isWindDownActive: StateFlow<Boolean> = _isWindDownActive.asStateFlow()
 
@@ -56,9 +67,12 @@ object WindDownManager {
         _wakeHour.value = prefs.getInt(KEY_WAKE_HOUR, 7)
         _wakeMinute.value = prefs.getInt(KEY_WAKE_MINUTE, 0)
         _isNoAppsMode.value = prefs.getBoolean(KEY_NO_APPS_MODE, false)
+        _allowEmergencyUnlock.value = prefs.getBoolean(KEY_ALLOW_EMERGENCY, true)
 
-        val savedAllowed = prefs.getStringSet(KEY_ZEN_ALLOWED_FALLBACK, null)
-            ?: prefs.getStringSet(KEY_ALLOWED_PACKAGES, null)
+        val hash = prefs.getString(KEY_SECRET_HASH, null)
+        _hasSecurityKey.value = !hash.isNullOrBlank() || ZenManager.hasKey(context) || EmergencyManager.hasKey(context)
+
+        val savedAllowed = prefs.getStringSet(KEY_ALLOWED_PACKAGES, null)
         _allowedPackages.value = if (!savedAllowed.isNullOrEmpty()) {
             savedAllowed.take(10).toSet()
         } else {
@@ -67,8 +81,6 @@ object WindDownManager {
 
         checkActive(context, null)
     }
-
-    private const val KEY_ZEN_ALLOWED_FALLBACK = "pref_wd_allowed_packages"
 
     fun setEnabled(context: Context, enabled: Boolean, activity: Activity? = null) {
         _isEnabled.value = enabled
@@ -105,6 +117,49 @@ object WindDownManager {
         _allowedPackages.value = capped
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putStringSet(KEY_ALLOWED_PACKAGES, capped).apply()
+    }
+
+    fun setAllowEmergencyUnlock(context: Context, allow: Boolean) {
+        _allowEmergencyUnlock.value = allow
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_ALLOW_EMERGENCY, allow).apply()
+    }
+
+    fun setSecurityKey(context: Context, keyType: KeyType, secret: String) {
+        val hash = QrUtils.sha256(secret)
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putString(KEY_KEY_TYPE, keyType.name)
+            .putString(KEY_SECRET_HASH, hash)
+            .putString(KEY_QR_TOKEN, if (keyType == KeyType.QR_CODE) secret else null)
+            .apply()
+        _hasSecurityKey.value = true
+    }
+
+    fun getKeyType(context: Context): KeyType {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val typeStr = prefs.getString(KEY_KEY_TYPE, null)
+        if (typeStr != null) {
+            return runCatching { KeyType.valueOf(typeStr) }.getOrDefault(KeyType.PASSWORD)
+        }
+        return ZenManager.getKeyType(context)
+    }
+
+    fun verifySecurityKey(context: Context, input: String): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val expectedHash = prefs.getString(KEY_SECRET_HASH, null)
+        if (expectedHash.isNullOrBlank()) {
+            // Fall back to Zen or Emergency manager key
+            return ZenManager.verifySecurityKey(context, input)
+        }
+        val inputHash = QrUtils.sha256(input)
+        return expectedHash.equals(inputHash, ignoreCase = true)
+    }
+
+    fun hasKey(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val hash = prefs.getString(KEY_SECRET_HASH, null)
+        return !hash.isNullOrBlank() || ZenManager.hasKey(context) || EmergencyManager.hasKey(context)
     }
 
     fun startPreviewMode(context: Context, activity: Activity?) {
