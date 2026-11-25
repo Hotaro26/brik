@@ -1,10 +1,19 @@
 package com.hotaro.brik.ui.screen
 
 import android.widget.Toast
-import androidx.activity.compose.BackHandler
+import androidx.activity.BackEventCompat
+import androidx.activity.compose.PredictiveBackHandler
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -14,6 +23,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -26,17 +36,19 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.MaterialTheme.typography
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -47,6 +59,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -55,6 +68,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
@@ -63,15 +78,21 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.google.accompanist.drawablepainter.rememberDrawablePainter
 import com.hotaro.brik.R
+import com.hotaro.brik.data.model.AppBag
+import com.hotaro.brik.data.model.AppInfo
 import com.hotaro.brik.data.model.AutomatedRoutine
 import com.hotaro.brik.data.model.KeyType
+import com.hotaro.brik.data.model.SavedKey
 import com.hotaro.brik.data.model.TimeBlockType
 import com.hotaro.brik.policy.DnsManager
 import com.hotaro.brik.ui.component.QrScannerView
 import com.hotaro.brik.ui.component.RoundedPullRefreshPage
 import com.hotaro.brik.ui.viewmodel.TimeBlockViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import java.util.Locale
 import java.util.UUID
@@ -88,6 +109,7 @@ fun RoutinesWindow(
     val activeSession by viewModel.activeSession.collectAsState()
     val bags by viewModel.bags.collectAsState()
     val savedKeys by viewModel.savedKeys.collectAsState()
+    val installedApps by viewModel.installedApps.collectAsState()
 
     var isRefreshing by remember { mutableStateOf(false) }
 
@@ -100,416 +122,514 @@ fun RoutinesWindow(
     var sheetEndHour by remember { mutableStateOf(17) }
     var sheetEndMinute by remember { mutableStateOf(0) }
 
-    // Full Detail Configuration Window state
+    // Full Detail Configuration Window state with predictive gesture
     var configuringRoutine by remember { mutableStateOf<AutomatedRoutine?>(null) }
     var showDiscardDialog by remember { mutableStateOf(false) }
+    val animatedDetailProgress = remember { Animatable(0f) }
+    var isPredictiveDetailActive by remember { mutableStateOf(false) }
+    var backSwipeEdge by remember { mutableIntStateOf(BackEventCompat.EDGE_LEFT) }
+    val isDetailWindowVisible = configuringRoutine != null || isPredictiveDetailActive || animatedDetailProgress.value > 0f
 
     // Toggle / Delete verification dialog states
     var routineToToggle by remember { mutableStateOf<AutomatedRoutine?>(null) }
     var routineToDelete by remember { mutableStateOf<AutomatedRoutine?>(null) }
 
-    // Handle back inside Detail Window
-    if (configuringRoutine != null) {
-        BackHandler {
-            showDiscardDialog = true
-        }
-
-        RoutineDetailWindow(
-            routine = configuringRoutine!!,
-            bags = bags,
-            savedKeys = savedKeys,
-            onBack = { showDiscardDialog = true },
-            onSave = { updated ->
-                if (updated.name.isBlank()) {
-                    Toast.makeText(context, "Please enter a routine name", Toast.LENGTH_SHORT).show()
-                } else if (updated.keySecret.isNullOrBlank()) {
-                    Toast.makeText(context, "A protection key is required", Toast.LENGTH_SHORT).show()
-                } else {
-                    viewModel.saveRoutine(updated)
-                    Toast.makeText(context, "Routine '${updated.name}' saved!", Toast.LENGTH_SHORT).show()
-                    configuringRoutine = null
-                }
+    // Predictive Back gesture handler for RoutineDetailWindow
+    PredictiveBackHandler(enabled = configuringRoutine != null) { progress: Flow<BackEventCompat> ->
+        isPredictiveDetailActive = true
+        try {
+            progress.collect { backEvent ->
+                backSwipeEdge = backEvent.swipeEdge
+                animatedDetailProgress.snapTo(backEvent.progress)
             }
-        )
-
-        if (showDiscardDialog) {
-            AlertDialog(
-                onDismissRequest = { showDiscardDialog = false },
-                title = { Text("Save or Discard?", fontWeight = FontWeight.Bold) },
-                text = { Text("You have unsaved routine configuration. Do you want to save your changes before exiting or discard?") },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            val r = configuringRoutine!!
-                            if (r.name.isNotBlank() && !r.keySecret.isNullOrBlank()) {
-                                viewModel.saveRoutine(r)
-                                Toast.makeText(context, "Saved '${r.name}'", Toast.LENGTH_SHORT).show()
-                            }
-                            showDiscardDialog = false
-                            configuringRoutine = null
-                        },
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("Save")
-                    }
-                },
-                dismissButton = {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = {
-                            showDiscardDialog = false
-                            configuringRoutine = null
-                        }) {
-                            Text("Discard", color = colorScheme.error)
-                        }
-                        TextButton(onClick = { showDiscardDialog = false }) {
-                            Text("Cancel")
-                        }
-                    }
-                },
-                shape = RoundedCornerShape(24.dp),
-                containerColor = colorScheme.surfaceContainerHigh
+            // Finished swipe: display save/discard confirmation dialog
+            showDiscardDialog = true
+        } catch (e: CancellationException) {
+            // Cancelled swipe: spring back smoothly
+            animatedDetailProgress.animateTo(
+                targetValue = 0f,
+                animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
             )
+        } finally {
+            isPredictiveDetailActive = false
         }
-        return
     }
 
-    // --- MAIN ROUTINES LIST SCREEN ---
-    RoundedPullRefreshPage(
-        isRefreshing = isRefreshing,
-        onRefresh = {
-            coroutineScope.launch {
-                isRefreshing = true
-                viewModel.syncActiveBlocks()
-                delay(650)
-                isRefreshing = false
-            }
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    sheetRoutineName = ""
-                    sheetDaysOfWeek = setOf(2, 3, 4, 5, 6)
-                    sheetStartHour = 9
-                    sheetStartMinute = 0
-                    sheetEndHour = 17
-                    sheetEndMinute = 0
-                    showCreateSheet = true
-                },
-                containerColor = colorScheme.primary,
-                contentColor = colorScheme.onPrimary,
-                shape = CircleShape
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.add_fill0),
-                    contentDescription = "New Routine"
-                )
-            }
-        },
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(
-                            text = "Routines",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 20.sp,
-                            color = colorScheme.onSurface
-                        )
-                        Text(
-                            text = "Automated recurring schedules & bedtime blocks",
-                            style = typography.bodySmall,
-                            color = colorScheme.onSurfaceVariant
-                        )
-                    }
-                },
-                navigationIcon = {
-                    Surface(
-                        shape = CircleShape,
-                        color = colorScheme.secondaryContainer,
-                        modifier = Modifier
-                            .padding(start = 12.dp)
-                            .size(40.dp),
-                        onClick = onBack
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                painter = painterResource(R.drawable.arrow_back_fill0),
-                                contentDescription = "Back",
-                                tint = colorScheme.onSecondaryContainer,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent,
-                    scrolledContainerColor = Color.Transparent
-                ),
-                modifier = Modifier.statusBarsPadding()
-            )
+    val openDetailWindow: (AutomatedRoutine) -> Unit = { routine ->
+        coroutineScope.launch {
+            animatedDetailProgress.snapTo(1f)
+            configuringRoutine = routine
+            animatedDetailProgress.animateTo(0f, tween(durationMillis = 260))
         }
-    ) { innerPadding ->
-        LazyColumn(
+    }
+
+    val closeDetailWindow: (Boolean) -> Unit = { shouldSave ->
+        coroutineScope.launch {
+            if (shouldSave && configuringRoutine != null) {
+                val r = configuringRoutine!!
+                if (r.name.isNotBlank() && !r.keySecret.isNullOrBlank()) {
+                    viewModel.saveRoutine(r)
+                    Toast.makeText(context, "Saved '${r.name}'", Toast.LENGTH_SHORT).show()
+                }
+            }
+            showDiscardDialog = false
+            animatedDetailProgress.animateTo(1f, tween(durationMillis = 180))
+            configuringRoutine = null
+            animatedDetailProgress.snapTo(0f)
+        }
+    }
+
+    val isDark = colorScheme.surface.luminance() < 0.5f
+    val appBackground = if (isDark) Color.Black else colorScheme.surface
+
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(appBackground)
+    ) {
+        val screenWidthPx = constraints.maxWidth.toFloat()
+        val p = animatedDetailProgress.value
+
+        // Bottom layer: Main Routines list (shifts and dims slightly when detail window is open)
+        val mainOffsetX = if (isDetailWindowVisible) (-screenWidthPx / 4f) * (1f - p) else 0f
+        val mainAlpha = if (isDetailWindowVisible) 0.75f + (p * 0.25f) else 1f
+
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 20.dp),
-            contentPadding = PaddingValues(top = 12.dp, bottom = 80.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .graphicsLayer {
+                    translationX = mainOffsetX
+                    alpha = mainAlpha
+                }
         ) {
-            // Active Routine Banner
-            if (activeSession != null && activeSession!!.type == TimeBlockType.ROUTINE) {
-                val session = activeSession!!
-                item {
-                    ElevatedCard(
-                        shape = RoundedCornerShape(22.dp),
-                        colors = CardDefaults.elevatedCardColors(
-                            containerColor = colorScheme.tertiaryContainer
-                        ),
-                        modifier = Modifier.fillMaxWidth()
+            RoundedPullRefreshPage(
+                isRefreshing = isRefreshing,
+                onRefresh = {
+                    coroutineScope.launch {
+                        isRefreshing = true
+                        viewModel.syncActiveBlocks()
+                        delay(650)
+                        isRefreshing = false
+                    }
+                },
+                floatingActionButton = {
+                    FloatingActionButton(
+                        onClick = {
+                            sheetRoutineName = ""
+                            sheetDaysOfWeek = setOf(2, 3, 4, 5, 6)
+                            sheetStartHour = 9
+                            sheetStartMinute = 0
+                            sheetEndHour = 17
+                            sheetEndMinute = 0
+                            showCreateSheet = true
+                        },
+                        containerColor = colorScheme.primary,
+                        contentColor = colorScheme.onPrimary,
+                        shape = CircleShape
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(18.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                        Icon(
+                            painter = painterResource(R.drawable.add_fill0),
+                            contentDescription = "New Routine"
+                        )
+                    }
+                },
+                topBar = {
+                    TopAppBar(
+                        title = {
+                            Column {
+                                Text(
+                                    text = "Routines",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 20.sp,
+                                    color = colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Automated recurring schedules & bedtime blocks",
+                                    style = typography.bodySmall,
+                                    color = colorScheme.onSurfaceVariant
+                                )
+                            }
+                        },
+                        navigationIcon = {
                             Surface(
                                 shape = CircleShape,
-                                color = colorScheme.onTertiaryContainer,
-                                modifier = Modifier.size(10.dp)
-                            ) {}
-
-                            Spacer(Modifier.width(12.dp))
-
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "ROUTINE ACTIVE: ${session.title.uppercase()}",
-                                    style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = colorScheme.onTertiaryContainer
-                                )
-                                Text(
-                                    text = "${session.packagesSuspended.size} apps suspended • Key required to toggle",
-                                    style = typography.bodySmall,
-                                    color = colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
-                                )
+                                color = colorScheme.secondaryContainer,
+                                modifier = Modifier
+                                    .padding(start = 12.dp)
+                                    .size(40.dp),
+                                onClick = onBack
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.arrow_back_fill0),
+                                        contentDescription = "Back",
+                                        tint = colorScheme.onSecondaryContainer,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
                             }
-                        }
-                    }
-                }
-            }
-
-            // Header
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Scheduled Routines (${routines.size})",
-                        style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = colorScheme.primary
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = Color.Transparent,
+                            scrolledContainerColor = Color.Transparent
+                        ),
+                        modifier = Modifier.statusBarsPadding()
                     )
                 }
-            }
-
-            // Routines List
-            if (routines.isEmpty()) {
-                item {
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = colorScheme.surfaceContainerHigh,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(28.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Icon(
-                                painter = painterResource(R.drawable.schedule_fill0),
-                                contentDescription = null,
-                                tint = colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(40.dp)
-                            )
-                            Spacer(Modifier.height(12.dp))
-                            Text(
-                                text = "No Scheduled Routines",
-                                style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Automate your daily focus. Tap the plus icon below to set up a new schedule.",
-                                style = typography.bodySmall,
-                                color = colorScheme.onSurfaceVariant,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
-                            )
-                            Button(
-                                onClick = {
-                                    sheetRoutineName = ""
-                                    sheetDaysOfWeek = setOf(2, 3, 4, 5, 6)
-                                    sheetStartHour = 9
-                                    sheetStartMinute = 0
-                                    sheetEndHour = 17
-                                    sheetEndMinute = 0
-                                    showCreateSheet = true
-                                },
-                                shape = RoundedCornerShape(10.dp)
+            ) { innerPadding ->
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 20.dp),
+                    contentPadding = PaddingValues(top = 12.dp, bottom = 80.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Active Routine Banner
+                    if (activeSession != null && activeSession!!.type == TimeBlockType.ROUTINE) {
+                        val session = activeSession!!
+                        item {
+                            ElevatedCard(
+                                shape = RoundedCornerShape(22.dp),
+                                colors = CardDefaults.elevatedCardColors(
+                                    containerColor = colorScheme.tertiaryContainer
+                                ),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("Create Routine")
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(18.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = colorScheme.onTertiaryContainer,
+                                        modifier = Modifier.size(10.dp)
+                                    ) {}
+
+                                    Spacer(Modifier.width(12.dp))
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "ROUTINE ACTIVE: ${session.title.uppercase()}",
+                                            style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                            color = colorScheme.onTertiaryContainer
+                                        )
+                                        Text(
+                                            text = "${session.packagesSuspended.size} apps suspended • Key required to toggle",
+                                            style = typography.bodySmall,
+                                            color = colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
-                }
-            } else {
-                items(routines, key = { it.id }) { routine ->
-                    val timeStr = formatRoutineTime(routine.startHour, routine.startMinute, routine.endHour, routine.endMinute)
 
-                    ElevatedCard(
-                        shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.elevatedCardColors(
-                            containerColor = if (routine.isActiveNow) colorScheme.primaryContainer.copy(alpha = 0.4f) else colorScheme.surfaceContainerHigh
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { configuringRoutine = routine }
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(18.dp)
+                    // Explanatory Header Card
+                    item {
+                        ElevatedCard(
+                            shape = RoundedCornerShape(24.dp),
+                            colors = CardDefaults.elevatedCardColors(
+                                containerColor = colorScheme.surfaceContainerHigh
+                            ),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.padding(20.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = colorScheme.primaryContainer,
+                                        modifier = Modifier.size(40.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.schedule_fill0),
+                                                contentDescription = null,
+                                                tint = colorScheme.primary,
+                                                modifier = Modifier.size(22.dp)
+                                            )
+                                        }
+                                    }
+                                    Spacer(Modifier.width(14.dp))
+                                    Column {
                                         Text(
-                                            text = routine.name,
+                                            text = "Daily Automated Routines",
                                             style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                            color = colorScheme.onSurface,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
+                                            color = colorScheme.onSurface
                                         )
-                                        if (routine.isActiveNow) {
-                                            Spacer(Modifier.width(8.dp))
+                                        Text(
+                                            text = "Enforces strict time blocks automatically",
+                                            style = typography.bodySmall,
+                                            color = colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+
+                                Spacer(Modifier.height(14.dp))
+
+                                Text(
+                                    text = "Routines automatically suspend assigned bags and enforce DNS filtering during specified hours and days. Disabling or modifying a routine requires unlocking with its assigned protection key.",
+                                    style = typography.bodySmall,
+                                    color = colorScheme.onSurfaceVariant,
+                                    lineHeight = 18.sp
+                                )
+                            }
+                        }
+                    }
+
+                    // Routines List Header
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Your Routines (${routines.size})",
+                                style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    if (routines.isEmpty()) {
+                        item {
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = colorScheme.surfaceContainerLow,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(32.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.schedule_fill0),
+                                        contentDescription = null,
+                                        tint = colorScheme.outline,
+                                        modifier = Modifier.size(44.dp)
+                                    )
+                                    Spacer(Modifier.height(12.dp))
+                                    Text(
+                                        text = "No Routines Created",
+                                        style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "Tap '+' below to schedule recurring study, work, or bedtime blocks.",
+                                        style = typography.bodySmall,
+                                        color = colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = 4.dp)
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        items(routines, key = { it.id }) { routine ->
+                            val isCurrentlyActive = routine.isActiveNow || (activeSession?.id == routine.id)
+                            ElevatedCard(
+                                shape = RoundedCornerShape(20.dp),
+                                colors = CardDefaults.elevatedCardColors(
+                                    containerColor = if (isCurrentlyActive) colorScheme.primaryContainer.copy(alpha = 0.5f) else colorScheme.surfaceContainerHigh
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { openDetailWindow(routine) }
+                            ) {
+                                Column(modifier = Modifier.padding(18.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                            Surface(
+                                                shape = RoundedCornerShape(12.dp),
+                                                color = if (routine.isEnabled) colorScheme.primaryContainer else colorScheme.surfaceContainerHighest,
+                                                modifier = Modifier.size(44.dp)
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Icon(
+                                                        painter = painterResource(R.drawable.schedule_fill0),
+                                                        contentDescription = null,
+                                                        tint = if (routine.isEnabled) colorScheme.primary else colorScheme.onSurfaceVariant,
+                                                        modifier = Modifier.size(24.dp)
+                                                    )
+                                                }
+                                            }
+
+                                            Spacer(Modifier.width(14.dp))
+
+                                            Column {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Text(
+                                                        text = routine.name,
+                                                        style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                                        color = colorScheme.onSurface
+                                                    )
+                                                    if (isCurrentlyActive) {
+                                                        Spacer(Modifier.width(8.dp))
+                                                        Surface(
+                                                            shape = CircleShape,
+                                                            color = colorScheme.primary,
+                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                        ) {
+                                                            Text(
+                                                                text = "ACTIVE",
+                                                                fontSize = 9.sp,
+                                                                fontWeight = FontWeight.Bold,
+                                                                color = colorScheme.onPrimary,
+                                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                                Text(
+                                                    text = formatRoutineTime(routine.startHour, routine.startMinute, routine.endHour, routine.endMinute),
+                                                    style = typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                                                    color = colorScheme.primary
+                                                )
+                                            }
+                                        }
+
+                                        // Switch to toggle with Key verification
+                                        Switch(
+                                            checked = routine.isEnabled,
+                                            onCheckedChange = { routineToToggle = routine }
+                                        )
+                                    }
+
+                                    Spacer(Modifier.height(12.dp))
+
+                                    // Days of week indicator
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        val dayLetters = listOf("S", "M", "T", "W", "T", "F", "S")
+                                        (1..7).forEach { dayNum ->
+                                            val isDayActive = routine.daysOfWeek.contains(dayNum)
                                             Surface(
                                                 shape = CircleShape,
-                                                color = colorScheme.primary
+                                                color = if (isDayActive) colorScheme.primary else colorScheme.surfaceContainerLowest,
+                                                modifier = Modifier.size(26.dp)
                                             ) {
-                                                Text(
-                                                    text = "ACTIVE",
-                                                    style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                                    color = colorScheme.onPrimary,
-                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                )
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Text(
+                                                        text = dayLetters[dayNum - 1],
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = if (isDayActive) colorScheme.onPrimary else colorScheme.outline
+                                                    )
+                                                }
                                             }
                                         }
                                     }
 
-                                    Spacer(Modifier.height(4.dp))
+                                    Spacer(Modifier.height(10.dp))
 
+                                    // Target bags summary
+                                    val targetBagsNames = bags.filter { routine.targetBagIds.contains(it.id) }.map { it.name }
+                                    val targetsText = when {
+                                        targetBagsNames.isNotEmpty() && routine.targetPackageNames.isNotEmpty() ->
+                                            "${targetBagsNames.joinToString()} + ${routine.targetPackageNames.size} apps"
+                                        targetBagsNames.isNotEmpty() -> targetBagsNames.joinToString(", ")
+                                        routine.targetPackageNames.isNotEmpty() -> "${routine.targetPackageNames.size} apps"
+                                        else -> "No bags or apps assigned"
+                                    }
                                     Text(
-                                        text = timeStr,
-                                        style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                        color = colorScheme.primary
+                                        text = "Blocks: $targetsText",
+                                        style = typography.bodySmall,
+                                        color = colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
-                                }
-
-                                Switch(
-                                    checked = routine.isEnabled,
-                                    onCheckedChange = { routineToToggle = routine }
-                                )
-                            }
-
-                            Spacer(Modifier.height(10.dp))
-
-                            // Day of Week Indicators
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                (1..7).forEach { dayNum ->
-                                    val isDayActive = routine.daysOfWeek.contains(dayNum)
-                                    val dayInitial = listOf("S", "M", "T", "W", "T", "F", "S")[dayNum - 1]
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = if (isDayActive) colorScheme.primary else colorScheme.surfaceContainerLowest,
-                                        modifier = Modifier.size(28.dp)
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Text(
-                                                text = dayInitial,
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (isDayActive) colorScheme.onPrimary else colorScheme.outline
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                            Spacer(Modifier.height(12.dp))
-
-                            // Badges & Actions
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    val targetCount = routine.targetBagIds.size + routine.targetPackageNames.size
-                                    Surface(shape = CircleShape, color = colorScheme.surfaceContainerLowest) {
-                                        Text(
-                                            text = "$targetCount Targets",
-                                            style = typography.labelSmall,
-                                            color = colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                                        )
-                                    }
 
                                     if (routine.enableDnsBlocking) {
-                                        Surface(shape = CircleShape, color = colorScheme.tertiaryContainer) {
-                                            Text(
-                                                text = "DNS",
-                                                style = typography.labelSmall,
-                                                color = colorScheme.onTertiaryContainer,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        Text(
+                                            text = "DNS Filter: ${routine.dnsHost}",
+                                            style = typography.bodySmall,
+                                            color = colorScheme.secondary
+                                        )
+                                    }
+
+                                    Spacer(Modifier.height(8.dp))
+
+                                    // Actions Row (Edit & Delete)
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.End,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        IconButton(onClick = { openDetailWindow(routine) }) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.tune_fill0),
+                                                contentDescription = "Edit Configuration",
+                                                tint = colorScheme.primary,
+                                                modifier = Modifier.size(20.dp)
                                             )
                                         }
-                                    }
-                                }
 
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    IconButton(onClick = { configuringRoutine = routine }) {
-                                        Icon(
-                                            painter = painterResource(R.drawable.tune_fill0),
-                                            contentDescription = "Configure",
-                                            tint = colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-
-                                    IconButton(onClick = { routineToDelete = routine }) {
-                                        Icon(
-                                            painter = painterResource(R.drawable.delete_fill0),
-                                            contentDescription = "Delete",
-                                            tint = colorScheme.error,
-                                            modifier = Modifier.size(20.dp)
-                                        )
+                                        IconButton(onClick = { routineToDelete = routine }) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.delete_fill0),
+                                                contentDescription = "Delete",
+                                                tint = colorScheme.error,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
+            }
+        }
+
+        // Top layer: RoutineDetailWindow with predictive slide transition
+        if (isDetailWindowVisible && configuringRoutine != null) {
+            val detailOffsetX = screenWidthPx * p
+            val detailScale = 1f - (p * 0.05f)
+            val detailCorners = (p * 24).dp
+            val detailAlpha = 1f - (p * 0.15f)
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        translationX = detailOffsetX
+                        scaleX = detailScale
+                        scaleY = detailScale
+                        alpha = detailAlpha
+                        clip = p > 0f
+                        shape = RoundedCornerShape(detailCorners)
+                        shadowElevation = if (p > 0f) 24.dp.toPx() else 0f
+                    }
+            ) {
+                RoutineDetailWindow(
+                    routine = configuringRoutine!!,
+                    bags = bags,
+                    savedKeys = savedKeys,
+                    installedApps = installedApps,
+                    onBack = { showDiscardDialog = true },
+                    onSave = { updated ->
+                        if (updated.name.isBlank()) {
+                            Toast.makeText(context, "Please enter a routine name", Toast.LENGTH_SHORT).show()
+                        } else if (updated.keySecret.isNullOrBlank()) {
+                            Toast.makeText(context, "A protection key is required", Toast.LENGTH_SHORT).show()
+                        } else {
+                            viewModel.saveRoutine(updated)
+                            Toast.makeText(context, "Routine '${updated.name}' saved!", Toast.LENGTH_SHORT).show()
+                            coroutineScope.launch {
+                                animatedDetailProgress.animateTo(1f, tween(durationMillis = 180))
+                                configuringRoutine = null
+                                animatedDetailProgress.snapTo(0f)
+                            }
+                        }
+                    }
+                )
             }
         }
     }
@@ -530,7 +650,6 @@ fun RoutinesWindow(
                     .padding(horizontal = 24.dp)
                     .padding(bottom = 32.dp)
             ) {
-                // Top header in bottom sheet: Title and Next pill
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -556,7 +675,7 @@ fun RoutinesWindow(
                                 keySecret = ""
                             )
                             showCreateSheet = false
-                            configuringRoutine = newRoutine
+                            openDetailWindow(newRoutine)
                         },
                         enabled = sheetRoutineName.isNotBlank() && sheetDaysOfWeek.isNotEmpty(),
                         shape = CircleShape,
@@ -650,6 +769,45 @@ fun RoutinesWindow(
                 )
             }
         }
+    }
+
+    // --- Discard / Save Confirmation Dialog ---
+    if (showDiscardDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showDiscardDialog = false
+                coroutineScope.launch {
+                    animatedDetailProgress.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow))
+                }
+            },
+            title = { Text("Save or Discard?", fontWeight = FontWeight.Bold) },
+            text = { Text("You have unsaved routine configuration. Do you want to save before exiting or discard?") },
+            confirmButton = {
+                Button(
+                    onClick = { closeDetailWindow(true) },
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { closeDetailWindow(false) }) {
+                        Text("Discard", color = colorScheme.error)
+                    }
+                    TextButton(onClick = {
+                        showDiscardDialog = false
+                        coroutineScope.launch {
+                            animatedDetailProgress.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow))
+                        }
+                    }) {
+                        Text("Cancel")
+                    }
+                }
+            },
+            shape = RoundedCornerShape(24.dp),
+            containerColor = colorScheme.surfaceContainerHigh
+        )
     }
 
     // --- Key Verification Dialog to Toggle Routine (Enable / Disable) ---
@@ -754,7 +912,7 @@ fun RoutinesWindow(
                         enabled = enteredKey.isNotBlank(),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("Confirm")
+                        Text("Verify & Continue")
                     }
                 },
                 dismissButton = {
@@ -834,11 +992,13 @@ fun RoutinesWindow(
 @Composable
 private fun RoutineDetailWindow(
     routine: AutomatedRoutine,
-    bags: List<com.hotaro.brik.data.model.AppBag>,
-    savedKeys: List<com.hotaro.brik.data.model.SavedKey>,
+    bags: List<AppBag>,
+    savedKeys: List<SavedKey>,
+    installedApps: List<AppInfo>,
     onBack: () -> Unit,
     onSave: (AutomatedRoutine) -> Unit
 ) {
+    val context = LocalContext.current
     var nameInput by remember { mutableStateOf(routine.name) }
     var selectedDays by remember { mutableStateOf(routine.daysOfWeek.toSet()) }
     var startHour by remember { mutableStateOf(routine.startHour) }
@@ -847,6 +1007,10 @@ private fun RoutineDetailWindow(
     var endMinute by remember { mutableStateOf(routine.endMinute) }
 
     var selectedBags by remember { mutableStateOf(routine.targetBagIds.toSet()) }
+    var selectedPackages by remember { mutableStateOf(routine.targetPackageNames.toSet()) }
+    var showBagsSheet by remember { mutableStateOf(false) }
+    var showCustomAppsSheet by remember { mutableStateOf(false) }
+
     var enableDns by remember { mutableStateOf(routine.enableDnsBlocking) }
     var selectedDnsHost by remember { mutableStateOf(routine.dnsHost) }
 
@@ -854,6 +1018,8 @@ private fun RoutineDetailWindow(
     var passwordSecret by remember { mutableStateOf(if (routine.keyType == KeyType.PASSWORD) routine.keySecret ?: "" else "") }
     var qrSecret by remember { mutableStateOf(if (routine.keyType == KeyType.QR_CODE) routine.keySecret ?: "" else "") }
     var selectedSavedKeyId by remember { mutableStateOf(routine.savedKeyId) }
+    var showSavedKeysSheet by remember { mutableStateOf(false) }
+    var showScanKeySheet by remember { mutableStateOf(false) }
 
     val currentSecret = if (selectedKeyType == KeyType.PASSWORD) passwordSecret.trim() else qrSecret.trim()
 
@@ -899,6 +1065,7 @@ private fun RoutineDetailWindow(
                                 endHour = endHour,
                                 endMinute = endMinute,
                                 targetBagIds = selectedBags.toList(),
+                                targetPackageNames = selectedPackages.toList(),
                                 enableDnsBlocking = enableDns,
                                 dnsHost = selectedDnsHost,
                                 keyType = selectedKeyType,
@@ -955,6 +1122,7 @@ private fun RoutineDetailWindow(
 
                         Text("Active Days of Week:", style = typography.labelSmall, color = colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(6.dp))
+
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             val dayLabels = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
                             (1..7).forEach { dayNum ->
@@ -1016,7 +1184,7 @@ private fun RoutineDetailWindow(
                 }
             }
 
-            // Target Bags Card
+            // Target to Block Card (Two pills: Bags and Custom)
             item {
                 ElevatedCard(
                     shape = RoundedCornerShape(20.dp),
@@ -1024,25 +1192,109 @@ private fun RoutineDetailWindow(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(18.dp)) {
-                        Text("Target Bags to Block", style = typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = colorScheme.onSurface)
-                        Text("All apps in selected bags will be suspended during this routine", style = typography.bodySmall, color = colorScheme.onSurfaceVariant)
+                        Text("Targets to Block", style = typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = colorScheme.onSurface)
+                        Text("Choose bags or individual apps to suspend during routine", style = typography.bodySmall, color = colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(12.dp))
 
-                        if (bags.isEmpty()) {
-                            Text("No bags found in Tools > Bags.", style = typography.bodySmall, color = colorScheme.outline)
+                        // Two Pills: Bags and Custom
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            // Bags Pill
+                            Surface(
+                                onClick = { showBagsSheet = true },
+                                shape = CircleShape,
+                                color = if (selectedBags.isNotEmpty()) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                border = BorderStroke(1.dp, if (selectedBags.isNotEmpty()) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                modifier = Modifier.weight(1f).height(44.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.backpack_fill0),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                        tint = if (selectedBags.isNotEmpty()) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        text = if (selectedBags.isNotEmpty()) "Bags (${selectedBags.size})" else "Bags",
+                                        style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = if (selectedBags.isNotEmpty()) colorScheme.onPrimaryContainer else colorScheme.onSurface
+                                    )
+                                }
+                            }
+
+                            // Custom Pill
+                            Surface(
+                                onClick = { showCustomAppsSheet = true },
+                                shape = CircleShape,
+                                color = if (selectedPackages.isNotEmpty()) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                border = BorderStroke(1.dp, if (selectedPackages.isNotEmpty()) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                modifier = Modifier.weight(1f).height(44.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.apps_fill0),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                        tint = if (selectedPackages.isNotEmpty()) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        text = if (selectedPackages.isNotEmpty()) "Custom (${selectedPackages.size})" else "Custom",
+                                        style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = if (selectedPackages.isNotEmpty()) colorScheme.onPrimaryContainer else colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+
+                        // Summary badges preview
+                        if (selectedBags.isEmpty() && selectedPackages.isEmpty()) {
+                            Spacer(Modifier.height(10.dp))
+                            Text("No targets selected yet. Tap Bags or Custom to choose apps to block.", style = typography.bodySmall, color = colorScheme.outline)
                         } else {
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                bags.forEach { bag ->
-                                    val isSelected = selectedBags.contains(bag.id)
-                                    FilterChip(
-                                        selected = isSelected,
-                                        onClick = {
-                                            selectedBags = if (isSelected) selectedBags - bag.id else selectedBags + bag.id
+                            Spacer(Modifier.height(12.dp))
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                bags.filter { selectedBags.contains(it.id) }.forEach { b ->
+                                    InputChip(
+                                        selected = true,
+                                        onClick = { selectedBags = selectedBags - b.id },
+                                        label = { Text(b.name) },
+                                        leadingIcon = {
+                                            Icon(painter = painterResource(R.drawable.backpack_fill0), contentDescription = null, modifier = Modifier.size(14.dp))
                                         },
-                                        label = { Text(bag.name) },
-                                        leadingIcon = if (isSelected) {
-                                            { Icon(painter = painterResource(R.drawable.check_fill0), contentDescription = null, Modifier.size(16.dp)) }
-                                        } else null
+                                        trailingIcon = {
+                                            Icon(painter = painterResource(R.drawable.close_fill0), contentDescription = "Remove", modifier = Modifier.size(14.dp))
+                                        }
+                                    )
+                                }
+
+                                installedApps.filter { selectedPackages.contains(it.packageName) }.take(6).forEach { app ->
+                                    InputChip(
+                                        selected = true,
+                                        onClick = { selectedPackages = selectedPackages - app.packageName },
+                                        label = { Text(app.label) },
+                                        leadingIcon = {
+                                            Icon(painter = painterResource(R.drawable.apps_fill0), contentDescription = null, modifier = Modifier.size(14.dp))
+                                        },
+                                        trailingIcon = {
+                                            Icon(painter = painterResource(R.drawable.close_fill0), contentDescription = "Remove", modifier = Modifier.size(14.dp))
+                                        }
+                                    )
+                                }
+
+                                val remainingCustom = selectedPackages.size - installedApps.filter { selectedPackages.contains(it.packageName) }.take(6).size
+                                if (remainingCustom > 0) {
+                                    SuggestionChip(
+                                        onClick = { showCustomAppsSheet = true },
+                                        label = { Text("+$remainingCustom more") }
                                     )
                                 }
                             }
@@ -1099,7 +1351,7 @@ private fun RoutineDetailWindow(
                 }
             }
 
-            // Key Protection Card
+            // Routine Protection Key Card
             item {
                 ElevatedCard(
                     shape = RoundedCornerShape(20.dp),
@@ -1143,47 +1395,416 @@ private fun RoutineDetailWindow(
                                 modifier = Modifier.fillMaxWidth()
                             )
                         } else {
-                            if (savedKeys.isNotEmpty()) {
-                                Text("Pick from Saved Keys:", style = typography.labelSmall, color = colorScheme.onSurfaceVariant)
-                                Spacer(Modifier.height(6.dp))
-                                savedKeys.forEach { sk ->
-                                    val isSelected = selectedSavedKeyId == sk.id || qrSecret == sk.token
-                                    Surface(
-                                        onClick = {
-                                            selectedSavedKeyId = sk.id
-                                            qrSecret = sk.token
-                                        },
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = if (isSelected) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
-                                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+                            // QR Key Section with Two Pills: Choose from Saved Keys or Scan New Key
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Surface(
+                                    onClick = { showSavedKeysSheet = true },
+                                    shape = CircleShape,
+                                    color = if (selectedSavedKeyId != null) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                    border = BorderStroke(1.dp, if (selectedSavedKeyId != null) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                    modifier = Modifier.weight(1f).height(42.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
                                     ) {
-                                        Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(painter = painterResource(R.drawable.qr_code_fill0), contentDescription = null, tint = colorScheme.primary, modifier = Modifier.size(18.dp))
-                                            Spacer(Modifier.width(8.dp))
-                                            Text(sk.name, style = typography.labelMedium.copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f))
-                                            if (isSelected) {
-                                                Icon(painter = painterResource(R.drawable.check_fill0), contentDescription = null, tint = colorScheme.onPrimaryContainer, modifier = Modifier.size(16.dp))
+                                        Icon(painter = painterResource(R.drawable.key_fill0), contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("Saved Keys", style = typography.labelMedium.copy(fontWeight = FontWeight.Bold))
+                                    }
+                                }
+
+                                Surface(
+                                    onClick = { showScanKeySheet = true },
+                                    shape = CircleShape,
+                                    color = if (selectedSavedKeyId == null && qrSecret.isNotBlank()) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                    border = BorderStroke(1.dp, if (selectedSavedKeyId == null && qrSecret.isNotBlank()) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                    modifier = Modifier.weight(1f).height(42.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
+                                        Icon(painter = painterResource(R.drawable.qr_code_scanner_fill0), contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("Scan New Key", style = typography.labelMedium.copy(fontWeight = FontWeight.Bold))
+                                    }
+                                }
+                            }
+
+                            Spacer(Modifier.height(12.dp))
+
+                            // Selected Key Preview Status
+                            if (qrSecret.isNotBlank()) {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = colorScheme.primaryContainer.copy(alpha = 0.4f),
+                                    border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.4f)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(painter = painterResource(R.drawable.qr_code_fill0), contentDescription = null, tint = colorScheme.primary, modifier = Modifier.size(24.dp))
+                                        Spacer(Modifier.width(10.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            val keyName = savedKeys.find { it.id == selectedSavedKeyId }?.name
+                                            if (keyName != null) {
+                                                Text("Saved Key: $keyName", style = typography.bodyMedium.copy(fontWeight = FontWeight.Bold), color = colorScheme.onSurface)
+                                            } else {
+                                                Text("Scanned QR Key", style = typography.bodyMedium.copy(fontWeight = FontWeight.Bold), color = colorScheme.onSurface)
                                             }
+                                            Text(
+                                                text = if (qrSecret.length > 14) "${qrSecret.take(6)}...${qrSecret.takeLast(6)}" else qrSecret,
+                                                style = typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
+                                                color = colorScheme.outline
+                                            )
+                                        }
+                                        IconButton(onClick = {
+                                            qrSecret = ""
+                                            selectedSavedKeyId = null
+                                        }) {
+                                            Icon(painter = painterResource(R.drawable.close_fill0), contentDescription = "Clear Key", modifier = Modifier.size(18.dp))
                                         }
                                     }
                                 }
-                                Spacer(Modifier.height(10.dp))
-                            }
-
-                            OutlinedTextField(
-                                value = qrSecret,
-                                onValueChange = { qrSecret = it },
-                                label = { Text("QR Token String *") },
-                                singleLine = true,
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-
-                            TextButton(onClick = { qrSecret = UUID.randomUUID().toString() }) {
-                                Text("Generate Random Key Token")
+                            } else {
+                                Text(
+                                    text = "No key selected. Choose a saved key or scan a new QR code.",
+                                    style = typography.bodySmall,
+                                    color = colorScheme.error
+                                )
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+
+    // --- BOTTOM SHEET: SELECT TARGET BAGS ---
+    if (showBagsSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showBagsSheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = colorScheme.surfaceContainerHigh,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 32.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("Target Bags", style = typography.titleLarge.copy(fontWeight = FontWeight.Bold))
+                        Text("Select bags to block during this routine", style = typography.bodySmall, color = colorScheme.onSurfaceVariant)
+                    }
+                    Button(
+                        onClick = { showBagsSheet = false },
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary)
+                    ) {
+                        Text("Done", fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                if (bags.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) {
+                        Text("No bags found in Tools > Bags.", style = typography.bodyMedium, color = colorScheme.outline)
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 380.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(bags, key = { it.id }) { bag ->
+                            val isSelected = selectedBags.contains(bag.id)
+                            Surface(
+                                onClick = {
+                                    selectedBags = if (isSelected) selectedBags - bag.id else selectedBags + bag.id
+                                },
+                                shape = RoundedCornerShape(14.dp),
+                                color = if (isSelected) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                border = BorderStroke(1.dp, if (isSelected) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.backpack_fill0),
+                                        contentDescription = null,
+                                        tint = if (isSelected) colorScheme.onPrimaryContainer else colorScheme.primary,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(bag.name, style = typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = if (isSelected) colorScheme.onPrimaryContainer else colorScheme.onSurface)
+                                        Text("${bag.packageNames.size} apps included", style = typography.bodySmall, color = colorScheme.onSurfaceVariant)
+                                    }
+                                    Checkbox(
+                                        checked = isSelected,
+                                        onCheckedChange = { checked ->
+                                            selectedBags = if (checked) selectedBags + bag.id else selectedBags - bag.id
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // --- BOTTOM SHEET: SELECT CUSTOM APPS ---
+    if (showCustomAppsSheet) {
+        var customSearch by remember { mutableStateOf("") }
+        val filteredApps = remember(installedApps, customSearch) {
+            if (customSearch.isBlank()) installedApps else installedApps.filter { it.label.contains(customSearch, ignoreCase = true) || it.packageName.contains(customSearch, ignoreCase = true) }
+        }
+
+        ModalBottomSheet(
+            onDismissRequest = { showCustomAppsSheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = colorScheme.surfaceContainerHigh,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 32.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("Custom Apps", style = typography.titleLarge.copy(fontWeight = FontWeight.Bold))
+                        Text("${selectedPackages.size} apps selected to block", style = typography.bodySmall, color = colorScheme.onSurfaceVariant)
+                    }
+                    Button(
+                        onClick = { showCustomAppsSheet = false },
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary)
+                    ) {
+                        Text("Done", fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Spacer(Modifier.height(14.dp))
+
+                OutlinedTextField(
+                    value = customSearch,
+                    onValueChange = { customSearch = it },
+                    placeholder = { Text("Search installed apps...") },
+                    leadingIcon = { Icon(painter = painterResource(R.drawable.search_fill0), contentDescription = null, modifier = Modifier.size(18.dp)) },
+                    trailingIcon = if (customSearch.isNotEmpty()) {
+                        { IconButton(onClick = { customSearch = "" }) { Icon(painter = painterResource(R.drawable.close_fill0), contentDescription = "Clear", modifier = Modifier.size(18.dp)) } }
+                    } else null,
+                    singleLine = true,
+                    shape = CircleShape,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(Modifier.height(12.dp))
+
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    items(filteredApps, key = { it.packageName }) { app ->
+                        val isSelected = selectedPackages.contains(app.packageName)
+                        Surface(
+                            onClick = {
+                                selectedPackages = if (isSelected) selectedPackages - app.packageName else selectedPackages + app.packageName
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSelected) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                            border = BorderStroke(1.dp, if (isSelected) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (app.icon != null) {
+                                    Image(
+                                        painter = rememberDrawablePainter(drawable = app.icon),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(36.dp).clip(RoundedCornerShape(8.dp))
+                                    )
+                                } else {
+                                    Icon(
+                                        painter = painterResource(R.drawable.apps_fill0),
+                                        contentDescription = null,
+                                        tint = colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(36.dp)
+                                    )
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(app.label, style = typography.bodyMedium.copy(fontWeight = FontWeight.Bold), color = if (isSelected) colorScheme.onPrimaryContainer else colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(app.packageName, style = typography.bodySmall.copy(fontSize = 10.sp), color = colorScheme.outline, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                                Checkbox(
+                                    checked = isSelected,
+                                    onCheckedChange = { checked ->
+                                        selectedPackages = if (checked) selectedPackages + app.packageName else selectedPackages - app.packageName
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // --- BOTTOM SHEET: CHOOSE FROM SAVED KEYS ---
+    if (showSavedKeysSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showSavedKeysSheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = colorScheme.surfaceContainerHigh,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 32.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("Saved Keys", style = typography.titleLarge.copy(fontWeight = FontWeight.Bold))
+                        Text("Select a key to protect this routine", style = typography.bodySmall, color = colorScheme.onSurfaceVariant)
+                    }
+                    Button(
+                        onClick = { showSavedKeysSheet = false },
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary)
+                    ) {
+                        Text("Done", fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                if (savedKeys.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) {
+                        Text("No saved keys found. You can scan or add keys in Keys & Analytics.", style = typography.bodyMedium, color = colorScheme.outline)
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 380.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(savedKeys, key = { it.id }) { sk ->
+                            val isSelected = selectedSavedKeyId == sk.id || qrSecret == sk.token
+                            Surface(
+                                onClick = {
+                                    selectedSavedKeyId = sk.id
+                                    qrSecret = sk.token
+                                    showSavedKeysSheet = false
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isSelected) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                border = BorderStroke(1.dp, if (isSelected) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(painter = painterResource(R.drawable.qr_code_fill0), contentDescription = null, tint = colorScheme.primary, modifier = Modifier.size(24.dp))
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(sk.name, style = typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = if (isSelected) colorScheme.onPrimaryContainer else colorScheme.onSurface)
+                                        if (sk.description.isNotBlank()) {
+                                            Text(sk.description, style = typography.bodySmall, color = colorScheme.onSurfaceVariant)
+                                        }
+                                        Text(
+                                            text = if (sk.token.length > 16) "${sk.token.take(8)}...${sk.token.takeLast(6)}" else sk.token,
+                                            style = typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
+                                            color = colorScheme.outline
+                                        )
+                                    }
+                                    if (isSelected) {
+                                        Icon(painter = painterResource(R.drawable.check_fill0), contentDescription = null, tint = colorScheme.onPrimaryContainer, modifier = Modifier.size(20.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // --- BOTTOM SHEET: SCAN NEW KEY ---
+    if (showScanKeySheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showScanKeySheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = colorScheme.surfaceContainerHigh,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 32.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("Scan Key QR Code", style = typography.titleLarge.copy(fontWeight = FontWeight.Bold))
+                        Text("Point camera at any QR code to use as key", style = typography.bodySmall, color = colorScheme.onSurfaceVariant)
+                    }
+                    IconButton(onClick = { showScanKeySheet = false }) {
+                        Icon(painter = painterResource(R.drawable.close_fill0), contentDescription = "Close")
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(280.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                ) {
+                    QrScannerView(
+                        onQrDetected = { detected ->
+                            qrSecret = detected
+                            selectedSavedKeyId = null
+                            showScanKeySheet = false
+                            Toast.makeText(context, "Key scanned successfully!", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
                 }
             }
         }

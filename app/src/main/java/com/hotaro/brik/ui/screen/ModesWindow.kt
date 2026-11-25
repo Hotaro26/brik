@@ -1,10 +1,19 @@
 package com.hotaro.brik.ui.screen
 
 import android.widget.Toast
-import androidx.activity.compose.BackHandler
+import androidx.activity.BackEventCompat
+import androidx.activity.compose.PredictiveBackHandler
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -14,6 +23,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -26,17 +36,19 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.MaterialTheme.typography
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -48,6 +60,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,6 +70,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
@@ -65,15 +80,21 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.google.accompanist.drawablepainter.rememberDrawablePainter
 import com.hotaro.brik.R
+import com.hotaro.brik.data.model.AppBag
+import com.hotaro.brik.data.model.AppInfo
 import com.hotaro.brik.data.model.FocusMode
 import com.hotaro.brik.data.model.KeyType
+import com.hotaro.brik.data.model.SavedKey
 import com.hotaro.brik.data.model.TimeBlockType
 import com.hotaro.brik.policy.DnsManager
 import com.hotaro.brik.ui.component.QrScannerView
 import com.hotaro.brik.ui.component.RoundedPullRefreshPage
 import com.hotaro.brik.ui.viewmodel.TimeBlockViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -92,6 +113,7 @@ fun ModesWindow(
     val activeSession by viewModel.activeSession.collectAsState()
     val bags by viewModel.bags.collectAsState()
     val savedKeys by viewModel.savedKeys.collectAsState()
+    val installedApps by viewModel.installedApps.collectAsState()
 
     var isRefreshing by remember { mutableStateOf(false) }
 
@@ -100,9 +122,13 @@ fun ModesWindow(
     var sheetModeName by remember { mutableStateOf("") }
     var sheetSelectedIcon by remember { mutableStateOf("mode_fill0") }
 
-    // Full Detail Configuration Window state
+    // Full Detail Configuration Window state with predictive back
     var configuringMode by remember { mutableStateOf<FocusMode?>(null) }
     var showDiscardDialog by remember { mutableStateOf(false) }
+    val animatedDetailProgress = remember { Animatable(0f) }
+    var isPredictiveDetailActive by remember { mutableStateOf(false) }
+    var backSwipeEdge by remember { mutableIntStateOf(BackEventCompat.EDGE_LEFT) }
+    val isDetailWindowVisible = configuringMode != null || isPredictiveDetailActive || animatedDetailProgress.value > 0f
 
     // Session control dialogs
     var modeToStart by remember { mutableStateOf<FocusMode?>(null) }
@@ -118,473 +144,518 @@ fun ModesWindow(
         }
     }
 
-    // Handle back inside Detail Window
-    if (configuringMode != null) {
-        BackHandler {
-            showDiscardDialog = true
-        }
-
-        ModeDetailWindow(
-            mode = configuringMode!!,
-            bags = bags,
-            savedKeys = savedKeys,
-            onBack = { showDiscardDialog = true },
-            onSave = { updated ->
-                if (updated.name.isBlank()) {
-                    Toast.makeText(context, "Please enter a profile name", Toast.LENGTH_SHORT).show()
-                } else if (updated.keySecret.isNullOrBlank()) {
-                    Toast.makeText(context, "A protection key is required", Toast.LENGTH_SHORT).show()
-                } else {
-                    viewModel.saveFocusMode(updated)
-                    Toast.makeText(context, "Focus Mode '${updated.name}' saved!", Toast.LENGTH_SHORT).show()
-                    configuringMode = null
-                }
+    // Predictive Back gesture handler for ModeDetailWindow
+    PredictiveBackHandler(enabled = configuringMode != null) { progress: Flow<BackEventCompat> ->
+        isPredictiveDetailActive = true
+        try {
+            progress.collect { backEvent ->
+                backSwipeEdge = backEvent.swipeEdge
+                animatedDetailProgress.snapTo(backEvent.progress)
             }
-        )
-
-        if (showDiscardDialog) {
-            AlertDialog(
-                onDismissRequest = { showDiscardDialog = false },
-                title = { Text("Save or Discard?", fontWeight = FontWeight.Bold) },
-                text = { Text("You have unsaved changes. Do you want to save this focus mode before exiting or discard?") },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            val m = configuringMode!!
-                            if (m.name.isNotBlank() && !m.keySecret.isNullOrBlank()) {
-                                viewModel.saveFocusMode(m)
-                                Toast.makeText(context, "Saved '${m.name}'", Toast.LENGTH_SHORT).show()
-                            }
-                            showDiscardDialog = false
-                            configuringMode = null
-                        },
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("Save")
-                    }
-                },
-                dismissButton = {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = {
-                            showDiscardDialog = false
-                            configuringMode = null
-                        }) {
-                            Text("Discard", color = colorScheme.error)
-                        }
-                        TextButton(onClick = { showDiscardDialog = false }) {
-                            Text("Cancel")
-                        }
-                    }
-                },
-                shape = RoundedCornerShape(24.dp),
-                containerColor = colorScheme.surfaceContainerHigh
+            // Finished swipe: display save/discard confirmation dialog
+            showDiscardDialog = true
+        } catch (e: CancellationException) {
+            // Cancelled swipe: spring back smoothly
+            animatedDetailProgress.animateTo(
+                targetValue = 0f,
+                animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
             )
+        } finally {
+            isPredictiveDetailActive = false
         }
-        return
     }
 
-    // --- MAIN FOCUS MODES LIST SCREEN ---
-    RoundedPullRefreshPage(
-        isRefreshing = isRefreshing,
-        onRefresh = {
-            coroutineScope.launch {
-                isRefreshing = true
-                viewModel.syncActiveBlocks()
-                delay(650)
-                isRefreshing = false
-            }
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    sheetModeName = ""
-                    sheetSelectedIcon = "mode_fill0"
-                    showCreateSheet = true
-                },
-                containerColor = colorScheme.primary,
-                contentColor = colorScheme.onPrimary,
-                shape = CircleShape
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.add_fill0),
-                    contentDescription = "New Focus Mode"
-                )
-            }
-        },
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(
-                            text = "Focus Modes",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 20.sp,
-                            color = colorScheme.onSurface
-                        )
-                        Text(
-                            text = "Dedicated restriction profiles and study sessions",
-                            style = typography.bodySmall,
-                            color = colorScheme.onSurfaceVariant
-                        )
-                    }
-                },
-                navigationIcon = {
-                    Surface(
-                        shape = CircleShape,
-                        color = colorScheme.secondaryContainer,
-                        modifier = Modifier
-                            .padding(start = 12.dp)
-                            .size(40.dp),
-                        onClick = onBack
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                painter = painterResource(R.drawable.arrow_back_fill0),
-                                contentDescription = "Back",
-                                tint = colorScheme.onSecondaryContainer,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent,
-                    scrolledContainerColor = Color.Transparent
-                ),
-                modifier = Modifier.statusBarsPadding()
-            )
+    val openDetailWindow: (FocusMode) -> Unit = { mode ->
+        coroutineScope.launch {
+            animatedDetailProgress.snapTo(1f)
+            configuringMode = mode
+            animatedDetailProgress.animateTo(0f, tween(durationMillis = 260))
         }
-    ) { innerPadding ->
-        LazyColumn(
+    }
+
+    val closeDetailWindow: (Boolean) -> Unit = { shouldSave ->
+        coroutineScope.launch {
+            if (shouldSave && configuringMode != null) {
+                val m = configuringMode!!
+                if (m.name.isNotBlank() && !m.keySecret.isNullOrBlank()) {
+                    viewModel.saveFocusMode(m)
+                    Toast.makeText(context, "Saved '${m.name}'", Toast.LENGTH_SHORT).show()
+                }
+            }
+            showDiscardDialog = false
+            animatedDetailProgress.animateTo(1f, tween(durationMillis = 180))
+            configuringMode = null
+            animatedDetailProgress.snapTo(0f)
+        }
+    }
+
+    val isDark = colorScheme.surface.luminance() < 0.5f
+    val appBackground = if (isDark) Color.Black else colorScheme.surface
+
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(appBackground)
+    ) {
+        val screenWidthPx = constraints.maxWidth.toFloat()
+        val p = animatedDetailProgress.value
+
+        // Bottom layer: Main Focus Modes list
+        val mainOffsetX = if (isDetailWindowVisible) (-screenWidthPx / 4f) * (1f - p) else 0f
+        val mainAlpha = if (isDetailWindowVisible) 0.75f + (p * 0.25f) else 1f
+
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 20.dp),
-            contentPadding = PaddingValues(top = 12.dp, bottom = 80.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .graphicsLayer {
+                    translationX = mainOffsetX
+                    alpha = mainAlpha
+                }
         ) {
-            // Live Active Focus Session Banner
-            if (activeSession != null && activeSession!!.type == TimeBlockType.FOCUS_MODE) {
-                val session = activeSession!!
-                val endsAt = session.endsAt ?: (currentTime + 3600000L)
-                val remainingSeconds = ((endsAt - currentTime) / 1000L).coerceAtLeast(0)
-                val hours = remainingSeconds / 3600
-                val minutes = (remainingSeconds % 3600) / 60
-                val seconds = remainingSeconds % 60
-                val formattedTime = if (hours > 0) {
-                    String.format(Locale.US, "%02d:%02d:%02d", hours, minutes, seconds)
-                } else {
-                    String.format(Locale.US, "%02d:%02d", minutes, seconds)
-                }
-
-                item {
-                    ElevatedCard(
-                        shape = RoundedCornerShape(24.dp),
-                        colors = CardDefaults.elevatedCardColors(
-                            containerColor = colorScheme.errorContainer
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(20.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = colorScheme.error,
-                                        modifier = Modifier.size(10.dp)
-                                    ) {}
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(
-                                        text = "ACTIVE SESSION",
-                                        style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                        color = colorScheme.onErrorContainer
-                                    )
-                                }
-
-                                Surface(
-                                    shape = CircleShape,
-                                    color = colorScheme.surface.copy(alpha = 0.5f)
-                                ) {
-                                    Text(
-                                        text = "${session.packagesSuspended.size} apps blocked",
-                                        style = typography.labelSmall,
-                                        color = colorScheme.onErrorContainer,
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
-                                    )
-                                }
-                            }
-
-                            Spacer(Modifier.height(14.dp))
-
-                            Text(
-                                text = session.title,
-                                style = typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
-                                color = colorScheme.onErrorContainer
-                            )
-
-                            Spacer(Modifier.height(6.dp))
-
-                            Text(
-                                text = formattedTime,
-                                style = typography.displaySmall.copy(
-                                    fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.Bold
-                                ),
-                                color = colorScheme.error
-                            )
-
-                            val endsTimeStr = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date(endsAt))
-                            Text(
-                                text = "Ends at $endsTimeStr • Strict Key required to unlock early",
-                                style = typography.bodySmall,
-                                color = colorScheme.onErrorContainer.copy(alpha = 0.8f)
-                            )
-
-                            Spacer(Modifier.height(16.dp))
-
-                            Button(
-                                onClick = {
-                                    val mode = focusModes.find { it.id == session.id }
-                                    if (mode != null) {
-                                        modeToStop = mode
-                                    }
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = colorScheme.error),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Text("Stop / Unlock with Key", color = colorScheme.onError)
-                            }
-                        }
+            RoundedPullRefreshPage(
+                isRefreshing = isRefreshing,
+                onRefresh = {
+                    coroutineScope.launch {
+                        isRefreshing = true
+                        viewModel.syncActiveBlocks()
+                        delay(650)
+                        isRefreshing = false
                     }
-                }
-            }
-
-            // Section Header
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Focus Profiles (${focusModes.size})",
-                        style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = colorScheme.primary
+                },
+                floatingActionButton = {
+                    FloatingActionButton(
+                        onClick = {
+                            sheetModeName = ""
+                            sheetSelectedIcon = "mode_fill0"
+                            showCreateSheet = true
+                        },
+                        containerColor = colorScheme.primary,
+                        contentColor = colorScheme.onPrimary,
+                        shape = CircleShape
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.add_fill0),
+                            contentDescription = "New Focus Mode"
+                        )
+                    }
+                },
+                topBar = {
+                    TopAppBar(
+                        title = {
+                            Column {
+                                Text(
+                                    text = "Focus Modes",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 20.sp,
+                                    color = colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "On-demand timed app suspension & DNS blocking",
+                                    style = typography.bodySmall,
+                                    color = colorScheme.onSurfaceVariant
+                                )
+                            }
+                        },
+                        navigationIcon = {
+                            Surface(
+                                shape = CircleShape,
+                                color = colorScheme.secondaryContainer,
+                                modifier = Modifier
+                                    .padding(start = 12.dp)
+                                    .size(40.dp),
+                                onClick = onBack
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.arrow_back_fill0),
+                                        contentDescription = "Back",
+                                        tint = colorScheme.onSecondaryContainer,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = Color.Transparent,
+                            scrolledContainerColor = Color.Transparent
+                        ),
+                        modifier = Modifier.statusBarsPadding()
                     )
                 }
-            }
+            ) { innerPadding ->
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 20.dp),
+                    contentPadding = PaddingValues(top = 12.dp, bottom = 80.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Active Mode Banner
+                    if (activeSession != null && activeSession!!.type == TimeBlockType.FOCUS_MODE) {
+                        val session = activeSession!!
+                        val remainingMs = (session.endsAt ?: 0L) - currentTime
+                        val remainingFormatted = if (remainingMs > 0) {
+                            val mins = (remainingMs / 1000) / 60
+                            val secs = (remainingMs / 1000) % 60
+                            String.format(Locale.US, "%02d:%02d remaining", mins, secs)
+                        } else {
+                            "Ending session..."
+                        }
 
-            // List of Focus Modes
-            if (focusModes.isEmpty()) {
-                item {
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = colorScheme.surfaceContainerHigh,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(28.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Icon(
-                                painter = painterResource(R.drawable.mode_fill0),
-                                contentDescription = null,
-                                tint = colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(40.dp)
-                            )
-                            Spacer(Modifier.height(12.dp))
-                            Text(
-                                text = "No Focus Modes",
-                                style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Create custom modes like Study, Sleeping, Playing, Outdoor, or Family Time.",
-                                style = typography.bodySmall,
-                                color = colorScheme.onSurfaceVariant,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
-                            )
-                            Button(
-                                onClick = {
-                                    sheetModeName = ""
-                                    sheetSelectedIcon = "mode_fill0"
-                                    showCreateSheet = true
-                                },
-                                shape = RoundedCornerShape(10.dp)
+                        item {
+                            ElevatedCard(
+                                shape = RoundedCornerShape(22.dp),
+                                colors = CardDefaults.elevatedCardColors(
+                                    containerColor = colorScheme.primaryContainer
+                                ),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("Create Focus Mode")
+                                Column(modifier = Modifier.padding(18.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = colorScheme.primary,
+                                                modifier = Modifier.size(12.dp)
+                                            ) {}
+                                            Spacer(Modifier.width(10.dp))
+                                            Text(
+                                                text = "ACTIVE SESSION: ${session.title.uppercase()}",
+                                                style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                                color = colorScheme.onPrimaryContainer
+                                            )
+                                        }
+
+                                        Text(
+                                            text = remainingFormatted,
+                                            style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                            color = colorScheme.primary
+                                        )
+                                    }
+
+                                    Spacer(Modifier.height(10.dp))
+
+                                    Text(
+                                        text = "${session.packagesSuspended.size} apps suspended • DNS ${if (session.dnsBlocked) "filtered" else "normal"}",
+                                        style = typography.bodySmall,
+                                        color = colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                    )
+
+                                    Spacer(Modifier.height(12.dp))
+
+                                    Button(
+                                        onClick = {
+                                            val running = focusModes.find { it.id == session.id }
+                                            if (running != null) {
+                                                modeToStop = running
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = colorScheme.error),
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Icon(painter = painterResource(R.drawable.key_fill0), contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("Unlock & Stop Session Early", fontWeight = FontWeight.Bold)
+                                    }
+                                }
                             }
                         }
                     }
-                }
-            } else {
-                items(focusModes, key = { it.id }) { mode ->
-                    val isCurrentRunning = mode.isRunning
-                    val iconRes = getModeIcon(mode.iconName)
 
-                    ElevatedCard(
-                        shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.elevatedCardColors(
-                            containerColor = if (isCurrentRunning) colorScheme.errorContainer.copy(alpha = 0.4f) else colorScheme.surfaceContainerHigh
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { configuringMode = mode }
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(18.dp)
+                    // Explanatory Header Card
+                    item {
+                        ElevatedCard(
+                            shape = RoundedCornerShape(24.dp),
+                            colors = CardDefaults.elevatedCardColors(
+                                containerColor = colorScheme.surfaceContainerHigh
+                            ),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Surface(
-                                    shape = RoundedCornerShape(14.dp),
-                                    color = colorScheme.secondaryContainer,
-                                    modifier = Modifier.size(48.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            painter = painterResource(iconRes),
-                                            contentDescription = null,
-                                            tint = colorScheme.onSecondaryContainer,
-                                            modifier = Modifier.size(24.dp)
+                            Column(modifier = Modifier.padding(20.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = colorScheme.primaryContainer,
+                                        modifier = Modifier.size(40.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.mode_fill0),
+                                                contentDescription = null,
+                                                tint = colorScheme.primary,
+                                                modifier = Modifier.size(22.dp)
+                                            )
+                                        }
+                                    }
+                                    Spacer(Modifier.width(14.dp))
+                                    Column {
+                                        Text(
+                                            text = "On-Demand Focus Modes",
+                                            style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = "Timed restriction with strict protection",
+                                            style = typography.bodySmall,
+                                            color = colorScheme.onSurfaceVariant
                                         )
                                     }
                                 }
 
-                                Spacer(Modifier.width(14.dp))
+                                Spacer(Modifier.height(14.dp))
 
-                                Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Start customized focus profiles for deep work, study, or digital detox. Once a session starts, early termination strictly requires unlocking with your assigned key.",
+                                    style = typography.bodySmall,
+                                    color = colorScheme.onSurfaceVariant,
+                                    lineHeight = 18.sp
+                                )
+                            }
+                        }
+                    }
+
+                    // Focus Profiles List Header
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Configured Focus Modes (${focusModes.size})",
+                                style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    if (focusModes.isEmpty()) {
+                        item {
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = colorScheme.surfaceContainerLow,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(32.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.mode_fill0),
+                                        contentDescription = null,
+                                        tint = colorScheme.outline,
+                                        modifier = Modifier.size(44.dp)
+                                    )
+                                    Spacer(Modifier.height(12.dp))
                                     Text(
-                                        text = mode.name,
+                                        text = "No Focus Modes Created",
                                         style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                        color = colorScheme.onSurface,
+                                        color = colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "Tap '+' below to create customized focus profiles.",
+                                        style = typography.bodySmall,
+                                        color = colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = 4.dp)
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        items(focusModes, key = { it.id }) { mode ->
+                            val isRunning = mode.isRunning || (activeSession?.id == mode.id)
+                            ElevatedCard(
+                                shape = RoundedCornerShape(20.dp),
+                                colors = CardDefaults.elevatedCardColors(
+                                    containerColor = if (isRunning) colorScheme.primaryContainer.copy(alpha = 0.5f) else colorScheme.surfaceContainerHigh
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { openDetailWindow(mode) }
+                            ) {
+                                Column(modifier = Modifier.padding(18.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                            Surface(
+                                                shape = RoundedCornerShape(12.dp),
+                                                color = if (isRunning) colorScheme.primary else colorScheme.surfaceContainerHighest,
+                                                modifier = Modifier.size(46.dp)
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Icon(
+                                                        painter = painterResource(getModeIcon(mode.iconName)),
+                                                        contentDescription = null,
+                                                        tint = if (isRunning) colorScheme.onPrimary else colorScheme.onSurfaceVariant,
+                                                        modifier = Modifier.size(24.dp)
+                                                    )
+                                                }
+                                            }
+
+                                            Spacer(Modifier.width(14.dp))
+
+                                            Column {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Text(
+                                                        text = mode.name,
+                                                        style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                                        color = colorScheme.onSurface
+                                                    )
+                                                    if (isRunning) {
+                                                        Spacer(Modifier.width(8.dp))
+                                                        Surface(
+                                                            shape = CircleShape,
+                                                            color = colorScheme.primary,
+                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                        ) {
+                                                            Text(
+                                                                text = "RUNNING",
+                                                                fontSize = 9.sp,
+                                                                fontWeight = FontWeight.Bold,
+                                                                color = colorScheme.onPrimary,
+                                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                                Text(
+                                                    text = "${mode.defaultDurationMinutes} min session",
+                                                    style = typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                                                    color = colorScheme.primary
+                                                )
+                                            }
+                                        }
+
+                                        // Start / Stop Action
+                                        if (isRunning) {
+                                            Button(
+                                                onClick = { modeToStop = mode },
+                                                colors = ButtonDefaults.buttonColors(containerColor = colorScheme.error),
+                                                shape = RoundedCornerShape(12.dp)
+                                            ) {
+                                                Text("Unlock")
+                                            }
+                                        } else {
+                                            Button(
+                                                onClick = { modeToStart = mode },
+                                                shape = RoundedCornerShape(12.dp)
+                                            ) {
+                                                Text("Start")
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(Modifier.height(10.dp))
+
+                                    // Target bags summary
+                                    val targetBagsNames = bags.filter { mode.targetBagIds.contains(it.id) }.map { it.name }
+                                    val targetsText = when {
+                                        targetBagsNames.isNotEmpty() && mode.targetPackageNames.isNotEmpty() ->
+                                            "${targetBagsNames.joinToString()} + ${mode.targetPackageNames.size} apps"
+                                        targetBagsNames.isNotEmpty() -> targetBagsNames.joinToString(", ")
+                                        mode.targetPackageNames.isNotEmpty() -> "${mode.targetPackageNames.size} apps"
+                                        else -> "No bags or apps assigned"
+                                    }
+                                    Text(
+                                        text = "Blocks: $targetsText",
+                                        style = typography.bodySmall,
+                                        color = colorScheme.onSurfaceVariant,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
-                                    val targetCount = mode.targetBagIds.size + mode.targetPackageNames.size
-                                    Text(
-                                        text = "${mode.defaultDurationMinutes}m session • $targetCount targets",
-                                        style = typography.bodySmall,
-                                        color = colorScheme.onSurfaceVariant
-                                    )
-                                }
 
-                                if (isCurrentRunning) {
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = colorScheme.error
-                                    ) {
+                                    if (mode.enableDnsBlocking) {
                                         Text(
-                                            text = "RUNNING",
-                                            style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                            color = colorScheme.onError,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                            text = "DNS Filter: ${mode.dnsHost}",
+                                            style = typography.bodySmall,
+                                            color = colorScheme.secondary
                                         )
                                     }
-                                }
-                            }
 
-                            Spacer(Modifier.height(10.dp))
+                                    Spacer(Modifier.height(8.dp))
 
-                            // Badges
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = colorScheme.surfaceContainerLowest
-                                ) {
-                                    Text(
-                                        text = if (mode.keyType == KeyType.QR_CODE) "QR Key" else "Password Key",
-                                        style = typography.labelSmall,
-                                        color = colorScheme.primary,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                                    )
-                                }
-
-                                if (mode.enableDnsBlocking) {
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = colorScheme.tertiaryContainer
+                                    // Actions Row (Edit & Delete)
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.End,
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text(
-                                            text = "DNS Filtered",
-                                            style = typography.labelSmall,
-                                            color = colorScheme.onTertiaryContainer,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                                        )
-                                    }
-                                }
-                            }
+                                        IconButton(onClick = { openDetailWindow(mode) }) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.tune_fill0),
+                                                contentDescription = "Edit Configuration",
+                                                tint = colorScheme.primary,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
 
-                            Spacer(Modifier.height(14.dp))
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.End,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                IconButton(
-                                    onClick = { configuringMode = mode },
-                                    enabled = !isCurrentRunning
-                                ) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.tune_fill0),
-                                        contentDescription = "Configure",
-                                        tint = colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-
-                                IconButton(
-                                    onClick = { modeToDelete = mode }
-                                ) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.delete_fill0),
-                                        contentDescription = "Delete",
-                                        tint = colorScheme.error,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-
-                                Spacer(Modifier.width(6.dp))
-
-                                if (isCurrentRunning) {
-                                    Button(
-                                        onClick = { modeToStop = mode },
-                                        colors = ButtonDefaults.buttonColors(containerColor = colorScheme.error),
-                                        shape = RoundedCornerShape(12.dp)
-                                    ) {
-                                        Text("Stop")
-                                    }
-                                } else {
-                                    Button(
-                                        onClick = { modeToStart = mode },
-                                        shape = RoundedCornerShape(12.dp)
-                                    ) {
-                                        Text("Start Session")
+                                        IconButton(onClick = { modeToDelete = mode }) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.delete_fill0),
+                                                contentDescription = "Delete",
+                                                tint = colorScheme.error,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
+            }
+        }
+
+        // Top layer: ModeDetailWindow with predictive slide transition
+        if (isDetailWindowVisible && configuringMode != null) {
+            val detailOffsetX = screenWidthPx * p
+            val detailScale = 1f - (p * 0.05f)
+            val detailCorners = (p * 24).dp
+            val detailAlpha = 1f - (p * 0.15f)
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        translationX = detailOffsetX
+                        scaleX = detailScale
+                        scaleY = detailScale
+                        alpha = detailAlpha
+                        clip = p > 0f
+                        shape = RoundedCornerShape(detailCorners)
+                        shadowElevation = if (p > 0f) 24.dp.toPx() else 0f
+                    }
+            ) {
+                ModeDetailWindow(
+                    mode = configuringMode!!,
+                    bags = bags,
+                    savedKeys = savedKeys,
+                    installedApps = installedApps,
+                    onBack = { showDiscardDialog = true },
+                    onSave = { updated ->
+                        if (updated.name.isBlank()) {
+                            Toast.makeText(context, "Please enter a profile name", Toast.LENGTH_SHORT).show()
+                        } else if (updated.keySecret.isNullOrBlank()) {
+                            Toast.makeText(context, "A protection key is required", Toast.LENGTH_SHORT).show()
+                        } else {
+                            viewModel.saveFocusMode(updated)
+                            Toast.makeText(context, "Focus Mode '${updated.name}' saved!", Toast.LENGTH_SHORT).show()
+                            coroutineScope.launch {
+                                animatedDetailProgress.animateTo(1f, tween(durationMillis = 180))
+                                configuringMode = null
+                                animatedDetailProgress.snapTo(0f)
+                            }
+                        }
+                    }
+                )
             }
         }
     }
@@ -613,7 +684,6 @@ fun ModesWindow(
                     .padding(horizontal = 24.dp)
                     .padding(bottom = 32.dp)
             ) {
-                // Top header in bottom sheet: Title and Next pill
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -636,7 +706,7 @@ fun ModesWindow(
                                 keySecret = ""
                             )
                             showCreateSheet = false
-                            configuringMode = newMode
+                            openDetailWindow(newMode)
                         },
                         enabled = sheetModeName.isNotBlank(),
                         shape = CircleShape,
@@ -652,7 +722,7 @@ fun ModesWindow(
                     value = sheetModeName,
                     onValueChange = { sheetModeName = it },
                     label = { Text("Profile Name *") },
-                    placeholder = { Text("e.g., Study, Sleeping, Family Time, Outdoor") },
+                    placeholder = { Text("e.g., Deep Focus, Reading, Gaming Ban") },
                     singleLine = true,
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -661,9 +731,12 @@ fun ModesWindow(
                 Spacer(Modifier.height(18.dp))
 
                 Text("Profile Icon:", style = typography.labelMedium, color = colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(10.dp))
 
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     icons.forEach { (name, res) ->
                         val isSelected = sheetSelectedIcon == name
                         Surface(
@@ -677,7 +750,7 @@ fun ModesWindow(
                                     painter = painterResource(res),
                                     contentDescription = null,
                                     tint = if (isSelected) colorScheme.onPrimary else colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(22.dp)
+                                    modifier = Modifier.size(24.dp)
                                 )
                             }
                         }
@@ -687,10 +760,49 @@ fun ModesWindow(
         }
     }
 
-    // --- Start Focus Mode Session Dialog ---
+    // --- Discard / Save Confirmation Dialog ---
+    if (showDiscardDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showDiscardDialog = false
+                coroutineScope.launch {
+                    animatedDetailProgress.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow))
+                }
+            },
+            title = { Text("Save or Discard?", fontWeight = FontWeight.Bold) },
+            text = { Text("You have unsaved changes. Do you want to save this focus mode before exiting or discard?") },
+            confirmButton = {
+                Button(
+                    onClick = { closeDetailWindow(true) },
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { closeDetailWindow(false) }) {
+                        Text("Discard", color = colorScheme.error)
+                    }
+                    TextButton(onClick = {
+                        showDiscardDialog = false
+                        coroutineScope.launch {
+                            animatedDetailProgress.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow))
+                        }
+                    }) {
+                        Text("Cancel")
+                    }
+                }
+            },
+            shape = RoundedCornerShape(24.dp),
+            containerColor = colorScheme.surfaceContainerHigh
+        )
+    }
+
+    // --- Start Focus Mode Dialog ---
     if (modeToStart != null) {
         val mode = modeToStart!!
-        var chosenMinutes by remember { mutableStateOf(mode.defaultDurationMinutes) }
+        var durationInput by remember { mutableIntStateOf(mode.defaultDurationMinutes) }
 
         AlertDialog(
             onDismissRequest = { modeToStart = null },
@@ -704,26 +816,26 @@ fun ModesWindow(
             text = {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        text = "Choose duration for this session. A key will be required to exit early.",
+                        text = "Once started, early unlocking will require verification of your assigned key.",
                         style = typography.bodySmall,
                         color = colorScheme.onSurfaceVariant
                     )
 
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(14.dp))
 
+                    Text("Duration:", style = typography.labelMedium, color = colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(6.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        listOf(25, 45, 60, 90).forEach { mins ->
-                            val isSelected = chosenMinutes == mins
+                        listOf(15, 30, 45, 60, 90).forEach { mins ->
+                            val isSelected = durationInput == mins
                             Surface(
-                                onClick = { chosenMinutes = mins },
-                                shape = RoundedCornerShape(12.dp),
+                                onClick = { durationInput = mins },
+                                shape = RoundedCornerShape(10.dp),
                                 color = if (isSelected) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(44.dp)
+                                modifier = Modifier.weight(1f).height(38.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Text(
@@ -738,22 +850,27 @@ fun ModesWindow(
 
                     Spacer(Modifier.height(14.dp))
 
-                    OutlinedTextField(
-                        value = chosenMinutes.toString(),
-                        onValueChange = { chosenMinutes = it.toIntOrNull() ?: 1 },
-                        label = { Text("Custom Minutes") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    val targetBagsNames = bags.filter { mode.targetBagIds.contains(it.id) }.map { it.name }
+                    val targetsText = when {
+                        targetBagsNames.isNotEmpty() && mode.targetPackageNames.isNotEmpty() ->
+                            "${targetBagsNames.joinToString()} + ${mode.targetPackageNames.size} apps"
+                        targetBagsNames.isNotEmpty() -> targetBagsNames.joinToString(", ")
+                        mode.targetPackageNames.isNotEmpty() -> "${mode.targetPackageNames.size} apps"
+                        else -> "None"
+                    }
+                    Text("Targets: $targetsText", style = typography.bodySmall, color = colorScheme.onSurfaceVariant)
+                    if (mode.enableDnsBlocking) {
+                        Text("DNS Filter: ${mode.dnsHost}", style = typography.bodySmall, color = colorScheme.secondary)
+                    }
+                    Text("Key Type: ${mode.keyType.name}", style = typography.bodySmall, color = colorScheme.outline)
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.startFocusMode(mode.id, chosenMinutes) { success, err ->
+                        viewModel.startFocusMode(mode.id, durationInput) { success, err ->
                             if (success) {
-                                Toast.makeText(context, "'${mode.name}' started!", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Focus Mode '${mode.name}' started!", Toast.LENGTH_SHORT).show()
                                 modeToStart = null
                             } else {
                                 Toast.makeText(context, err ?: "Failed to start", Toast.LENGTH_SHORT).show()
@@ -762,7 +879,7 @@ fun ModesWindow(
                     },
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("Start Now")
+                    Text("Start Focus")
                 }
             },
             dismissButton = {
@@ -773,7 +890,7 @@ fun ModesWindow(
         )
     }
 
-    // --- Stop Active Session Dialog ---
+    // --- Stop / Unlock Focus Mode Dialog ---
     if (modeToStop != null) {
         val mode = modeToStop!!
         var enteredSecret by remember { mutableStateOf("") }
@@ -782,19 +899,18 @@ fun ModesWindow(
         if (showScanner) {
             AlertDialog(
                 onDismissRequest = { showScanner = false },
-                title = { Text("Scan Key QR Code", fontWeight = FontWeight.Bold) },
+                title = { Text("Scan Unlock Key", fontWeight = FontWeight.Bold) },
                 text = {
                     Box(modifier = Modifier.fillMaxWidth().height(280.dp).clip(RoundedCornerShape(16.dp))) {
                         QrScannerView(
                             onQrDetected = { detected ->
                                 showScanner = false
-                                enteredSecret = detected
-                                viewModel.stopFocusMode(mode.id, detected) { ok, err ->
-                                    if (ok) {
-                                        Toast.makeText(context, "'${mode.name}' session ended!", Toast.LENGTH_SHORT).show()
+                                viewModel.stopFocusMode(mode.id, detected) { success, err ->
+                                    if (success) {
+                                        Toast.makeText(context, "'${mode.name}' unlocked!", Toast.LENGTH_SHORT).show()
                                         modeToStop = null
                                     } else {
-                                        Toast.makeText(context, err ?: "Invalid QR Key", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, err ?: "Incorrect key", Toast.LENGTH_SHORT).show()
                                     }
                                 }
                             },
@@ -815,13 +931,13 @@ fun ModesWindow(
                     Text(
                         text = "Unlock '${mode.name}'?",
                         fontWeight = FontWeight.Bold,
-                        color = colorScheme.onSurface
+                        color = colorScheme.error
                     )
                 },
                 text = {
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Text(
-                            text = "Provide the configured ${if (mode.keyType == KeyType.QR_CODE) "QR Key" else "Password"} to stop this focus mode early.",
+                            text = "To terminate or stop this active focus session early, enter or scan the assigned key.",
                             style = typography.bodySmall,
                             color = colorScheme.onSurfaceVariant
                         )
@@ -958,16 +1074,21 @@ fun ModesWindow(
 @Composable
 private fun ModeDetailWindow(
     mode: FocusMode,
-    bags: List<com.hotaro.brik.data.model.AppBag>,
-    savedKeys: List<com.hotaro.brik.data.model.SavedKey>,
+    bags: List<AppBag>,
+    savedKeys: List<SavedKey>,
+    installedApps: List<AppInfo>,
     onBack: () -> Unit,
     onSave: (FocusMode) -> Unit
 ) {
+    val context = LocalContext.current
     var nameInput by remember { mutableStateOf(mode.name) }
     var selectedIcon by remember { mutableStateOf(mode.iconName) }
     var durationMinutes by remember { mutableStateOf(mode.defaultDurationMinutes) }
     var selectedBags by remember { mutableStateOf(mode.targetBagIds.toSet()) }
     var selectedPackages by remember { mutableStateOf(mode.targetPackageNames.toSet()) }
+    var showBagsSheet by remember { mutableStateOf(false) }
+    var showCustomAppsSheet by remember { mutableStateOf(false) }
+
     var enableDns by remember { mutableStateOf(mode.enableDnsBlocking) }
     var selectedDnsHost by remember { mutableStateOf(mode.dnsHost) }
 
@@ -975,6 +1096,8 @@ private fun ModeDetailWindow(
     var passwordSecret by remember { mutableStateOf(if (mode.keyType == KeyType.PASSWORD) mode.keySecret ?: "" else "") }
     var qrSecret by remember { mutableStateOf(if (mode.keyType == KeyType.QR_CODE) mode.keySecret ?: "" else "") }
     var selectedSavedKeyId by remember { mutableStateOf(mode.savedKeyId) }
+    var showSavedKeysSheet by remember { mutableStateOf(false) }
+    var showScanKeySheet by remember { mutableStateOf(false) }
 
     val currentSecret = if (selectedKeyType == KeyType.PASSWORD) passwordSecret.trim() else qrSecret.trim()
 
@@ -1149,7 +1272,7 @@ private fun ModeDetailWindow(
                 }
             }
 
-            // Target Bags Card
+            // Target to Block Card (Two pills: Bags and Custom)
             item {
                 ElevatedCard(
                     shape = RoundedCornerShape(20.dp),
@@ -1157,25 +1280,109 @@ private fun ModeDetailWindow(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(18.dp)) {
-                        Text("Target Bags to Block", style = typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = colorScheme.onSurface)
-                        Text("Apps in these bags will be suspended during this focus mode", style = typography.bodySmall, color = colorScheme.onSurfaceVariant)
+                        Text("Targets to Block", style = typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = colorScheme.onSurface)
+                        Text("Choose bags or individual apps to suspend during this focus mode", style = typography.bodySmall, color = colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(12.dp))
 
-                        if (bags.isEmpty()) {
-                            Text("No bags found in Tools > Bags.", style = typography.bodySmall, color = colorScheme.outline)
+                        // Two Pills: Bags and Custom
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            // Bags Pill
+                            Surface(
+                                onClick = { showBagsSheet = true },
+                                shape = CircleShape,
+                                color = if (selectedBags.isNotEmpty()) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                border = BorderStroke(1.dp, if (selectedBags.isNotEmpty()) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                modifier = Modifier.weight(1f).height(44.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.backpack_fill0),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                        tint = if (selectedBags.isNotEmpty()) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        text = if (selectedBags.isNotEmpty()) "Bags (${selectedBags.size})" else "Bags",
+                                        style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = if (selectedBags.isNotEmpty()) colorScheme.onPrimaryContainer else colorScheme.onSurface
+                                    )
+                                }
+                            }
+
+                            // Custom Pill
+                            Surface(
+                                onClick = { showCustomAppsSheet = true },
+                                shape = CircleShape,
+                                color = if (selectedPackages.isNotEmpty()) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                border = BorderStroke(1.dp, if (selectedPackages.isNotEmpty()) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                modifier = Modifier.weight(1f).height(44.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.apps_fill0),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                        tint = if (selectedPackages.isNotEmpty()) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        text = if (selectedPackages.isNotEmpty()) "Custom (${selectedPackages.size})" else "Custom",
+                                        style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = if (selectedPackages.isNotEmpty()) colorScheme.onPrimaryContainer else colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+
+                        // Summary badges preview
+                        if (selectedBags.isEmpty() && selectedPackages.isEmpty()) {
+                            Spacer(Modifier.height(10.dp))
+                            Text("No targets selected yet. Tap Bags or Custom to choose apps to block.", style = typography.bodySmall, color = colorScheme.outline)
                         } else {
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                bags.forEach { bag ->
-                                    val isSelected = selectedBags.contains(bag.id)
-                                    FilterChip(
-                                        selected = isSelected,
-                                        onClick = {
-                                            selectedBags = if (isSelected) selectedBags - bag.id else selectedBags + bag.id
+                            Spacer(Modifier.height(12.dp))
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                bags.filter { selectedBags.contains(it.id) }.forEach { b ->
+                                    InputChip(
+                                        selected = true,
+                                        onClick = { selectedBags = selectedBags - b.id },
+                                        label = { Text(b.name) },
+                                        leadingIcon = {
+                                            Icon(painter = painterResource(R.drawable.backpack_fill0), contentDescription = null, modifier = Modifier.size(14.dp))
                                         },
-                                        label = { Text(bag.name) },
-                                        leadingIcon = if (isSelected) {
-                                            { Icon(painter = painterResource(R.drawable.check_fill0), contentDescription = null, Modifier.size(16.dp)) }
-                                        } else null
+                                        trailingIcon = {
+                                            Icon(painter = painterResource(R.drawable.close_fill0), contentDescription = "Remove", modifier = Modifier.size(14.dp))
+                                        }
+                                    )
+                                }
+
+                                installedApps.filter { selectedPackages.contains(it.packageName) }.take(6).forEach { app ->
+                                    InputChip(
+                                        selected = true,
+                                        onClick = { selectedPackages = selectedPackages - app.packageName },
+                                        label = { Text(app.label) },
+                                        leadingIcon = {
+                                            Icon(painter = painterResource(R.drawable.apps_fill0), contentDescription = null, modifier = Modifier.size(14.dp))
+                                        },
+                                        trailingIcon = {
+                                            Icon(painter = painterResource(R.drawable.close_fill0), contentDescription = "Remove", modifier = Modifier.size(14.dp))
+                                        }
+                                    )
+                                }
+
+                                val remainingCustom = selectedPackages.size - installedApps.filter { selectedPackages.contains(it.packageName) }.take(6).size
+                                if (remainingCustom > 0) {
+                                    SuggestionChip(
+                                        onClick = { showCustomAppsSheet = true },
+                                        label = { Text("+$remainingCustom more") }
                                     )
                                 }
                             }
@@ -1276,47 +1483,416 @@ private fun ModeDetailWindow(
                                 modifier = Modifier.fillMaxWidth()
                             )
                         } else {
-                            if (savedKeys.isNotEmpty()) {
-                                Text("Pick from Saved Keys:", style = typography.labelSmall, color = colorScheme.onSurfaceVariant)
-                                Spacer(Modifier.height(6.dp))
-                                savedKeys.forEach { sk ->
-                                    val isSelected = selectedSavedKeyId == sk.id || qrSecret == sk.token
-                                    Surface(
-                                        onClick = {
-                                            selectedSavedKeyId = sk.id
-                                            qrSecret = sk.token
-                                        },
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = if (isSelected) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
-                                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+                            // QR Key Section with Two Pills: Choose from Saved Keys or Scan New Key
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Surface(
+                                    onClick = { showSavedKeysSheet = true },
+                                    shape = CircleShape,
+                                    color = if (selectedSavedKeyId != null) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                    border = BorderStroke(1.dp, if (selectedSavedKeyId != null) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                    modifier = Modifier.weight(1f).height(42.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
                                     ) {
-                                        Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(painter = painterResource(R.drawable.qr_code_fill0), contentDescription = null, tint = colorScheme.primary, modifier = Modifier.size(18.dp))
-                                            Spacer(Modifier.width(8.dp))
-                                            Text(sk.name, style = typography.labelMedium.copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f))
-                                            if (isSelected) {
-                                                Icon(painter = painterResource(R.drawable.check_fill0), contentDescription = null, tint = colorScheme.onPrimaryContainer, modifier = Modifier.size(16.dp))
+                                        Icon(painter = painterResource(R.drawable.key_fill0), contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("Saved Keys", style = typography.labelMedium.copy(fontWeight = FontWeight.Bold))
+                                    }
+                                }
+
+                                Surface(
+                                    onClick = { showScanKeySheet = true },
+                                    shape = CircleShape,
+                                    color = if (selectedSavedKeyId == null && qrSecret.isNotBlank()) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                    border = BorderStroke(1.dp, if (selectedSavedKeyId == null && qrSecret.isNotBlank()) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                    modifier = Modifier.weight(1f).height(42.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
+                                        Icon(painter = painterResource(R.drawable.qr_code_scanner_fill0), contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("Scan New Key", style = typography.labelMedium.copy(fontWeight = FontWeight.Bold))
+                                    }
+                                }
+                            }
+
+                            Spacer(Modifier.height(12.dp))
+
+                            // Selected Key Preview Status
+                            if (qrSecret.isNotBlank()) {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = colorScheme.primaryContainer.copy(alpha = 0.4f),
+                                    border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.4f)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(painter = painterResource(R.drawable.qr_code_fill0), contentDescription = null, tint = colorScheme.primary, modifier = Modifier.size(24.dp))
+                                        Spacer(Modifier.width(10.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            val keyName = savedKeys.find { it.id == selectedSavedKeyId }?.name
+                                            if (keyName != null) {
+                                                Text("Saved Key: $keyName", style = typography.bodyMedium.copy(fontWeight = FontWeight.Bold), color = colorScheme.onSurface)
+                                            } else {
+                                                Text("Scanned QR Key", style = typography.bodyMedium.copy(fontWeight = FontWeight.Bold), color = colorScheme.onSurface)
                                             }
+                                            Text(
+                                                text = if (qrSecret.length > 14) "${qrSecret.take(6)}...${qrSecret.takeLast(6)}" else qrSecret,
+                                                style = typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
+                                                color = colorScheme.outline
+                                            )
+                                        }
+                                        IconButton(onClick = {
+                                            qrSecret = ""
+                                            selectedSavedKeyId = null
+                                        }) {
+                                            Icon(painter = painterResource(R.drawable.close_fill0), contentDescription = "Clear Key", modifier = Modifier.size(18.dp))
                                         }
                                     }
                                 }
-                                Spacer(Modifier.height(10.dp))
-                            }
-
-                            OutlinedTextField(
-                                value = qrSecret,
-                                onValueChange = { qrSecret = it },
-                                label = { Text("QR Token String *") },
-                                singleLine = true,
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-
-                            TextButton(onClick = { qrSecret = UUID.randomUUID().toString() }) {
-                                Text("Generate Random Key Token")
+                            } else {
+                                Text(
+                                    text = "No key selected. Choose a saved key or scan a new QR code.",
+                                    style = typography.bodySmall,
+                                    color = colorScheme.error
+                                )
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+
+    // --- BOTTOM SHEET: SELECT TARGET BAGS ---
+    if (showBagsSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showBagsSheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = colorScheme.surfaceContainerHigh,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 32.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("Target Bags", style = typography.titleLarge.copy(fontWeight = FontWeight.Bold))
+                        Text("Select bags to block during this focus mode", style = typography.bodySmall, color = colorScheme.onSurfaceVariant)
+                    }
+                    Button(
+                        onClick = { showBagsSheet = false },
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary)
+                    ) {
+                        Text("Done", fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                if (bags.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) {
+                        Text("No bags found in Tools > Bags.", style = typography.bodyMedium, color = colorScheme.outline)
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 380.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(bags, key = { it.id }) { bag ->
+                            val isSelected = selectedBags.contains(bag.id)
+                            Surface(
+                                onClick = {
+                                    selectedBags = if (isSelected) selectedBags - bag.id else selectedBags + bag.id
+                                },
+                                shape = RoundedCornerShape(14.dp),
+                                color = if (isSelected) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                border = BorderStroke(1.dp, if (isSelected) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.backpack_fill0),
+                                        contentDescription = null,
+                                        tint = if (isSelected) colorScheme.onPrimaryContainer else colorScheme.primary,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(bag.name, style = typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = if (isSelected) colorScheme.onPrimaryContainer else colorScheme.onSurface)
+                                        Text("${bag.packageNames.size} apps included", style = typography.bodySmall, color = colorScheme.onSurfaceVariant)
+                                    }
+                                    Checkbox(
+                                        checked = isSelected,
+                                        onCheckedChange = { checked ->
+                                            selectedBags = if (checked) selectedBags + bag.id else selectedBags - bag.id
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // --- BOTTOM SHEET: SELECT CUSTOM APPS ---
+    if (showCustomAppsSheet) {
+        var customSearch by remember { mutableStateOf("") }
+        val filteredApps = remember(installedApps, customSearch) {
+            if (customSearch.isBlank()) installedApps else installedApps.filter { it.label.contains(customSearch, ignoreCase = true) || it.packageName.contains(customSearch, ignoreCase = true) }
+        }
+
+        ModalBottomSheet(
+            onDismissRequest = { showCustomAppsSheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = colorScheme.surfaceContainerHigh,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 32.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("Custom Apps", style = typography.titleLarge.copy(fontWeight = FontWeight.Bold))
+                        Text("${selectedPackages.size} apps selected to block", style = typography.bodySmall, color = colorScheme.onSurfaceVariant)
+                    }
+                    Button(
+                        onClick = { showCustomAppsSheet = false },
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary)
+                    ) {
+                        Text("Done", fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Spacer(Modifier.height(14.dp))
+
+                OutlinedTextField(
+                    value = customSearch,
+                    onValueChange = { customSearch = it },
+                    placeholder = { Text("Search installed apps...") },
+                    leadingIcon = { Icon(painter = painterResource(R.drawable.search_fill0), contentDescription = null, modifier = Modifier.size(18.dp)) },
+                    trailingIcon = if (customSearch.isNotEmpty()) {
+                        { IconButton(onClick = { customSearch = "" }) { Icon(painter = painterResource(R.drawable.close_fill0), contentDescription = "Clear", modifier = Modifier.size(18.dp)) } }
+                    } else null,
+                    singleLine = true,
+                    shape = CircleShape,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(Modifier.height(12.dp))
+
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    items(filteredApps, key = { it.packageName }) { app ->
+                        val isSelected = selectedPackages.contains(app.packageName)
+                        Surface(
+                            onClick = {
+                                selectedPackages = if (isSelected) selectedPackages - app.packageName else selectedPackages + app.packageName
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSelected) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                            border = BorderStroke(1.dp, if (isSelected) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (app.icon != null) {
+                                    Image(
+                                        painter = rememberDrawablePainter(drawable = app.icon),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(36.dp).clip(RoundedCornerShape(8.dp))
+                                    )
+                                } else {
+                                    Icon(
+                                        painter = painterResource(R.drawable.apps_fill0),
+                                        contentDescription = null,
+                                        tint = colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(36.dp)
+                                    )
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(app.label, style = typography.bodyMedium.copy(fontWeight = FontWeight.Bold), color = if (isSelected) colorScheme.onPrimaryContainer else colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(app.packageName, style = typography.bodySmall.copy(fontSize = 10.sp), color = colorScheme.outline, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                                Checkbox(
+                                    checked = isSelected,
+                                    onCheckedChange = { checked ->
+                                        selectedPackages = if (checked) selectedPackages + app.packageName else selectedPackages - app.packageName
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // --- BOTTOM SHEET: CHOOSE FROM SAVED KEYS ---
+    if (showSavedKeysSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showSavedKeysSheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = colorScheme.surfaceContainerHigh,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 32.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("Saved Keys", style = typography.titleLarge.copy(fontWeight = FontWeight.Bold))
+                        Text("Select a key to protect this focus mode", style = typography.bodySmall, color = colorScheme.onSurfaceVariant)
+                    }
+                    Button(
+                        onClick = { showSavedKeysSheet = false },
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary)
+                    ) {
+                        Text("Done", fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                if (savedKeys.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) {
+                        Text("No saved keys found. You can scan or add keys in Keys & Analytics.", style = typography.bodyMedium, color = colorScheme.outline)
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 380.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(savedKeys, key = { it.id }) { sk ->
+                            val isSelected = selectedSavedKeyId == sk.id || qrSecret == sk.token
+                            Surface(
+                                onClick = {
+                                    selectedSavedKeyId = sk.id
+                                    qrSecret = sk.token
+                                    showSavedKeysSheet = false
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isSelected) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                border = BorderStroke(1.dp, if (isSelected) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(painter = painterResource(R.drawable.qr_code_fill0), contentDescription = null, tint = colorScheme.primary, modifier = Modifier.size(24.dp))
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(sk.name, style = typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = if (isSelected) colorScheme.onPrimaryContainer else colorScheme.onSurface)
+                                        if (sk.description.isNotBlank()) {
+                                            Text(sk.description, style = typography.bodySmall, color = colorScheme.onSurfaceVariant)
+                                        }
+                                        Text(
+                                            text = if (sk.token.length > 16) "${sk.token.take(8)}...${sk.token.takeLast(6)}" else sk.token,
+                                            style = typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
+                                            color = colorScheme.outline
+                                        )
+                                    }
+                                    if (isSelected) {
+                                        Icon(painter = painterResource(R.drawable.check_fill0), contentDescription = null, tint = colorScheme.onPrimaryContainer, modifier = Modifier.size(20.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // --- BOTTOM SHEET: SCAN NEW KEY ---
+    if (showScanKeySheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showScanKeySheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = colorScheme.surfaceContainerHigh,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 32.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("Scan Key QR Code", style = typography.titleLarge.copy(fontWeight = FontWeight.Bold))
+                        Text("Point camera at any QR code to use as key", style = typography.bodySmall, color = colorScheme.onSurfaceVariant)
+                    }
+                    IconButton(onClick = { showScanKeySheet = false }) {
+                        Icon(painter = painterResource(R.drawable.close_fill0), contentDescription = "Close")
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(280.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                ) {
+                    QrScannerView(
+                        onQrDetected = { detected ->
+                            qrSecret = detected
+                            selectedSavedKeyId = null
+                            showScanKeySheet = false
+                            Toast.makeText(context, "Key scanned successfully!", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
                 }
             }
         }
