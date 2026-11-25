@@ -116,13 +116,20 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BrikMainScreen() {
+    val isZenActive by com.hotaro.brik.util.ZenManager.isZenActive.collectAsState()
     var selectedIndex by remember { mutableIntStateOf(0) }
-    var currentSubScreen by remember { mutableStateOf<String?>(null) }
+    var currentSubScreen by remember { mutableStateOf<String?>(if (com.hotaro.brik.util.ZenManager.isZenActive.value) "zen" else null) }
     val animatedBackProgress = remember { Animatable(0f) }
     var isPredictiveBackActive by remember { mutableStateOf(false) }
     var backSwipeEdge by remember { mutableIntStateOf(BackEventCompat.EDGE_LEFT) }
     val coroutineScope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
+
+    androidx.compose.runtime.LaunchedEffect(isZenActive) {
+        if (isZenActive) {
+            currentSubScreen = "zen"
+        }
+    }
 
     // Synchronize and enforce anti-uninstall and suspension on active locks
     androidx.compose.runtime.LaunchedEffect(Unit) {
@@ -137,8 +144,8 @@ fun BrikMainScreen() {
         }
     }
 
-    // Tomato-styled Predictive Back gesture handler
-    PredictiveBackHandler(enabled = currentSubScreen != null) { progress: Flow<BackEventCompat> ->
+    // Tomato-styled Predictive Back gesture handler (disabled during active Zen session)
+    PredictiveBackHandler(enabled = currentSubScreen != null && !(currentSubScreen == "zen" && isZenActive)) { progress: Flow<BackEventCompat> ->
         isPredictiveBackActive = true
         try {
             progress.collect { backEvent ->
@@ -333,7 +340,7 @@ fun BrikMainScreen() {
                     "bags" -> BagsWindow(onBack = onBackFromSubScreen)
                     "routines" -> RoutinesWindow(onBack = onBackFromSubScreen)
                     "modes" -> ModesWindow(onBack = onBackFromSubScreen)
-                    "zen" -> ZenWindow(onBack = onBackFromSubScreen)
+                    "zen" -> ZenWindow(onBack = { if (!isZenActive) onBackFromSubScreen() })
                     "grayscale" -> GrayscaleWindow(onBack = onBackFromSubScreen)
                     "about" -> AboutWindow(onBack = onBackFromSubScreen)
                     "emergency" -> EmergencyModeWindow(onBack = onBackFromSubScreen)

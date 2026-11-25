@@ -63,7 +63,10 @@ import java.util.UUID
 @Composable
 fun SetEmergencyKeyDialog(
     savedKeys: List<SavedKey> = emptyList(),
+    title: String = "Set Emergency Key",
+    subtitle: String = "Configure a secure key to guard Emergency Mode. This key will be required whenever you trigger or activate Emergency Mode.",
     onDismiss: () -> Unit,
+    onSaveKey: ((KeyType, String) -> Unit)? = null,
     onKeySet: () -> Unit
 ) {
     val context = LocalContext.current
@@ -83,7 +86,7 @@ fun SetEmergencyKeyDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = "Set Emergency Key",
+                text = title,
                 fontWeight = FontWeight.Bold,
                 color = colorScheme.onSurface
             )
@@ -95,7 +98,7 @@ fun SetEmergencyKeyDialog(
                     .verticalScroll(rememberScrollState())
             ) {
                 Text(
-                    text = "Configure a secure key to guard Emergency Mode. This key will be required whenever you trigger or activate Emergency Mode.",
+                    text = subtitle,
                     style = typography.bodySmall,
                     color = colorScheme.onSurfaceVariant
                 )
@@ -391,6 +394,7 @@ fun SetEmergencyKeyDialog(
         confirmButton = {
             Button(
                 onClick = {
+                    val secret: String
                     if (selectedKeyType == KeyType.PASSWORD) {
                         if (password.isBlank()) {
                             errorMessage = "Please enter a password"
@@ -400,21 +404,27 @@ fun SetEmergencyKeyDialog(
                             errorMessage = "Passwords do not match"
                             return@Button
                         }
-                        EmergencyManager.setEmergencyKey(context, KeyType.PASSWORD, password.trim())
+                        secret = password.trim()
                     } else {
-                        val secret = when (qrMode) {
+                        val s = when (qrMode) {
                             0 -> generatedQrToken
                             1 -> scannedQrToken
                             else -> selectedSavedKey?.token
                         }
-                        if (secret.isNullOrBlank()) {
+                        if (s.isNullOrBlank()) {
                             errorMessage = "Please scan or select a QR key"
                             return@Button
                         }
-                        EmergencyManager.setEmergencyKey(context, KeyType.QR_CODE, secret)
+                        secret = s
                     }
-                    EmergencyManager.setEmergencyModeActive(context, true)
-                    Toast.makeText(context, "Emergency key set & Emergency Mode activated!", Toast.LENGTH_SHORT).show()
+
+                    if (onSaveKey != null) {
+                        onSaveKey(selectedKeyType, secret)
+                    } else {
+                        EmergencyManager.setEmergencyKey(context, selectedKeyType, secret)
+                        EmergencyManager.setEmergencyModeActive(context, true)
+                        Toast.makeText(context, "Emergency key set & Emergency Mode activated!", Toast.LENGTH_SHORT).show()
+                    }
                     onKeySet()
                 },
                 shape = RoundedCornerShape(12.dp)
@@ -467,11 +477,15 @@ fun SetEmergencyKeyDialog(
 
 @Composable
 fun VerifyEmergencyKeyDialog(
+    title: String = "Verify Emergency Key",
+    subtitle: String? = null,
+    keyTypeOverride: KeyType? = null,
+    onVerifyCustom: ((String) -> Boolean)? = null,
     onDismiss: () -> Unit,
     onVerified: () -> Unit
 ) {
     val context = LocalContext.current
-    val keyType = remember(context) { EmergencyManager.getKeyType(context) }
+    val keyType = keyTypeOverride ?: remember(context) { EmergencyManager.getKeyType(context) }
     var inputSecret by remember { mutableStateOf("") }
     var showCameraScanner by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -484,7 +498,7 @@ fun VerifyEmergencyKeyDialog(
         },
         title = {
             Text(
-                text = "Verify Emergency Key",
+                text = title,
                 fontWeight = FontWeight.Bold,
                 color = colorScheme.onSurface
             )
@@ -497,10 +511,10 @@ fun VerifyEmergencyKeyDialog(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = if (keyType == KeyType.QR_CODE) {
-                        "Scan your emergency QR code or paste its token to activate Emergency Mode."
+                    text = subtitle ?: if (keyType == KeyType.QR_CODE) {
+                        "Scan your emergency QR code or paste its token to unlock."
                     } else {
-                        "Enter your emergency password to activate Emergency Mode."
+                        "Enter your emergency password to unlock."
                     },
                     style = typography.bodySmall,
                     color = colorScheme.onSurfaceVariant
@@ -518,10 +532,14 @@ fun VerifyEmergencyKeyDialog(
                         ) {
                             QrScannerView(
                                 onQrDetected = { scannedToken ->
-                                    val valid = EmergencyManager.verifyEmergencyKey(context, scannedToken)
+                                    val valid = if (onVerifyCustom != null) {
+                                        onVerifyCustom(scannedToken)
+                                    } else {
+                                        val ok = EmergencyManager.verifyEmergencyKey(context, scannedToken)
+                                        if (ok) EmergencyManager.setEmergencyModeActive(context, true)
+                                        ok
+                                    }
                                     if (valid) {
-                                        EmergencyManager.setEmergencyModeActive(context, true)
-                                        Toast.makeText(context, "Emergency Mode activated!", Toast.LENGTH_SHORT).show()
                                         showCameraScanner = false
                                         onVerified()
                                     } else {
@@ -570,7 +588,7 @@ fun VerifyEmergencyKeyDialog(
                             inputSecret = it
                             errorMessage = null
                         },
-                        label = { Text("Emergency Password") },
+                        label = { Text("Security Password") },
                         singleLine = true,
                         visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         trailingIcon = {
@@ -601,10 +619,14 @@ fun VerifyEmergencyKeyDialog(
             if (!showCameraScanner) {
                 Button(
                     onClick = {
-                        val valid = EmergencyManager.verifyEmergencyKey(context, inputSecret.trim())
+                        val valid = if (onVerifyCustom != null) {
+                            onVerifyCustom(inputSecret.trim())
+                        } else {
+                            val ok = EmergencyManager.verifyEmergencyKey(context, inputSecret.trim())
+                            if (ok) EmergencyManager.setEmergencyModeActive(context, true)
+                            ok
+                        }
                         if (valid) {
-                            EmergencyManager.setEmergencyModeActive(context, true)
-                            Toast.makeText(context, "Emergency Mode activated!", Toast.LENGTH_SHORT).show()
                             onVerified()
                         } else {
                             errorMessage = "Incorrect key. Please try again."
@@ -613,7 +635,7 @@ fun VerifyEmergencyKeyDialog(
                     enabled = inputSecret.isNotBlank(),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("Verify & Activate")
+                    Text("Verify & Continue")
                 }
             }
         },
