@@ -89,6 +89,7 @@ import com.hotaro.brik.ui.component.TomatoSectionHeader
 import com.hotaro.brik.ui.component.TomatoSettingsItem
 import com.hotaro.brik.ui.component.segmentedItemShape
 import com.hotaro.brik.ui.theme.ThemePreferences
+import com.hotaro.brik.ui.theme.NavBarStyle
 import com.hotaro.brik.ui.viewmodel.SettingsViewModel
 import com.hotaro.brik.ui.viewmodel.ToolsViewModel
 import com.hotaro.brik.util.QrUtils
@@ -123,6 +124,7 @@ fun SettingsScreen(
     var showKioskSheet by remember { mutableStateOf(false) }
     var showThemeSheet by remember { mutableStateOf(false) }
     var showPaletteSheet by remember { mutableStateOf(false) }
+    var showNavBarSheet by remember { mutableStateOf(false) }
     var showSetUninstallKeyDialog by remember { mutableStateOf(false) }
     var showVerifyUninstallKeyDialog by remember { mutableStateOf(false) }
     var showBridgeSetupSheet by remember { mutableStateOf(false) }
@@ -404,6 +406,7 @@ fun SettingsScreen(
 
             val currentThemeMode by ThemePreferences.themeMode.collectAsState()
             val currentPalette by ThemePreferences.colorPalette.collectAsState()
+            val currentNavBarStyle by ThemePreferences.navBarStyle.collectAsState()
 
             val themeSubtitle = when (currentThemeMode) {
                 1 -> "Light"
@@ -425,6 +428,12 @@ fun SettingsScreen(
                 else -> "Dynamic (Material You)"
             }
 
+            val navBarSubtitle = if (currentNavBarStyle == NavBarStyle.FLOATING) {
+                "Floating (Default)"
+            } else {
+                "Classic Sticky"
+            }
+
             // 1. Theme Mode
             TomatoSettingsItem(
                 title = "Theme Mode",
@@ -440,7 +449,7 @@ fun SettingsScreen(
                         tint = colorScheme.onSurfaceVariant
                     )
                 },
-                shape = segmentedItemShape(0, 2),
+                shape = segmentedItemShape(0, 3),
                 onClick = { showThemeSheet = true }
             )
 
@@ -459,8 +468,27 @@ fun SettingsScreen(
                         tint = colorScheme.onSurfaceVariant
                     )
                 },
-                shape = segmentedItemShape(1, 2),
+                shape = segmentedItemShape(1, 3),
                 onClick = { showPaletteSheet = true }
+            )
+
+            // 3. Navbar
+            TomatoSettingsItem(
+                title = "Navbar",
+                subtitle = navBarSubtitle,
+                leadingIcon = R.drawable.dock_bottom_fill0,
+                iconContainerColor = colorScheme.primaryContainer,
+                iconTint = colorScheme.onPrimaryContainer,
+                trailingContent = {
+                    Icon(
+                        painter = painterResource(R.drawable.arrow_forward_big),
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = colorScheme.onSurfaceVariant
+                    )
+                },
+                shape = segmentedItemShape(2, 3),
+                onClick = { showNavBarSheet = true }
             )
         }
 
@@ -1422,6 +1450,99 @@ fun SettingsScreen(
                 }
 
                 Spacer(Modifier.height(24.dp))
+            }
+        }
+    }
+
+    // --- NAVBAR STYLE BOTTOM SHEET ---
+    if (showNavBarSheet) {
+        val navBarSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { showNavBarSheet = false },
+            sheetState = navBarSheetState,
+            containerColor = colorScheme.surfaceContainerHigh,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            val currentNavBarStyle by ThemePreferences.navBarStyle.collectAsState()
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 8.dp)
+                    .padding(bottom = 36.dp)
+            ) {
+                Text(
+                    text = "Navbar Style",
+                    style = typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = colorScheme.onSurface,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                Text(
+                    text = "Select your preferred navigation bar style",
+                    style = typography.bodySmall,
+                    color = colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                val navBarOptions = listOf(
+                    Triple("Floating Navbar", NavBarStyle.FLOATING, "Modern floating pill navigation bar (Default)"),
+                    Triple("Classic Sticky Navbar", NavBarStyle.CLASSIC, "Traditional bottom docked navigation bar")
+                )
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    navBarOptions.forEach { (name, style, desc) ->
+                        val isSelected = currentNavBarStyle == style
+                        Surface(
+                            onClick = {
+                                ThemePreferences.setNavBarStyle(context, style)
+                                coroutineScope.launch {
+                                    navBarSheetState.hide()
+                                    showNavBarSheet = false
+                                }
+                            },
+                            shape = RoundedCornerShape(16.dp),
+                            color = if (isSelected) colorScheme.primaryContainer else colorScheme.surfaceContainer,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = name,
+                                        style = typography.titleMedium,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                        color = if (isSelected) colorScheme.onPrimaryContainer else colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = desc,
+                                        style = typography.bodySmall,
+                                        color = if (isSelected) colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                if (isSelected) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = colorScheme.primary,
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.check_fill0),
+                                                contentDescription = "Selected",
+                                                tint = colorScheme.onPrimary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }

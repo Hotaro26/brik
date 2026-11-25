@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -25,12 +26,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -48,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hotaro.brik.ui.component.BrikFloatingNavBar
 import com.hotaro.brik.ui.component.FloatingNavItem
+import com.hotaro.brik.ui.theme.NavBarStyle
 import com.hotaro.brik.ui.screen.AppManagerWindow
 import com.hotaro.brik.ui.screen.BagsWindow
 import com.hotaro.brik.ui.screen.KeyScreen
@@ -227,12 +233,52 @@ fun BrikMainScreen() {
                     }
                 }
 
-                BrikFloatingNavBar(
-                    items = navItems,
-                    selectedIndex = selectedIndex,
-                    onItemSelected = { selectedIndex = it },
-                    modifier = Modifier.align(Alignment.BottomCenter)
-                )
+                val navBarStyle by ThemePreferences.navBarStyle.collectAsState()
+
+                if (navBarStyle == NavBarStyle.FLOATING) {
+                    BrikFloatingNavBar(
+                        items = navItems,
+                        selectedIndex = selectedIndex,
+                        onItemSelected = { selectedIndex = it },
+                        modifier = Modifier.align(Alignment.BottomCenter)
+                    )
+                } else {
+                    NavigationBar(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .align(Alignment.BottomCenter),
+                        containerColor = if (isDark) Color.Black else MaterialTheme.colorScheme.surfaceContainer,
+                        tonalElevation = 4.dp
+                    ) {
+                        navItems.forEachIndexed { index, item ->
+                            val isSelected = selectedIndex == index
+                            NavigationBarItem(
+                                selected = isSelected,
+                                onClick = { selectedIndex = index },
+                                icon = {
+                                    Icon(
+                                        painter = if (isSelected) item.selectedIcon else item.unselectedIcon,
+                                        contentDescription = item.label,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                },
+                                label = {
+                                    Text(
+                                        text = item.label,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                },
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = MaterialTheme.colorScheme.primary,
+                                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                                    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            )
+                        }
+                    }
+                }
             }
         }
 
