@@ -290,12 +290,23 @@ fun RoutinesWindow(
                         },
                         containerColor = colorScheme.primary,
                         contentColor = colorScheme.onPrimary,
-                        shape = CircleShape
+                        shape = RoundedCornerShape(16.dp)
                     ) {
-                        Icon(
-                            painter = painterResource(R.drawable.add_fill0),
-                            contentDescription = "New Routine"
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.add_fill0),
+                                contentDescription = "Add Routine",
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = "Add",
+                                style = typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
+                            )
+                        }
                     }
                 },
                 topBar = {

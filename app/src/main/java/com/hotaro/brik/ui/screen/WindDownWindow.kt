@@ -6,6 +6,12 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -65,6 +71,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -79,6 +86,9 @@ import com.hotaro.brik.data.model.AppInfo
 import com.hotaro.brik.data.model.KeyType
 import com.hotaro.brik.data.model.SavedKey
 import com.hotaro.brik.ui.component.SetEmergencyKeyDialog
+import com.hotaro.brik.ui.component.TomatoSectionHeader
+import com.hotaro.brik.ui.component.TomatoSettingsItem
+import com.hotaro.brik.ui.component.segmentedItemShape
 import com.hotaro.brik.util.WindDownManager
 import java.util.Locale
 
@@ -109,6 +119,12 @@ fun WindDownWindow(
     var showWakePicker by remember { mutableStateOf(false) }
     var showAppPickerSheet by remember { mutableStateOf(false) }
     var showSetKeyDialog by remember { mutableStateOf(false) }
+
+    var isScheduleExpanded by remember { mutableStateOf(false) }
+    var isAppPolicyExpanded by remember { mutableStateOf(false) }
+
+    val scheduleChevronRotation by animateFloatAsState(if (isScheduleExpanded) 90f else 0f, label = "scheduleChevron")
+    val appPolicyChevronRotation by animateFloatAsState(if (isAppPolicyExpanded) 90f else 0f, label = "appPolicyChevron")
 
     val pm = context.packageManager
     val launcherApps = remember(context, installedApps) {
@@ -161,505 +177,457 @@ fun WindDownWindow(
                 .padding(horizontal = 20.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Master Enable Card
-            ElevatedCard(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.elevatedCardColors(
-                    containerColor = if (isWindDownActive) {
-                        colorScheme.primaryContainer.copy(alpha = 0.5f)
+            // --- SECTION 1: STATUS & ACTIVATION ---
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                TomatoSectionHeader(title = "STATUS & ACTIVATION")
+
+                TomatoSettingsItem(
+                    title = "Wind Down Routine",
+                    subtitle = if (isWindDownActive) {
+                        "Active now • Bedtime lockdown engaged"
+                    } else if (isEnabled) {
+                        "Enabled • Daily ${String.format(Locale.getDefault(), "%02d:%02d", sleepHour, sleepMinute)} to ${String.format(Locale.getDefault(), "%02d:%02d", wakeHour, wakeMinute)}"
                     } else {
-                        colorScheme.surfaceContainerHigh
-                    }
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = if (isWindDownActive) colorScheme.primary else colorScheme.primaryContainer,
-                            modifier = Modifier.size(44.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    painter = painterResource(R.drawable.dark_mode_fill0),
-                                    contentDescription = null,
-                                    tint = if (isWindDownActive) colorScheme.onPrimary else colorScheme.primary,
-                                    modifier = Modifier.size(22.dp)
-                                )
+                        "Disabled"
+                    },
+                    leadingIcon = R.drawable.dark_mode_fill0,
+                    iconContainerColor = if (isWindDownActive) colorScheme.primary else colorScheme.primaryContainer,
+                    iconTint = if (isWindDownActive) colorScheme.onPrimary else colorScheme.primary,
+                    trailingContent = {
+                        Switch(
+                            checked = isEnabled,
+                            onCheckedChange = {
+                                WindDownManager.setEnabled(context, it, activity)
                             }
-                        }
-                        Spacer(Modifier.width(14.dp))
-                        Column {
-                            Text(
-                                text = "Wind Down Routine",
-                                style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = colorScheme.onSurface
-                            )
-                            Text(
-                                text = if (isWindDownActive) {
-                                    "Active now • Bedtime lockdown engaged"
-                                } else if (isEnabled) {
-                                    "Enabled • Runs daily from ${String.format(Locale.getDefault(), "%02d:%02d", sleepHour, sleepMinute)} to ${String.format(Locale.getDefault(), "%02d:%02d", wakeHour, wakeMinute)}"
-                                } else {
-                                    "Disabled"
-                                },
-                                style = typography.bodySmall,
-                                color = if (isWindDownActive) colorScheme.primary else colorScheme.onSurfaceVariant
-                            )
-                        }
+                        )
+                    },
+                    shape = segmentedItemShape(0, 1),
+                    onClick = {
+                        WindDownManager.setEnabled(context, !isEnabled, activity)
                     }
-
-                    Spacer(Modifier.width(12.dp))
-
-                    Switch(
-                        checked = isEnabled,
-                        onCheckedChange = {
-                            WindDownManager.setEnabled(context, it, activity)
-                        }
-                    )
-                }
+                )
             }
 
-            // Bedtime Schedule Card
-            ElevatedCard(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.elevatedCardColors(containerColor = colorScheme.surfaceContainerHigh),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            painter = painterResource(R.drawable.schedule_fill0),
-                            contentDescription = null,
-                            tint = colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(Modifier.width(10.dp))
-                        Text(
-                            text = "Bedtime Schedule",
-                            style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = colorScheme.onSurface
-                        )
-                    }
+            // --- SECTION 2: SCHEDULE & TIMING ---
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                TomatoSectionHeader(title = "SCHEDULE & TIMING")
 
-                    Spacer(Modifier.height(6.dp))
-
-                    Text(
-                        text = "During these hours, the device will switch to the minimalist kiosk night launcher.",
-                        style = typography.bodySmall,
-                        color = colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(Modifier.height(16.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        // Bedtime Picker Tile
-                        Surface(
-                            onClick = { showSleepPicker = true },
-                            shape = RoundedCornerShape(16.dp),
-                            color = colorScheme.surfaceContainerLowest,
-                            border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
-                                Text(
-                                    text = "Bedtime (Sleep)",
-                                    style = typography.labelSmall,
-                                    color = colorScheme.onSurfaceVariant
-                                )
-                                Spacer(Modifier.height(4.dp))
-                                Text(
-                                    text = String.format(Locale.getDefault(), "%02d:%02d", sleepHour, sleepMinute),
-                                    style = typography.titleLarge.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        fontFamily = FontFamily.Monospace
-                                    ),
-                                    color = colorScheme.onSurface
-                                )
-                            }
-                        }
-
-                        // Wake Time Picker Tile
-                        Surface(
-                            onClick = { showWakePicker = true },
-                            shape = RoundedCornerShape(16.dp),
-                            color = colorScheme.surfaceContainerLowest,
-                            border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
-                                Text(
-                                    text = "Wake Time",
-                                    style = typography.labelSmall,
-                                    color = colorScheme.onSurfaceVariant
-                                )
-                                Spacer(Modifier.height(4.dp))
-                                Text(
-                                    text = String.format(Locale.getDefault(), "%02d:%02d", wakeHour, wakeMinute),
-                                    style = typography.titleLarge.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        fontFamily = FontFamily.Monospace
-                                    ),
-                                    color = colorScheme.onSurface
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // App Access Policy Card ("apps or not" & "which apps to allow")
-            ElevatedCard(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.elevatedCardColors(containerColor = colorScheme.surfaceContainerHigh),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            painter = painterResource(R.drawable.apps_fill0),
-                            contentDescription = null,
-                            tint = colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(Modifier.width(10.dp))
-                        Text(
-                            text = "App Access Policy",
-                            style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = colorScheme.onSurface
-                        )
-                    }
-
-                    Spacer(Modifier.height(6.dp))
-
-                    Text(
-                        text = "Choose whether you want complete isolation with no apps or allow up to 10 essential apps.",
-                        style = typography.bodySmall,
-                        color = colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(Modifier.height(14.dp))
-
-                    // Segmented Button: No Apps vs Allowed Apps
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(CircleShape)
-                            .background(colorScheme.surfaceContainerLowest)
-                            .padding(4.dp)
-                    ) {
-                        // Pure Rest (No Apps)
-                        Surface(
-                            onClick = { WindDownManager.setNoAppsMode(context, true) },
-                            shape = CircleShape,
-                            color = if (isNoAppsMode) colorScheme.primary else Color.Transparent,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Box(
-                                modifier = Modifier.padding(vertical = 10.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "Pure Rest (No Apps)",
-                                    style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = if (isNoAppsMode) colorScheme.onPrimary else colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-
-                        // Allowed Apps
-                        Surface(
-                            onClick = { WindDownManager.setNoAppsMode(context, false) },
-                            shape = CircleShape,
-                            color = if (!isNoAppsMode) colorScheme.primary else Color.Transparent,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Box(
-                                modifier = Modifier.padding(vertical = 10.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "Allowed Apps",
-                                    style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = if (!isNoAppsMode) colorScheme.onPrimary else colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-
-                    if (!isNoAppsMode) {
-                        Spacer(Modifier.height(16.dp))
-
+                TomatoSettingsItem(
+                    title = "Bedtime Schedule",
+                    subtitle = "Sleep at ${String.format(Locale.getDefault(), "%02d:%02d", sleepHour, sleepMinute)} • Wake at ${String.format(Locale.getDefault(), "%02d:%02d", wakeHour, wakeMinute)}",
+                    leadingIcon = R.drawable.schedule_fill0,
+                    iconContainerColor = colorScheme.secondaryContainer,
+                    iconTint = colorScheme.onSecondaryContainer,
+                    trailingContent = {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = colorScheme.surfaceContainerLowest
+                            ) {
+                                Text(
+                                    text = "${String.format(Locale.getDefault(), "%02d:%02d", sleepHour, sleepMinute)} - ${String.format(Locale.getDefault(), "%02d:%02d", wakeHour, wakeMinute)}",
+                                    style = typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace),
+                                    color = colorScheme.onSurface,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                )
+                            }
+                            Icon(
+                                painter = painterResource(R.drawable.arrow_forward_big),
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .graphicsLayer { rotationZ = scheduleChevronRotation },
+                                tint = colorScheme.onSurfaceVariant
+                            )
+                        }
+                    },
+                    shape = if (isScheduleExpanded) {
+                        RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+                    } else {
+                        segmentedItemShape(0, 1)
+                    },
+                    onClick = { isScheduleExpanded = !isScheduleExpanded }
+                )
+
+                AnimatedVisibility(
+                    visible = isScheduleExpanded,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    Surface(
+                        color = colorScheme.surfaceContainerHigh,
+                        shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 22.dp, bottomEnd = 22.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 14.dp)
                         ) {
                             Text(
-                                text = "Selected Apps (${allowedPackages.size}/10)",
-                                style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                color = colorScheme.onSurface
-                            )
-
-                            TextButton(onClick = { showAppPickerSheet = true }) {
-                                Text("Manage Apps", fontWeight = FontWeight.Bold)
-                            }
-                        }
-
-                        if (selectedAppInfos.isEmpty()) {
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = colorScheme.surfaceContainerLowest,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(16.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text(
-                                        text = "No apps configured for Wind Down",
-                                        style = typography.bodySmall,
-                                        color = colorScheme.onSurfaceVariant
-                                    )
-                                    Spacer(Modifier.height(8.dp))
-                                    OutlinedButton(
-                                        onClick = { showAppPickerSheet = true },
-                                        shape = CircleShape
-                                    ) {
-                                        Text("Select Allowed Apps")
-                                    }
-                                }
-                            }
-                        } else {
-                            FlowRow(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                selectedAppInfos.forEach { app ->
-                                    InputChip(
-                                        selected = true,
-                                        onClick = {
-                                            // Clicking chip removes it from allowed packages
-                                            val updated = allowedPackages - app.packageName
-                                            WindDownManager.setAllowedPackages(context, updated)
-                                        },
-                                        label = {
-                                            Text(
-                                                text = app.label,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        },
-                                        leadingIcon = {
-                                            if (app.icon != null) {
-                                                Image(
-                                                    painter = rememberDrawablePainter(app.icon),
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(16.dp)
-                                                )
-                                            } else {
-                                                Icon(
-                                                    painter = painterResource(R.drawable.apps_fill0),
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(16.dp)
-                                                )
-                                            }
-                                        },
-                                        trailingIcon = {
-                                            Icon(
-                                                painter = painterResource(R.drawable.close_fill0),
-                                                contentDescription = "Remove",
-                                                modifier = Modifier.size(14.dp)
-                                            )
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Emergency Unlock & Security Key Card ("emergeny mode avaialble or not" & "keys")
-            ElevatedCard(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.elevatedCardColors(containerColor = colorScheme.surfaceContainerHigh),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            painter = painterResource(R.drawable.shield_fill0),
-                            contentDescription = null,
-                            tint = colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(Modifier.width(10.dp))
-                        Text(
-                            text = "Emergency & Security Keys",
-                            style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = colorScheme.onSurface
-                        )
-                    }
-
-                    Spacer(Modifier.height(6.dp))
-
-                    Text(
-                        text = "Configure how lockdown exits and key verifications are enforced during bedtime.",
-                        style = typography.bodySmall,
-                        color = colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(Modifier.height(16.dp))
-
-                    // Emergency Unlock Available Toggle
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Emergency Unlock Available",
-                                style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                color = colorScheme.onSurface
-                            )
-                            Text(
-                                text = if (allowEmergencyUnlock) {
-                                    "Emergency key unlock button is active during Wind Down."
-                                } else {
-                                    "Strict mode: Emergency button hidden, unlocking blocked until wake."
-                                },
+                                text = "During these hours, the device switches to the minimalist kiosk bedtime launcher.",
                                 style = typography.bodySmall,
                                 color = colorScheme.onSurfaceVariant
                             )
+
+                            Spacer(Modifier.height(14.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                // Bedtime Picker Tile
+                                Surface(
+                                    onClick = { showSleepPicker = true },
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = colorScheme.surfaceContainerLowest,
+                                    border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Column(modifier = Modifier.padding(14.dp)) {
+                                        Text(
+                                            text = "Bedtime (Sleep)",
+                                            style = typography.labelSmall,
+                                            color = colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(Modifier.height(4.dp))
+                                        Text(
+                                            text = String.format(Locale.getDefault(), "%02d:%02d", sleepHour, sleepMinute),
+                                            style = typography.titleLarge.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                fontFamily = FontFamily.Monospace
+                                            ),
+                                            color = colorScheme.onSurface
+                                        )
+                                    }
+                                }
+
+                                // Wake Time Picker Tile
+                                Surface(
+                                    onClick = { showWakePicker = true },
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = colorScheme.surfaceContainerLowest,
+                                    border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Column(modifier = Modifier.padding(14.dp)) {
+                                        Text(
+                                            text = "Wake Time",
+                                            style = typography.labelSmall,
+                                            color = colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(Modifier.height(4.dp))
+                                        Text(
+                                            text = String.format(Locale.getDefault(), "%02d:%02d", wakeHour, wakeMinute),
+                                            style = typography.titleLarge.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                fontFamily = FontFamily.Monospace
+                                            ),
+                                            color = colorScheme.onSurface
+                                        )
+                                    }
+                                }
+                            }
                         }
+                    }
+                }
+            }
 
-                        Spacer(Modifier.width(12.dp))
+            // --- SECTION 3: APP ACCESS POLICY ---
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                TomatoSectionHeader(title = "APP ACCESS POLICY")
 
+                TomatoSettingsItem(
+                    title = "Bedtime Apps",
+                    subtitle = if (isNoAppsMode) "Pure Rest • All apps blocked" else "${allowedPackages.size} apps allowed • Tap to configure",
+                    leadingIcon = R.drawable.apps_fill0,
+                    iconContainerColor = colorScheme.tertiaryContainer,
+                    iconTint = colorScheme.onTertiaryContainer,
+                    trailingContent = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = if (isNoAppsMode) colorScheme.errorContainer.copy(alpha = 0.4f) else colorScheme.primaryContainer
+                            ) {
+                                Text(
+                                    text = if (isNoAppsMode) "No Apps" else "${allowedPackages.size}/10",
+                                    style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = if (isNoAppsMode) colorScheme.error else colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                )
+                            }
+                            Icon(
+                                painter = painterResource(R.drawable.arrow_forward_big),
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .graphicsLayer { rotationZ = appPolicyChevronRotation },
+                                tint = colorScheme.onSurfaceVariant
+                            )
+                        }
+                    },
+                    shape = if (isAppPolicyExpanded) {
+                        RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+                    } else {
+                        segmentedItemShape(0, 1)
+                    },
+                    onClick = { isAppPolicyExpanded = !isAppPolicyExpanded }
+                )
+
+                AnimatedVisibility(
+                    visible = isAppPolicyExpanded,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    Surface(
+                        color = colorScheme.surfaceContainerHigh,
+                        shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 22.dp, bottomEnd = 22.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 14.dp)
+                        ) {
+                            Text(
+                                text = "Choose whether you want complete digital rest with no apps or allow up to 10 essential apps.",
+                                style = typography.bodySmall,
+                                color = colorScheme.onSurfaceVariant
+                            )
+
+                            Spacer(Modifier.height(14.dp))
+
+                            // Segmented Button: No Apps vs Allowed Apps
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(CircleShape)
+                                    .background(colorScheme.surfaceContainerLowest)
+                                    .padding(4.dp)
+                            ) {
+                                // Pure Rest (No Apps)
+                                Surface(
+                                    onClick = { WindDownManager.setNoAppsMode(context, true) },
+                                    shape = CircleShape,
+                                    color = if (isNoAppsMode) colorScheme.primary else Color.Transparent,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Box(
+                                        modifier = Modifier.padding(vertical = 10.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "Pure Rest (No Apps)",
+                                            style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = if (isNoAppsMode) colorScheme.onPrimary else colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+
+                                // Allowed Apps
+                                Surface(
+                                    onClick = { WindDownManager.setNoAppsMode(context, false) },
+                                    shape = CircleShape,
+                                    color = if (!isNoAppsMode) colorScheme.primary else Color.Transparent,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Box(
+                                        modifier = Modifier.padding(vertical = 10.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "Allowed Apps",
+                                            style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = if (!isNoAppsMode) colorScheme.onPrimary else colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (!isNoAppsMode) {
+                                Spacer(Modifier.height(16.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Selected Apps (${allowedPackages.size}/10)",
+                                        style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = colorScheme.onSurface
+                                    )
+
+                                    TextButton(onClick = { showAppPickerSheet = true }) {
+                                        Text("Manage Apps", fontWeight = FontWeight.Bold)
+                                    }
+                                }
+
+                                if (selectedAppInfos.isEmpty()) {
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = colorScheme.surfaceContainerLowest,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(16.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            Text(
+                                                text = "No apps configured for Wind Down",
+                                                style = typography.bodySmall,
+                                                color = colorScheme.onSurfaceVariant
+                                            )
+                                            Spacer(Modifier.height(8.dp))
+                                            OutlinedButton(
+                                                onClick = { showAppPickerSheet = true },
+                                                shape = CircleShape
+                                            ) {
+                                                Text("Select Allowed Apps")
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    FlowRow(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        selectedAppInfos.forEach { app ->
+                                            InputChip(
+                                                selected = true,
+                                                onClick = {
+                                                    val updated = allowedPackages - app.packageName
+                                                    WindDownManager.setAllowedPackages(context, updated)
+                                                },
+                                                label = {
+                                                    Text(
+                                                        text = app.label,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                },
+                                                leadingIcon = {
+                                                    if (app.icon != null) {
+                                                        Image(
+                                                            painter = rememberDrawablePainter(app.icon),
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(16.dp)
+                                                        )
+                                                    } else {
+                                                        Icon(
+                                                            painter = painterResource(R.drawable.apps_fill0),
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(16.dp)
+                                                        )
+                                                    }
+                                                },
+                                                trailingIcon = {
+                                                    Icon(
+                                                        painter = painterResource(R.drawable.close_fill0),
+                                                        contentDescription = "Remove",
+                                                        modifier = Modifier.size(14.dp)
+                                                    )
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // --- SECTION 4: LOCKDOWN & SECURITY ---
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                TomatoSectionHeader(title = "LOCKDOWN & SECURITY")
+
+                // Emergency Unlock Toggle
+                TomatoSettingsItem(
+                    title = "Emergency Unlock",
+                    subtitle = if (allowEmergencyUnlock) {
+                        "Available • Exit button shown during bedtime"
+                    } else {
+                        "Strict mode • Exit locked until wake time"
+                    },
+                    leadingIcon = R.drawable.shield_fill0,
+                    iconContainerColor = colorScheme.primaryContainer,
+                    iconTint = colorScheme.onPrimaryContainer,
+                    trailingContent = {
                         Switch(
                             checked = allowEmergencyUnlock,
                             onCheckedChange = {
                                 WindDownManager.setAllowEmergencyUnlock(context, it)
                             }
                         )
+                    },
+                    shape = segmentedItemShape(0, 2),
+                    onClick = {
+                        WindDownManager.setAllowEmergencyUnlock(context, !allowEmergencyUnlock)
                     }
+                )
 
-                    Spacer(Modifier.height(16.dp))
-
-                    // Security Key Tile
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = colorScheme.surfaceContainerLowest,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                // Protection Key
+                TomatoSettingsItem(
+                    title = "Protection Key",
+                    subtitle = if (hasSecurityKey) {
+                        "Configured (${WindDownManager.getKeyType(context).name}) • Required to exit"
+                    } else {
+                        "Using system emergency key • Tap to configure"
+                    },
+                    leadingIcon = R.drawable.key_fill0,
+                    iconContainerColor = if (hasSecurityKey) colorScheme.primaryContainer else colorScheme.surfaceContainerHighest,
+                    iconTint = if (hasSecurityKey) colorScheme.primary else colorScheme.onSurfaceVariant,
+                    trailingContent = {
+                        Surface(
+                            shape = CircleShape,
+                            color = if (hasSecurityKey) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = if (hasSecurityKey) colorScheme.primaryContainer else colorScheme.surfaceContainerHighest,
-                                    modifier = Modifier.size(38.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            painter = painterResource(R.drawable.key_fill0),
-                                            contentDescription = null,
-                                            tint = if (hasSecurityKey) colorScheme.primary else colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                }
-                                Spacer(Modifier.width(12.dp))
-                                Column {
-                                    Text(
-                                        text = "Protection Key",
-                                        style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                        color = colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = if (hasSecurityKey) {
-                                            "Configured (${WindDownManager.getKeyType(context).name})"
-                                        } else {
-                                            "Using system emergency key"
-                                        },
-                                        style = typography.bodySmall,
-                                        color = colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-
-                            Button(
-                                onClick = { showSetKeyDialog = true },
-                                shape = CircleShape,
-                                colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary)
-                            ) {
-                                Text(if (hasSecurityKey) "Change" else "Configure")
-                            }
+                            Text(
+                                text = if (hasSecurityKey) "Change" else "Configure",
+                                style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = if (hasSecurityKey) colorScheme.onPrimaryContainer else colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            )
                         }
+                    },
+                    shape = segmentedItemShape(1, 2),
+                    onClick = {
+                        showSetKeyDialog = true
                     }
-                }
+                )
             }
 
-            // Preview Mode Card
-            ElevatedCard(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.elevatedCardColors(containerColor = colorScheme.surfaceContainerHigh),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    Text(
-                        text = "Test Launcher",
-                        style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = colorScheme.onSurface
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = "Preview your configured Wind Down desktop screen immediately without waiting for scheduled bedtime.",
-                        style = typography.bodySmall,
-                        color = colorScheme.onSurfaceVariant
-                    )
+            // --- SECTION 5: PREVIEW & TESTING ---
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                TomatoSectionHeader(title = "PREVIEW & TESTING")
 
-                    Spacer(Modifier.height(14.dp))
-
-                    OutlinedButton(
-                        onClick = {
-                            WindDownManager.startPreviewMode(context, activity)
-                        },
-                        shape = CircleShape,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
+                TomatoSettingsItem(
+                    title = "Test Bedtime Launcher",
+                    subtitle = "Preview your configured Wind Down desktop screen immediately without waiting",
+                    leadingIcon = R.drawable.self_improvement_fill0,
+                    iconContainerColor = colorScheme.tertiaryContainer,
+                    iconTint = colorScheme.onTertiaryContainer,
+                    trailingContent = {
                         Icon(
-                            painter = painterResource(R.drawable.self_improvement_fill0),
+                            painter = painterResource(R.drawable.arrow_forward_big),
                             contentDescription = null,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(16.dp),
+                            tint = colorScheme.onSurfaceVariant
                         )
-                        Spacer(Modifier.width(8.dp))
-                        Text("Preview Wind Down Desktop", fontWeight = FontWeight.Bold)
+                    },
+                    shape = segmentedItemShape(0, 1),
+                    onClick = {
+                        WindDownManager.startPreviewMode(context, activity)
                     }
-                }
+                )
             }
 
             Spacer(Modifier.height(24.dp))

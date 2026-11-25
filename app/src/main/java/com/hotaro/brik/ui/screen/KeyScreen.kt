@@ -214,54 +214,17 @@ fun KeyScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Text(
-                        text = if (isKeyMode) "Key" else "Zen",
-                        style = typography.headlineMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 28.sp,
-                            letterSpacing = (-0.5).sp
-                        ),
-                        color = colorScheme.onSurface
-                    )
-                    Text(
-                        text = "Pull down to switch to ${if (isKeyMode) "Zen" else "Key"}",
-                        style = typography.labelSmall,
-                        color = colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                    )
-                }
-
-                Surface(
-                    shape = CircleShape,
-                    color = if (isKeyMode) colorScheme.primaryContainer else colorScheme.tertiaryContainer,
-                    onClick = {
-                        val newMode = if (homeMode == HomeScreenMode.KEY) HomeScreenMode.ZEN else HomeScreenMode.KEY
-                        homeMode = newMode
-                        homePrefs.edit().putString("home_screen_mode", newMode.name).apply()
-                        isUnlockPillVisible = false
-                    }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(
-                            painter = painterResource(if (isKeyMode) R.drawable.key_fill0 else R.drawable.self_improvement_fill0),
-                            contentDescription = null,
-                            tint = if (isKeyMode) colorScheme.onPrimaryContainer else colorScheme.onTertiaryContainer,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Text(
-                            text = if (isKeyMode) "Key Mode" else "Zen Mode",
-                            style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                            color = if (isKeyMode) colorScheme.onPrimaryContainer else colorScheme.onTertiaryContainer
-                        )
-                    }
-                }
+                Text(
+                    text = if (isKeyMode) "Key" else "Zen",
+                    style = typography.headlineMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 28.sp,
+                        letterSpacing = (-0.5).sp
+                    ),
+                    color = colorScheme.onSurface
+                )
             }
         }
     ) { innerPadding ->

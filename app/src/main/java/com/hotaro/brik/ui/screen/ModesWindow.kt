@@ -1103,6 +1103,16 @@ private fun ModeDetailWindow(
 
     val currentSecret = if (selectedKeyType == KeyType.PASSWORD) passwordSecret.trim() else qrSecret.trim()
 
+    var isProfileExpanded by remember { mutableStateOf(false) }
+    var isDurationExpanded by remember { mutableStateOf(false) }
+    var isTargetsExpanded by remember { mutableStateOf(false) }
+    var isKeyExpanded by remember { mutableStateOf(false) }
+
+    val profileChevronRotation by animateFloatAsState(if (isProfileExpanded) 90f else 0f, label = "profileChevron")
+    val durationChevronRotation by animateFloatAsState(if (isDurationExpanded) 90f else 0f, label = "durationChevron")
+    val targetsChevronRotation by animateFloatAsState(if (isTargetsExpanded) 90f else 0f, label = "targetsChevron")
+    val keyChevronRotation by animateFloatAsState(if (isKeyExpanded) 90f else 0f, label = "keyChevron")
+
     val icons = listOf(
         "mode_fill0" to R.drawable.mode_fill0,
         "schedule_fill0" to R.drawable.schedule_fill0,
@@ -1184,254 +1194,101 @@ private fun ModeDetailWindow(
             contentPadding = PaddingValues(top = 12.dp, bottom = 48.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Profile Name & Icon Card
+            // --- SECTION 1: PROFILE & IDENTITY ---
             item {
-                ElevatedCard(
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.elevatedCardColors(containerColor = colorScheme.surfaceContainerHigh),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(18.dp)) {
-                        Text("Profile Identification", style = typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = colorScheme.onSurface)
-                        Spacer(Modifier.height(10.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    TomatoSectionHeader(title = "PROFILE & IDENTITY")
 
-                        OutlinedTextField(
-                            value = nameInput,
-                            onValueChange = { nameInput = it },
-                            label = { Text("Mode Name *") },
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Spacer(Modifier.height(14.dp))
-
-                        Text("Profile Icon:", style = typography.labelSmall, color = colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.height(6.dp))
-
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            icons.forEach { (name, res) ->
-                                val isSelected = selectedIcon == name
+                    val iconRes = icons.find { it.first == selectedIcon }?.second ?: R.drawable.mode_fill0
+                    TomatoSettingsItem(
+                        title = "Profile Identification",
+                        subtitle = nameInput.ifBlank { "Tap to configure name & icon" },
+                        leadingIcon = iconRes,
+                        iconContainerColor = colorScheme.primaryContainer,
+                        iconTint = colorScheme.onPrimaryContainer,
+                        trailingContent = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
                                 Surface(
-                                    onClick = { selectedIcon = name },
                                     shape = CircleShape,
-                                    color = if (isSelected) colorScheme.primary else colorScheme.surfaceContainerLowest,
-                                    modifier = Modifier.size(44.dp)
+                                    color = colorScheme.surfaceContainerLowest,
+                                    modifier = Modifier.size(32.dp)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Icon(
-                                            painter = painterResource(res),
+                                            painter = painterResource(iconRes),
                                             contentDescription = null,
-                                            tint = if (isSelected) colorScheme.onPrimary else colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(22.dp)
+                                            tint = colorScheme.primary,
+                                            modifier = Modifier.size(16.dp)
                                         )
                                     }
                                 }
+                                Icon(
+                                    painter = painterResource(R.drawable.arrow_forward_big),
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .size(16.dp)
+                                        .graphicsLayer { rotationZ = profileChevronRotation },
+                                    tint = colorScheme.onSurfaceVariant
+                                )
                             }
-                        }
-                    }
-                }
-            }
+                        },
+                        shape = if (isProfileExpanded) {
+                            RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+                        } else {
+                            segmentedItemShape(0, 1)
+                        },
+                        onClick = { isProfileExpanded = !isProfileExpanded }
+                    )
 
-            // Session Duration Card
-            item {
-                ElevatedCard(
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.elevatedCardColors(containerColor = colorScheme.surfaceContainerHigh),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(18.dp)) {
-                        Text("Default Session Duration", style = typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = colorScheme.onSurface)
-                        Spacer(Modifier.height(10.dp))
-
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf(25, 45, 60, 90).forEach { mins ->
-                                val isSelected = durationMinutes == mins
-                                Surface(
-                                    onClick = { durationMinutes = mins },
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = if (isSelected) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
-                                    modifier = Modifier.weight(1f).height(38.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Text("${mins}m", fontWeight = FontWeight.Bold, color = if (isSelected) colorScheme.onPrimaryContainer else colorScheme.onSurface)
-                                    }
-                                }
-                            }
-                        }
-
-                        Spacer(Modifier.height(10.dp))
-
-                        OutlinedTextField(
-                            value = durationMinutes.toString(),
-                            onValueChange = { durationMinutes = it.toIntOrNull() ?: 1 },
-                            label = { Text("Custom Minutes") },
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
+                    AnimatedVisibility(
+                        visible = isProfileExpanded,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        Surface(
+                            color = colorScheme.surfaceContainerHigh,
+                            shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 22.dp, bottomEnd = 22.dp),
                             modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
-            }
-
-            // Target to Block Card (Two pills: Bags and Custom)
-            item {
-                ElevatedCard(
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.elevatedCardColors(containerColor = colorScheme.surfaceContainerHigh),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(18.dp)) {
-                        Text("Targets to Block", style = typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = colorScheme.onSurface)
-                        Text("Choose bags or individual apps to suspend during this focus mode", style = typography.bodySmall, color = colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.height(12.dp))
-
-                        // Two Pills: Bags and Custom
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            // Bags Pill
-                            Surface(
-                                onClick = { showBagsSheet = true },
-                                shape = CircleShape,
-                                color = if (selectedBags.isNotEmpty()) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
-                                border = BorderStroke(1.dp, if (selectedBags.isNotEmpty()) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                                modifier = Modifier.weight(1f).height(44.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.backpack_fill0),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp),
-                                        tint = if (selectedBags.isNotEmpty()) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(
-                                        text = if (selectedBags.isNotEmpty()) "Bags (${selectedBags.size})" else "Bags",
-                                        style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                        color = if (selectedBags.isNotEmpty()) colorScheme.onPrimaryContainer else colorScheme.onSurface
-                                    )
-                                }
-                            }
-
-                            // Custom Pill
-                            Surface(
-                                onClick = { showCustomAppsSheet = true },
-                                shape = CircleShape,
-                                color = if (selectedPackages.isNotEmpty()) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
-                                border = BorderStroke(1.dp, if (selectedPackages.isNotEmpty()) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                                modifier = Modifier.weight(1f).height(44.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.apps_fill0),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp),
-                                        tint = if (selectedPackages.isNotEmpty()) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(
-                                        text = if (selectedPackages.isNotEmpty()) "Custom (${selectedPackages.size})" else "Custom",
-                                        style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                        color = if (selectedPackages.isNotEmpty()) colorScheme.onPrimaryContainer else colorScheme.onSurface
-                                    )
-                                }
-                            }
-                        }
-
-                        // Summary badges preview
-                        if (selectedBags.isEmpty() && selectedPackages.isEmpty()) {
-                            Spacer(Modifier.height(10.dp))
-                            Text("No targets selected yet. Tap Bags or Custom to choose apps to block.", style = typography.bodySmall, color = colorScheme.outline)
-                        } else {
-                            Spacer(Modifier.height(12.dp))
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                bags.filter { selectedBags.contains(it.id) }.forEach { b ->
-                                    InputChip(
-                                        selected = true,
-                                        onClick = { selectedBags = selectedBags - b.id },
-                                        label = { Text(b.name) },
-                                        leadingIcon = {
-                                            Icon(painter = painterResource(R.drawable.backpack_fill0), contentDescription = null, modifier = Modifier.size(14.dp))
-                                        },
-                                        trailingIcon = {
-                                            Icon(painter = painterResource(R.drawable.close_fill0), contentDescription = "Remove", modifier = Modifier.size(14.dp))
-                                        }
-                                    )
-                                }
-
-                                installedApps.filter { selectedPackages.contains(it.packageName) }.take(6).forEach { app ->
-                                    InputChip(
-                                        selected = true,
-                                        onClick = { selectedPackages = selectedPackages - app.packageName },
-                                        label = { Text(app.label) },
-                                        leadingIcon = {
-                                            Icon(painter = painterResource(R.drawable.apps_fill0), contentDescription = null, modifier = Modifier.size(14.dp))
-                                        },
-                                        trailingIcon = {
-                                            Icon(painter = painterResource(R.drawable.close_fill0), contentDescription = "Remove", modifier = Modifier.size(14.dp))
-                                        }
-                                    )
-                                }
-
-                                val remainingCustom = selectedPackages.size - installedApps.filter { selectedPackages.contains(it.packageName) }.take(6).size
-                                if (remainingCustom > 0) {
-                                    SuggestionChip(
-                                        onClick = { showCustomAppsSheet = true },
-                                        label = { Text("+$remainingCustom more") }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Private DNS Filter Card
-            item {
-                ElevatedCard(
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.elevatedCardColors(containerColor = colorScheme.surfaceContainerHigh),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(18.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Column(Modifier.weight(1f)) {
-                                Text("Private DNS Blocking", style = typography.titleSmall.copy(fontWeight = FontWeight.Bold))
-                                Text("Enforce domain filtering during focus session", style = typography.bodySmall, color = colorScheme.onSurfaceVariant)
-                            }
-                            Switch(checked = enableDns, onCheckedChange = { enableDns = it })
-                        }
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 20.dp, vertical = 14.dp)
+                            ) {
+                                OutlinedTextField(
+                                    value = nameInput,
+                                    onValueChange = { nameInput = it },
+                                    label = { Text("Mode Name *") },
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
 
-                        if (enableDns) {
-                            Spacer(Modifier.height(12.dp))
-                            Text("Select DNS Resolver:", style = typography.labelSmall, color = colorScheme.onSurfaceVariant)
-                            Spacer(Modifier.height(6.dp))
-                            DnsManager.PRESETS.take(4).forEach { preset ->
-                                val isSelected = selectedDnsHost == preset.host
-                                Surface(
-                                    onClick = { selectedDnsHost = preset.host },
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = if (isSelected) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
-                                ) {
-                                    Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        Column(Modifier.weight(1f)) {
-                                            Text(preset.name, style = typography.labelMedium.copy(fontWeight = FontWeight.Bold))
-                                            Text(preset.host, style = typography.bodySmall.copy(fontSize = 11.sp), color = colorScheme.outline)
-                                        }
-                                        if (isSelected) {
-                                            Icon(painter = painterResource(R.drawable.check_fill0), contentDescription = null, tint = colorScheme.onPrimaryContainer, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.height(14.dp))
+
+                                Text("Profile Icon:", style = typography.labelSmall, color = colorScheme.onSurfaceVariant)
+                                Spacer(Modifier.height(6.dp))
+
+                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    icons.forEach { (name, res) ->
+                                        val isSelected = selectedIcon == name
+                                        Surface(
+                                            onClick = { selectedIcon = name },
+                                            shape = CircleShape,
+                                            color = if (isSelected) colorScheme.primary else colorScheme.surfaceContainerLowest,
+                                            modifier = Modifier.size(44.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    painter = painterResource(res),
+                                                    contentDescription = null,
+                                                    tint = if (isSelected) colorScheme.onPrimary else colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.size(22.dp)
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -1441,132 +1298,499 @@ private fun ModeDetailWindow(
                 }
             }
 
-            // Strict Protection Key Card
+            // --- SECTION 2: SESSION DURATION ---
             item {
-                ElevatedCard(
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.elevatedCardColors(containerColor = colorScheme.surfaceContainerHigh),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(18.dp)) {
-                        Text("Strict Protection Key *", style = typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = colorScheme.primary)
-                        Text("Required to stop or unlock this focus session early", style = typography.bodySmall, color = colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.height(14.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    TomatoSectionHeader(title = "SESSION DURATION")
 
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Surface(
-                                onClick = { selectedKeyType = KeyType.PASSWORD },
-                                shape = RoundedCornerShape(10.dp),
-                                color = if (selectedKeyType == KeyType.PASSWORD) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
-                                modifier = Modifier.weight(1f).height(40.dp)
+                    TomatoSettingsItem(
+                        title = "Default Duration",
+                        subtitle = "${durationMinutes} minutes • Tap to adjust",
+                        leadingIcon = R.drawable.schedule_fill0,
+                        iconContainerColor = colorScheme.secondaryContainer,
+                        iconTint = colorScheme.onSecondaryContainer,
+                        trailingContent = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Box(contentAlignment = Alignment.Center) { Text("Password", style = typography.labelMedium.copy(fontWeight = FontWeight.Bold)) }
+                                Surface(
+                                    shape = CircleShape,
+                                    color = colorScheme.primaryContainer
+                                ) {
+                                    Text(
+                                        text = "${durationMinutes}m",
+                                        style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                    )
+                                }
+                                Icon(
+                                    painter = painterResource(R.drawable.arrow_forward_big),
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .size(16.dp)
+                                        .graphicsLayer { rotationZ = durationChevronRotation },
+                                    tint = colorScheme.onSurfaceVariant
+                                )
                             }
-                            Surface(
-                                onClick = { selectedKeyType = KeyType.QR_CODE },
-                                shape = RoundedCornerShape(10.dp),
-                                color = if (selectedKeyType == KeyType.QR_CODE) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
-                                modifier = Modifier.weight(1f).height(40.dp)
+                        },
+                        shape = if (isDurationExpanded) {
+                            RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+                        } else {
+                            segmentedItemShape(0, 1)
+                        },
+                        onClick = { isDurationExpanded = !isDurationExpanded }
+                    )
+
+                    AnimatedVisibility(
+                        visible = isDurationExpanded,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        Surface(
+                            color = colorScheme.surfaceContainerHigh,
+                            shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 22.dp, bottomEnd = 22.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 20.dp, vertical = 14.dp)
                             ) {
-                                Box(contentAlignment = Alignment.Center) { Text("QR Key", style = typography.labelMedium.copy(fontWeight = FontWeight.Bold)) }
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    listOf(25, 45, 60, 90).forEach { mins ->
+                                        val isSelected = durationMinutes == mins
+                                        Surface(
+                                            onClick = { durationMinutes = mins },
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = if (isSelected) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                            modifier = Modifier.weight(1f).height(38.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Text("${mins}m", fontWeight = FontWeight.Bold, color = if (isSelected) colorScheme.onPrimaryContainer else colorScheme.onSurface)
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Spacer(Modifier.height(12.dp))
+
+                                OutlinedTextField(
+                                    value = durationMinutes.toString(),
+                                    onValueChange = { durationMinutes = it.toIntOrNull() ?: 1 },
+                                    label = { Text("Custom Minutes") },
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
                             }
                         }
+                    }
+                }
+            }
 
-                        Spacer(Modifier.height(14.dp))
+            // --- SECTION 3: TARGETS TO BLOCK ---
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    TomatoSectionHeader(title = "TARGETS TO BLOCK")
 
-                        if (selectedKeyType == KeyType.PASSWORD) {
-                            OutlinedTextField(
-                                value = passwordSecret,
-                                onValueChange = { passwordSecret = it },
-                                label = { Text("Protection Password *") },
-                                placeholder = { Text("Enter secret password") },
-                                singleLine = true,
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        } else {
-                            // QR Key Section with Two Pills: Choose from Saved Keys or Scan New Key
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val targetsSummary = when {
+                        selectedBags.isNotEmpty() && selectedPackages.isNotEmpty() -> "${selectedBags.size} bags • ${selectedPackages.size} apps"
+                        selectedBags.isNotEmpty() -> "${selectedBags.size} bags"
+                        selectedPackages.isNotEmpty() -> "${selectedPackages.size} apps"
+                        else -> "No targets selected"
+                    }
+
+                    TomatoSettingsItem(
+                        title = "Blocked Apps & Bags",
+                        subtitle = "$targetsSummary • Tap to select",
+                        leadingIcon = R.drawable.backpack_fill0,
+                        iconContainerColor = colorScheme.tertiaryContainer,
+                        iconTint = colorScheme.onTertiaryContainer,
+                        trailingContent = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
                                 Surface(
-                                    onClick = { showSavedKeysSheet = true },
                                     shape = CircleShape,
-                                    color = if (selectedSavedKeyId != null) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
-                                    border = BorderStroke(1.dp, if (selectedSavedKeyId != null) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                                    modifier = Modifier.weight(1f).height(42.dp)
+                                    color = if (selectedBags.isNotEmpty() || selectedPackages.isNotEmpty()) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest
                                 ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.Center
-                                    ) {
-                                        Icon(painter = painterResource(R.drawable.key_fill0), contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Spacer(Modifier.width(6.dp))
-                                        Text("Saved Keys", style = typography.labelMedium.copy(fontWeight = FontWeight.Bold))
-                                    }
+                                    Text(
+                                        text = "${selectedBags.size + selectedPackages.size}",
+                                        style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = if (selectedBags.isNotEmpty() || selectedPackages.isNotEmpty()) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                    )
                                 }
-
-                                Surface(
-                                    onClick = { showScanKeySheet = true },
-                                    shape = CircleShape,
-                                    color = if (selectedSavedKeyId == null && qrSecret.isNotBlank()) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
-                                    border = BorderStroke(1.dp, if (selectedSavedKeyId == null && qrSecret.isNotBlank()) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                                    modifier = Modifier.weight(1f).height(42.dp)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.Center
-                                    ) {
-                                        Icon(painter = painterResource(R.drawable.qr_code_scanner_fill0), contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Spacer(Modifier.width(6.dp))
-                                        Text("Scan New Key", style = typography.labelMedium.copy(fontWeight = FontWeight.Bold))
-                                    }
-                                }
+                                Icon(
+                                    painter = painterResource(R.drawable.arrow_forward_big),
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .size(16.dp)
+                                        .graphicsLayer { rotationZ = targetsChevronRotation },
+                                    tint = colorScheme.onSurfaceVariant
+                                )
                             }
+                        },
+                        shape = if (isTargetsExpanded) {
+                            RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+                        } else {
+                            segmentedItemShape(0, 1)
+                        },
+                        onClick = { isTargetsExpanded = !isTargetsExpanded }
+                    )
 
-                            Spacer(Modifier.height(12.dp))
+                    AnimatedVisibility(
+                        visible = isTargetsExpanded,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        Surface(
+                            color = colorScheme.surfaceContainerHigh,
+                            shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 22.dp, bottomEnd = 22.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 20.dp, vertical = 14.dp)
+                            ) {
+                                Text("Choose bags or individual apps to suspend during this focus mode", style = typography.bodySmall, color = colorScheme.onSurfaceVariant)
+                                Spacer(Modifier.height(12.dp))
 
-                            // Selected Key Preview Status
-                            if (qrSecret.isNotBlank()) {
-                                Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = colorScheme.primaryContainer.copy(alpha = 0.4f),
-                                    border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.4f)),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth().padding(12.dp),
-                                        verticalAlignment = Alignment.CenterVertically
+                                // Two Pills: Bags and Custom
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    // Bags Pill
+                                    Surface(
+                                        onClick = { showBagsSheet = true },
+                                        shape = CircleShape,
+                                        color = if (selectedBags.isNotEmpty()) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                        border = BorderStroke(1.dp, if (selectedBags.isNotEmpty()) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                        modifier = Modifier.weight(1f).height(44.dp)
                                     ) {
-                                        Icon(painter = painterResource(R.drawable.qr_code_fill0), contentDescription = null, tint = colorScheme.primary, modifier = Modifier.size(24.dp))
-                                        Spacer(Modifier.width(10.dp))
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            val keyName = savedKeys.find { it.id == selectedSavedKeyId }?.name
-                                            if (keyName != null) {
-                                                Text("Saved Key: $keyName", style = typography.bodyMedium.copy(fontWeight = FontWeight.Bold), color = colorScheme.onSurface)
-                                            } else {
-                                                Text("Scanned QR Key", style = typography.bodyMedium.copy(fontWeight = FontWeight.Bold), color = colorScheme.onSurface)
-                                            }
+                                        Row(
+                                            modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.Center
+                                        ) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.backpack_fill0),
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp),
+                                                tint = if (selectedBags.isNotEmpty()) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
+                                            )
+                                            Spacer(Modifier.width(8.dp))
                                             Text(
-                                                text = if (qrSecret.length > 14) "${qrSecret.take(6)}...${qrSecret.takeLast(6)}" else qrSecret,
-                                                style = typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
-                                                color = colorScheme.outline
+                                                text = if (selectedBags.isNotEmpty()) "Bags (${selectedBags.size})" else "Bags",
+                                                style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                                color = if (selectedBags.isNotEmpty()) colorScheme.onPrimaryContainer else colorScheme.onSurface
                                             )
                                         }
-                                        IconButton(onClick = {
-                                            qrSecret = ""
-                                            selectedSavedKeyId = null
-                                        }) {
-                                            Icon(painter = painterResource(R.drawable.close_fill0), contentDescription = "Clear Key", modifier = Modifier.size(18.dp))
+                                    }
+
+                                    // Custom Pill
+                                    Surface(
+                                        onClick = { showCustomAppsSheet = true },
+                                        shape = CircleShape,
+                                        color = if (selectedPackages.isNotEmpty()) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                        border = BorderStroke(1.dp, if (selectedPackages.isNotEmpty()) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                        modifier = Modifier.weight(1f).height(44.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.Center
+                                        ) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.apps_fill0),
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp),
+                                                tint = if (selectedPackages.isNotEmpty()) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
+                                            )
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(
+                                                text = if (selectedPackages.isNotEmpty()) "Custom (${selectedPackages.size})" else "Custom",
+                                                style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                                color = if (selectedPackages.isNotEmpty()) colorScheme.onPrimaryContainer else colorScheme.onSurface
+                                            )
                                         }
                                     }
                                 }
-                            } else {
-                                Text(
-                                    text = "No key selected. Choose a saved key or scan a new QR code.",
-                                    style = typography.bodySmall,
-                                    color = colorScheme.error
+
+                                // Summary badges preview
+                                if (selectedBags.isEmpty() && selectedPackages.isEmpty()) {
+                                    Spacer(Modifier.height(10.dp))
+                                    Text("No targets selected yet. Tap Bags or Custom to choose apps to block.", style = typography.bodySmall, color = colorScheme.outline)
+                                } else {
+                                    Spacer(Modifier.height(12.dp))
+                                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        bags.filter { selectedBags.contains(it.id) }.forEach { b ->
+                                            InputChip(
+                                                selected = true,
+                                                onClick = { selectedBags = selectedBags - b.id },
+                                                label = { Text(b.name) },
+                                                leadingIcon = {
+                                                    Icon(painter = painterResource(R.drawable.backpack_fill0), contentDescription = null, modifier = Modifier.size(14.dp))
+                                                },
+                                                trailingIcon = {
+                                                    Icon(painter = painterResource(R.drawable.close_fill0), contentDescription = "Remove", modifier = Modifier.size(14.dp))
+                                                }
+                                            )
+                                        }
+
+                                        installedApps.filter { selectedPackages.contains(it.packageName) }.take(6).forEach { app ->
+                                            InputChip(
+                                                selected = true,
+                                                onClick = { selectedPackages = selectedPackages - app.packageName },
+                                                label = { Text(app.label) },
+                                                leadingIcon = {
+                                                    Icon(painter = painterResource(R.drawable.apps_fill0), contentDescription = null, modifier = Modifier.size(14.dp))
+                                                },
+                                                trailingIcon = {
+                                                    Icon(painter = painterResource(R.drawable.close_fill0), contentDescription = "Remove", modifier = Modifier.size(14.dp))
+                                                }
+                                            )
+                                        }
+
+                                        val remainingCustom = selectedPackages.size - installedApps.filter { selectedPackages.contains(it.packageName) }.take(6).size
+                                        if (remainingCustom > 0) {
+                                            SuggestionChip(
+                                                onClick = { showCustomAppsSheet = true },
+                                                label = { Text("+$remainingCustom more") }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // --- SECTION 4: LOCKDOWN & NETWORK ---
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    TomatoSectionHeader(title = "LOCKDOWN & NETWORK")
+
+                    // 1. DNS Filtering
+                    TomatoSettingsItem(
+                        title = "Private DNS Blocking",
+                        subtitle = if (enableDns) "Enforced • ${selectedDnsHost}" else "Disabled",
+                        leadingIcon = R.drawable.shield_fill0,
+                        iconContainerColor = colorScheme.primaryContainer,
+                        iconTint = colorScheme.onPrimaryContainer,
+                        trailingContent = {
+                            Switch(checked = enableDns, onCheckedChange = { enableDns = it })
+                        },
+                        shape = segmentedItemShape(0, 2),
+                        onClick = { enableDns = !enableDns }
+                    )
+
+                    if (enableDns) {
+                        Surface(
+                            color = colorScheme.surfaceContainerHigh,
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) {
+                                Text("Select DNS Resolver:", style = typography.labelSmall, color = colorScheme.onSurfaceVariant)
+                                Spacer(Modifier.height(6.dp))
+                                DnsManager.PRESETS.take(4).forEach { preset ->
+                                    val isSelected = selectedDnsHost == preset.host
+                                    Surface(
+                                        onClick = { selectedDnsHost = preset.host },
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = if (isSelected) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+                                    ) {
+                                        Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                            Column(Modifier.weight(1f)) {
+                                                Text(preset.name, style = typography.labelMedium.copy(fontWeight = FontWeight.Bold))
+                                                Text(preset.host, style = typography.bodySmall.copy(fontSize = 11.sp), color = colorScheme.outline)
+                                            }
+                                            if (isSelected) {
+                                                Icon(painter = painterResource(R.drawable.check_fill0), contentDescription = null, tint = colorScheme.onPrimaryContainer, modifier = Modifier.size(18.dp))
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 2. Strict Protection Key
+                    TomatoSettingsItem(
+                        title = "Protection Key",
+                        subtitle = if (currentSecret.isNotBlank()) "Key configured (${selectedKeyType.name.lowercase().replaceFirstChar { it.uppercase() }})" else "Required to lock session • Tap to configure",
+                        leadingIcon = R.drawable.key_fill0,
+                        iconContainerColor = if (currentSecret.isNotBlank()) colorScheme.primaryContainer else colorScheme.surfaceContainerHighest,
+                        iconTint = if (currentSecret.isNotBlank()) colorScheme.primary else colorScheme.onSurfaceVariant,
+                        trailingContent = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = if (currentSecret.isNotBlank()) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest
+                                ) {
+                                    Text(
+                                        text = if (currentSecret.isNotBlank()) "Ready" else "Required",
+                                        style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = if (currentSecret.isNotBlank()) colorScheme.onPrimaryContainer else colorScheme.error,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                    )
+                                }
+                                Icon(
+                                    painter = painterResource(R.drawable.arrow_forward_big),
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .size(16.dp)
+                                        .graphicsLayer { rotationZ = keyChevronRotation },
+                                    tint = colorScheme.onSurfaceVariant
                                 )
+                            }
+                        },
+                        shape = if (isKeyExpanded) {
+                            RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+                        } else {
+                            segmentedItemShape(1, 2)
+                        },
+                        onClick = { isKeyExpanded = !isKeyExpanded }
+                    )
+
+                    AnimatedVisibility(
+                        visible = isKeyExpanded,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        Surface(
+                            color = colorScheme.surfaceContainerHigh,
+                            shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 22.dp, bottomEnd = 22.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) {
+                                Text("Required to stop or unlock this focus session early", style = typography.bodySmall, color = colorScheme.onSurfaceVariant)
+                                Spacer(Modifier.height(14.dp))
+
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Surface(
+                                        onClick = { selectedKeyType = KeyType.PASSWORD },
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = if (selectedKeyType == KeyType.PASSWORD) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                        modifier = Modifier.weight(1f).height(40.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) { Text("Password", style = typography.labelMedium.copy(fontWeight = FontWeight.Bold)) }
+                                    }
+                                    Surface(
+                                        onClick = { selectedKeyType = KeyType.QR_CODE },
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = if (selectedKeyType == KeyType.QR_CODE) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                        modifier = Modifier.weight(1f).height(40.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) { Text("QR Key", style = typography.labelMedium.copy(fontWeight = FontWeight.Bold)) }
+                                    }
+                                }
+
+                                Spacer(Modifier.height(14.dp))
+
+                                if (selectedKeyType == KeyType.PASSWORD) {
+                                    OutlinedTextField(
+                                        value = passwordSecret,
+                                        onValueChange = { passwordSecret = it },
+                                        label = { Text("Protection Password *") },
+                                        placeholder = { Text("Enter secret password") },
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                } else {
+                                    // QR Key Section with Two Pills: Choose from Saved Keys or Scan New Key
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Surface(
+                                            onClick = { showSavedKeysSheet = true },
+                                            shape = CircleShape,
+                                            color = if (selectedSavedKeyId != null) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                            border = BorderStroke(1.dp, if (selectedSavedKeyId != null) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                            modifier = Modifier.weight(1f).height(42.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.Center
+                                            ) {
+                                                Icon(painter = painterResource(R.drawable.key_fill0), contentDescription = null, modifier = Modifier.size(16.dp))
+                                                Spacer(Modifier.width(6.dp))
+                                                Text("Saved Keys", style = typography.labelMedium.copy(fontWeight = FontWeight.Bold))
+                                            }
+                                        }
+
+                                        Surface(
+                                            onClick = { showScanKeySheet = true },
+                                            shape = CircleShape,
+                                            color = if (selectedSavedKeyId == null && qrSecret.isNotBlank()) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                            border = BorderStroke(1.dp, if (selectedSavedKeyId == null && qrSecret.isNotBlank()) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                            modifier = Modifier.weight(1f).height(42.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.Center
+                                            ) {
+                                                Icon(painter = painterResource(R.drawable.qr_code_scanner_fill0), contentDescription = null, modifier = Modifier.size(16.dp))
+                                                Spacer(Modifier.width(6.dp))
+                                                Text("Scan New Key", style = typography.labelMedium.copy(fontWeight = FontWeight.Bold))
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(Modifier.height(12.dp))
+
+                                    // Selected Key Preview Status
+                                    if (qrSecret.isNotBlank()) {
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = colorScheme.primaryContainer.copy(alpha = 0.4f),
+                                            border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.4f)),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(painter = painterResource(R.drawable.qr_code_fill0), contentDescription = null, tint = colorScheme.primary, modifier = Modifier.size(24.dp))
+                                                Spacer(Modifier.width(10.dp))
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    val keyName = savedKeys.find { it.id == selectedSavedKeyId }?.name
+                                                    if (keyName != null) {
+                                                        Text("Saved Key: $keyName", style = typography.bodyMedium.copy(fontWeight = FontWeight.Bold), color = colorScheme.onSurface)
+                                                    } else {
+                                                        Text("Scanned QR Key", style = typography.bodyMedium.copy(fontWeight = FontWeight.Bold), color = colorScheme.onSurface)
+                                                    }
+                                                    Text(
+                                                        text = if (qrSecret.length > 14) "${qrSecret.take(6)}...${qrSecret.takeLast(6)}" else qrSecret,
+                                                        style = typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
+                                                        color = colorScheme.outline
+                                                    )
+                                                }
+                                                IconButton(onClick = {
+                                                    qrSecret = ""
+                                                    selectedSavedKeyId = null
+                                                }) {
+                                                    Icon(painter = painterResource(R.drawable.close_fill0), contentDescription = "Clear Key", modifier = Modifier.size(18.dp))
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        Text(
+                                            text = "No key selected. Choose a saved key or scan a new QR code.",
+                                            style = typography.bodySmall,
+                                            color = colorScheme.error
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
