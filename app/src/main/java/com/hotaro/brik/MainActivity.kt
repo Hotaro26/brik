@@ -2,6 +2,7 @@ package com.hotaro.brik
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.Crossfade
@@ -23,6 +24,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -35,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import com.hotaro.brik.ui.component.BrikFloatingNavBar
 import com.hotaro.brik.ui.component.FloatingNavItem
 import com.hotaro.brik.ui.screen.KeyScreen
+import com.hotaro.brik.ui.screen.KeysWindow
 import com.hotaro.brik.ui.screen.SettingsScreen
 import com.hotaro.brik.ui.screen.ToolsScreen
 import com.hotaro.brik.ui.theme.BrikTheme
@@ -55,6 +58,13 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun BrikMainScreen() {
     var selectedIndex by remember { mutableIntStateOf(0) }
+    var currentSubScreen by remember { mutableStateOf<String?>(null) }
+
+    if (currentSubScreen == "keys") {
+        BackHandler { currentSubScreen = null }
+        KeysWindow(onBack = { currentSubScreen = null })
+        return
+    }
 
     val navItems = listOf(
         FloatingNavItem(
@@ -115,7 +125,7 @@ fun BrikMainScreen() {
                 when (tab) {
                     0 -> KeyScreen()
                     1 -> ToolsScreen()
-                    2 -> SettingsScreen()
+                    2 -> SettingsScreen(onNavigateToKeys = { currentSubScreen = "keys" })
                 }
             }
 

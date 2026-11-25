@@ -54,6 +54,20 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun clearDeviceOwner(onResult: (Boolean, String?) -> Unit) {
+        viewModelScope.launch {
+            val res = withContext(Dispatchers.IO) {
+                PolicyBridgeManager.clearDeviceOwner(getApplication())
+            }
+            refreshStatus()
+            if (res.isSuccess) {
+                onResult(true, null)
+            } else {
+                onResult(false, res.exceptionOrNull()?.message)
+            }
+        }
+    }
+
     fun requestDhizukuPermission() {
         try {
             if (Dhizuku.init(getApplication())) {

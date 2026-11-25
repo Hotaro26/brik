@@ -27,6 +27,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
@@ -75,8 +76,10 @@ import kotlinx.coroutines.launch
 @Composable
 fun SettingsScreen(
     modifier: Modifier = Modifier,
+    onNavigateToKeys: () -> Unit = {},
     settingsViewModel: SettingsViewModel = viewModel(),
-    toolsViewModel: ToolsViewModel = viewModel()
+    toolsViewModel: ToolsViewModel = viewModel(),
+    keyViewModel: com.hotaro.brik.ui.viewmodel.KeyViewModel = viewModel()
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
@@ -88,10 +91,13 @@ fun SettingsScreen(
     val isKioskActive by settingsViewModel.isKioskActive.collectAsState()
     val installedApps by toolsViewModel.installedApps.collectAsState()
     val bags by toolsViewModel.bags.collectAsState()
+    val activeLocks by keyViewModel.activeLocks.collectAsState()
+    val stats by keyViewModel.stats.collectAsState()
 
     var showBlockSheet by remember { mutableStateOf(false) }
     var showHideSheet by remember { mutableStateOf(false) }
     var showKioskSheet by remember { mutableStateOf(false) }
+    var showDeactivateDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         settingsViewModel.refreshStatus()
@@ -191,7 +197,17 @@ fun SettingsScreen(
                     }
                 }
 
-                if (!bridgeStatus.isDeviceOwner) {
+                if (bridgeStatus.isDeviceOwner) {
+                    Spacer(Modifier.height(14.dp))
+                    Button(
+                        onClick = { showDeactivateDialog = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = colorScheme.errorContainer),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Deactivate Device Owner (Allow Uninstall)", color = colorScheme.onErrorContainer)
+                    }
+                } else {
                     Spacer(Modifier.height(12.dp))
                     val dpmCmd = "adb shell dpm set-device-owner com.hotaro.brik/.admin.BrikAdminReceiver"
                     Surface(
@@ -329,7 +345,64 @@ fun SettingsScreen(
             }
         }
 
-        // --- SECTION 2: NON-NEGOTIABLES ENFORCEMENT ---
+        // --- SECTION 2: KEYS & ANALYTICS ---
+        Text(
+            text = "Keys & Security",
+            style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+            color = colorScheme.primary
+        )
+
+        ElevatedCard(
+            onClick = onNavigateToKeys,
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.elevatedCardColors(
+                containerColor = colorScheme.surfaceContainerHigh
+            ),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(18.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = colorScheme.primaryContainer,
+                    modifier = Modifier.size(44.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            painter = painterResource(R.drawable.key_fill0),
+                            contentDescription = null,
+                            tint = colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = "Keys & Lock Analytics",
+                        style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        color = colorScheme.onSurface
+                    )
+                    Text(
+                        text = "${activeLocks.size} active bag keys • ${stats.totalLocks} sessions",
+                        style = typography.bodySmall,
+                        color = colorScheme.onSurfaceVariant
+                    )
+                }
+                Icon(
+                    painter = painterResource(R.drawable.arrow_back_fill0),
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        // --- SECTION 3: NON-NEGOTIABLES ENFORCEMENT ---
         Text(
             text = "Policy Enforcement (Core)",
             style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
@@ -472,6 +545,52 @@ fun SettingsScreen(
         }
 
         Spacer(Modifier.height(130.dp))
+    }
+
+    // --- Deactivate Device Owner Confirmation Dialog ---
+    if (showDeactivateDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeactivateDialog = false },
+            title = {
+                Text(
+                    text = "Deactivate Device Owner?",
+                    fontWeight = FontWeight.Bold,
+                    color = colorScheme.error
+                )
+            },
+            text = {
+                Text(
+                    text = "This will release Device Owner management permissions. Once deactivated, you can immediately uninstall Brik like any standard application from your device.",
+                    style = typography.bodyMedium,
+                    color = colorScheme.onSurfaceVariant
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        settingsViewModel.clearDeviceOwner { ok, err ->
+                            if (ok) {
+                                Toast.makeText(context, "Device Owner deactivated! You can now uninstall Brik.", Toast.LENGTH_LONG).show()
+                                showDeactivateDialog = false
+                            } else {
+                                Toast.makeText(context, err ?: "Failed to clear Device Owner", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = colorScheme.error),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Deactivate")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeactivateDialog = false }) {
+                    Text("Cancel")
+                }
+            },
+            shape = RoundedCornerShape(24.dp),
+            containerColor = colorScheme.surfaceContainerHigh
+        )
     }
 
     // --- APP BLOCKING SHEET ---

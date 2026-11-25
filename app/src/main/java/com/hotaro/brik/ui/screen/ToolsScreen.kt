@@ -1,8 +1,13 @@
 package com.hotaro.brik.ui.screen
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +28,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
@@ -35,9 +41,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.MaterialTheme.typography
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -51,6 +59,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -62,14 +71,19 @@ import com.google.accompanist.drawablepainter.rememberDrawablePainter
 import com.hotaro.brik.R
 import com.hotaro.brik.data.model.AppBag
 import com.hotaro.brik.data.model.AppInfo
+import com.hotaro.brik.data.model.KeyType
+import com.hotaro.brik.ui.viewmodel.KeyViewModel
 import com.hotaro.brik.ui.viewmodel.ToolsViewModel
+import com.hotaro.brik.util.QrUtils
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ToolsScreen(
     modifier: Modifier = Modifier,
-    viewModel: ToolsViewModel = viewModel()
+    viewModel: ToolsViewModel = viewModel(),
+    keyViewModel: KeyViewModel = viewModel()
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -77,6 +91,7 @@ fun ToolsScreen(
     var showAppManagerSheet by remember { mutableStateOf(false) }
     var showBagsSheet by remember { mutableStateOf(false) }
     var showCreateBagDialog by remember { mutableStateOf(false) }
+    var bagToLock by remember { mutableStateOf<AppBag?>(null) }
 
     val bags by viewModel.bags.collectAsState()
     val installedApps by viewModel.installedApps.collectAsState()
@@ -84,6 +99,7 @@ fun ToolsScreen(
     val isLoadingApps by viewModel.isLoadingApps.collectAsState()
     val selectedPackages by viewModel.selectedPackages.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
+    val activeLocks by keyViewModel.activeLocks.collectAsState()
 
     val appManagerSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val bagsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -182,7 +198,7 @@ fun ToolsScreen(
                         color = colorScheme.onSurface
                     )
                     Text(
-                        text = if (bags.isNotEmpty()) "${bags.size} bags configured" else "Pack apps into custom bundles",
+                        text = if (bags.isNotEmpty()) "${bags.size} bags (${activeLocks.size} active)" else "Pack apps into custom bundles",
                         style = typography.bodySmall,
                         color = colorScheme.onSurfaceVariant
                     )
@@ -391,7 +407,7 @@ fun ToolsScreen(
                             color = colorScheme.onSurface
                         )
                         Text(
-                            text = "${bags.size} configured bundles",
+                            text = "${bags.size} configured bundles • Tap switch to lock",
                             style = typography.bodyMedium,
                             color = colorScheme.onSurfaceVariant
                         )
@@ -463,9 +479,18 @@ fun ToolsScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(bags, key = { it.id }) { bag ->
+                            val isLocked = keyViewModel.isBagLocked(bag.id)
                             BagItemCard(
                                 bag = bag,
+                                isLocked = isLocked,
                                 viewModel = viewModel,
+                                onToggleLock = { shouldLock ->
+                                    if (shouldLock) {
+                                        bagToLock = bag
+                                    } else {
+                                        Toast.makeText(context, "Go to Key window to unlock '${bag.name}'", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
                                 onDelete = { viewModel.deleteBag(bag.id) }
                             )
                         }
@@ -532,6 +557,177 @@ fun ToolsScreen(
             containerColor = colorScheme.surfaceContainerHigh
         )
     }
+
+    // --- Lock Bag: Set Key (Password or QR) Dialog ---
+    if (bagToLock != null) {
+        val bag = bagToLock!!
+        var selectedKeyType by remember { mutableStateOf(KeyType.PASSWORD) }
+        var password by remember { mutableStateOf("") }
+        val generatedQrToken = remember { UUID.randomUUID().toString() }
+        val qrBitmap = remember(generatedQrToken) {
+            try {
+                QrUtils.encodeToBitmap(generatedQrToken, 320)
+            } catch (e: Exception) {
+                null
+            }
+        }
+
+        AlertDialog(
+            onDismissRequest = { bagToLock = null },
+            title = {
+                Text(
+                    text = "Lock '${bag.name}'",
+                    fontWeight = FontWeight.Bold,
+                    color = colorScheme.onSurface
+                )
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "Choose a lock key to suspend apps in this bag:",
+                        style = typography.bodySmall,
+                        color = colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(Modifier.height(14.dp))
+
+                    // Key Type Picker
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Surface(
+                            onClick = { selectedKeyType = KeyType.PASSWORD },
+                            shape = RoundedCornerShape(14.dp),
+                            color = if (selectedKeyType == KeyType.PASSWORD) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(56.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    painter = painterResource(R.drawable.password_fill0),
+                                    contentDescription = null,
+                                    tint = if (selectedKeyType == KeyType.PASSWORD) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = "Password",
+                                    style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = if (selectedKeyType == KeyType.PASSWORD) colorScheme.onPrimaryContainer else colorScheme.onSurface
+                                )
+                            }
+                        }
+
+                        Surface(
+                            onClick = { selectedKeyType = KeyType.QR_CODE },
+                            shape = RoundedCornerShape(14.dp),
+                            color = if (selectedKeyType == KeyType.QR_CODE) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(56.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    painter = painterResource(R.drawable.qr_code_fill0),
+                                    contentDescription = null,
+                                    tint = if (selectedKeyType == KeyType.QR_CODE) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = "QR Key",
+                                    style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = if (selectedKeyType == KeyType.QR_CODE) colorScheme.onPrimaryContainer else colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+
+                    if (selectedKeyType == KeyType.PASSWORD) {
+                        OutlinedTextField(
+                            value = password,
+                            onValueChange = { password = it },
+                            placeholder = { Text("Enter secret password") },
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    } else {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            if (qrBitmap != null) {
+                                Image(
+                                    bitmap = qrBitmap.asImageBitmap(),
+                                    contentDescription = "QR Code Key",
+                                    modifier = Modifier
+                                        .size(170.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(android.graphics.Color.WHITE.let { androidx.compose.ui.graphics.Color(it) })
+                                        .padding(6.dp)
+                                )
+                            }
+
+                            Spacer(Modifier.height(8.dp))
+
+                            Text(
+                                text = "Save or screenshot this QR code to unlock.",
+                                style = typography.bodySmall,
+                                color = colorScheme.onSurfaceVariant
+                            )
+
+                            TextButton(onClick = {
+                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                clipboard.setPrimaryClip(ClipData.newPlainText("Brik QR Token", generatedQrToken))
+                                Toast.makeText(context, "Token copied!", Toast.LENGTH_SHORT).show()
+                            }) {
+                                Text("Copy Token Text", style = typography.labelSmall)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val secret = if (selectedKeyType == KeyType.PASSWORD) password else generatedQrToken
+                        keyViewModel.lockBag(context, bag, selectedKeyType, secret) { success, err ->
+                            if (success) {
+                                Toast.makeText(context, "'${bag.name}' locked and suspended!", Toast.LENGTH_SHORT).show()
+                                bagToLock = null
+                            } else {
+                                Toast.makeText(context, err ?: "Failed to lock", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    enabled = selectedKeyType == KeyType.QR_CODE || password.isNotBlank(),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(if (selectedKeyType == KeyType.QR_CODE) "I've Saved It, Lock Bag" else "Lock Bag")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { bagToLock = null }) {
+                    Text("Cancel")
+                }
+            },
+            shape = RoundedCornerShape(24.dp),
+            containerColor = colorScheme.surfaceContainerHigh
+        )
+    }
 }
 
 @Composable
@@ -552,7 +748,6 @@ fun AppListItem(
                 .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // App Icon
             val painter = rememberDrawablePainter(drawable = app.icon)
             Image(
                 painter = painter,
@@ -564,7 +759,6 @@ fun AppListItem(
 
             Spacer(Modifier.width(14.dp))
 
-            // Label & Package
             Column(Modifier.weight(1f)) {
                 Text(
                     text = app.label,
@@ -599,7 +793,9 @@ fun AppListItem(
 @Composable
 fun BagItemCard(
     bag: AppBag,
+    isLocked: Boolean,
     viewModel: ToolsViewModel,
+    onToggleLock: (Boolean) -> Unit,
     onDelete: () -> Unit
 ) {
     ElevatedCard(
@@ -622,14 +818,14 @@ fun BagItemCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = colorScheme.primaryContainer,
+                        color = if (isLocked) colorScheme.errorContainer else colorScheme.primaryContainer,
                         modifier = Modifier.size(40.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
-                                painter = painterResource(R.drawable.backpack_fill0),
+                                painter = painterResource(if (isLocked) R.drawable.block_fill0 else R.drawable.backpack_fill0),
                                 contentDescription = null,
-                                tint = colorScheme.onPrimaryContainer,
+                                tint = if (isLocked) colorScheme.onErrorContainer else colorScheme.onPrimaryContainer,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -638,11 +834,27 @@ fun BagItemCard(
                     Spacer(Modifier.width(12.dp))
 
                     Column {
-                        Text(
-                            text = bag.name,
-                            style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = colorScheme.onSurface
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = bag.name,
+                                style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = colorScheme.onSurface
+                            )
+                            if (isLocked) {
+                                Spacer(Modifier.width(6.dp))
+                                Surface(
+                                    shape = CircleShape,
+                                    color = colorScheme.error
+                                ) {
+                                    Text(
+                                        text = "LOCKED",
+                                        style = typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold, fontSize = 9.sp),
+                                        color = colorScheme.onError,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
                         Text(
                             text = "${bag.packageNames.size} apps packed",
                             style = typography.bodySmall,
@@ -651,12 +863,19 @@ fun BagItemCard(
                     }
                 }
 
-                IconButton(onClick = onDelete) {
-                    Icon(
-                        painter = painterResource(R.drawable.delete_fill0),
-                        contentDescription = "Delete Bag",
-                        tint = colorScheme.error
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Switch(
+                        checked = isLocked,
+                        onCheckedChange = { onToggleLock(it) }
                     )
+                    Spacer(Modifier.width(4.dp))
+                    IconButton(onClick = onDelete) {
+                        Icon(
+                            painter = painterResource(R.drawable.delete_fill0),
+                            contentDescription = "Delete Bag",
+                            tint = colorScheme.error
+                        )
+                    }
                 }
             }
 

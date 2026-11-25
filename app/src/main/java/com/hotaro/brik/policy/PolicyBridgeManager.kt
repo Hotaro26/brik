@@ -94,6 +94,14 @@ object PolicyBridgeManager {
         )
     }
 
+    fun clearDeviceOwner(context: Context): Result<Boolean> {
+        return runCatching {
+            val dpm = context.getSystemService(DevicePolicyManager::class.java)!!
+            dpm.clearDeviceOwnerApp(context.packageName)
+            true
+        }
+    }
+
     @SuppressLint("PrivateApi")
     fun getDhizukuDpm(context: Context): DevicePolicyManager {
         val ownerComponent = Dhizuku.getOwnerComponent()
