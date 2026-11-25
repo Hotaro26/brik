@@ -160,35 +160,36 @@ fun SettingsScreen(
             }
         }
 
-        // --- SECTION 1: PRIVILEGED BRIDGES ---
+        // --- SECTION: PRIVILEGED BRIDGES & KEYS (CONJOINED) ---
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            TomatoSectionHeader(title = "PRIVILEGED BRIDGES")
+            TomatoSectionHeader(title = "SECTION")
 
-            val totalBridges = if (bridgeStatus.isDeviceOwner) 1 else 3
+            val isDeviceOwner = bridgeStatus.isDeviceOwner
+            val totalItems = if (isDeviceOwner) 2 else 4
 
             // 1. Device Owner (DPM)
             TomatoSettingsItem(
                 title = "Device Owner (DPM)",
-                subtitle = if (bridgeStatus.isDeviceOwner) "Active & Full Control" else "Not Provisioned (Tap to copy ADB command)",
+                subtitle = if (isDeviceOwner) "Active & Full Control" else "Not Provisioned (Tap to copy ADB command)",
                 leadingIcon = R.drawable.shield_fill0,
-                iconContainerColor = if (bridgeStatus.isDeviceOwner) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
-                iconTint = if (bridgeStatus.isDeviceOwner) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                iconContainerColor = if (isDeviceOwner) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                iconTint = if (isDeviceOwner) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
                 trailingContent = {
                     Surface(
                         shape = CircleShape,
-                        color = if (bridgeStatus.isDeviceOwner) colorScheme.primaryContainer else colorScheme.errorContainer
+                        color = if (isDeviceOwner) colorScheme.primaryContainer else colorScheme.errorContainer
                     ) {
                         Text(
-                            text = if (bridgeStatus.isDeviceOwner) "Active" else "Not Set",
+                            text = if (isDeviceOwner) "Active" else "Not Set",
                             style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = if (bridgeStatus.isDeviceOwner) colorScheme.onPrimaryContainer else colorScheme.onErrorContainer,
+                            color = if (isDeviceOwner) colorScheme.onPrimaryContainer else colorScheme.onErrorContainer,
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                         )
                     }
                 },
-                shape = segmentedItemShape(0, totalBridges),
+                shape = segmentedItemShape(0, totalItems),
                 onClick = {
-                    if (!bridgeStatus.isDeviceOwner) {
+                    if (!isDeviceOwner) {
                         val dpmCmd = "adb shell dpm set-device-owner com.hotaro.brik/.admin.BrikAdminReceiver"
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                         clipboard.setPrimaryClip(ClipData.newPlainText("ADB Command", dpmCmd))
@@ -198,7 +199,7 @@ fun SettingsScreen(
             )
 
             // If DPM is not active, display Dhizuku and Shizuku
-            if (!bridgeStatus.isDeviceOwner) {
+            if (!isDeviceOwner) {
                 // 2. Dhizuku Bridge
                 TomatoSettingsItem(
                     title = "Dhizuku Bridge",
@@ -229,7 +230,7 @@ fun SettingsScreen(
                             }
                         }
                     },
-                    shape = segmentedItemShape(1, totalBridges)
+                    shape = segmentedItemShape(1, totalItems)
                 )
 
                 // 3. Shizuku Bridge
@@ -262,15 +263,12 @@ fun SettingsScreen(
                             }
                         }
                     },
-                    shape = segmentedItemShape(2, totalBridges)
+                    shape = segmentedItemShape(2, totalItems)
                 )
             }
-        }
 
-        // --- SECTION 2: KEYS & SECURITY ---
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            TomatoSectionHeader(title = "KEYS & SECURITY")
-
+            // 4. Keys & Lock Analytics
+            val keysIndex = if (isDeviceOwner) 1 else 3
             TomatoSettingsItem(
                 title = "Keys & Lock Analytics",
                 subtitle = "${activeLocks.size} active bag keys • ${stats.totalLocks} sessions",
@@ -285,7 +283,7 @@ fun SettingsScreen(
                         tint = colorScheme.onSurfaceVariant
                     )
                 },
-                shape = segmentedItemShape(0, 1),
+                shape = segmentedItemShape(keysIndex, totalItems),
                 onClick = onNavigateToKeys
             )
         }
@@ -396,13 +394,20 @@ fun SettingsScreen(
     if (showSetUninstallKeyDialog) {
         var selectedKeyType by remember { mutableStateOf(KeyType.PASSWORD) }
         var password by remember { mutableStateOf("") }
+        var qrMode by remember { mutableStateOf(0) } // 0 = Random, 1 = Scan External
         val generatedQrToken = remember { UUID.randomUUID().toString() }
-        val qrBitmap = remember(generatedQrToken) {
-            try {
-                QrUtils.encodeToBitmap(generatedQrToken, 320)
-            } catch (e: Exception) {
-                null
-            }
+        var scannedQrToken by remember { mutableStateOf<String?>(null) }
+        var showScannerDialog by remember { mutableStateOf(false) }
+
+        val activeQrToken = if (qrMode == 0) generatedQrToken else scannedQrToken
+        val qrBitmap = remember(activeQrToken) {
+            if (activeQrToken != null) {
+                try {
+                    QrUtils.encodeToBitmap(activeQrToken, 320)
+                } catch (e: Exception) {
+                    null
+                }
+            } else null
         }
 
         AlertDialog(
@@ -503,57 +508,213 @@ fun SettingsScreen(
                             modifier = Modifier.fillMaxWidth()
                         )
                     } else {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.fillMaxWidth()
+                        // QR Key Sub-mode Selector
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(colorScheme.surfaceContainerLowest)
+                                .padding(4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            if (qrBitmap != null) {
-                                Image(
-                                    bitmap = qrBitmap.asImageBitmap(),
-                                    contentDescription = "Uninstall QR Key",
-                                    modifier = Modifier
-                                        .size(190.dp)
-                                        .clip(RoundedCornerShape(16.dp))
-                                        .background(android.graphics.Color.WHITE.let { androidx.compose.ui.graphics.Color(it) })
-                                        .padding(8.dp)
-                                )
+                            Surface(
+                                onClick = { qrMode = 0 },
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (qrMode == 0) colorScheme.primaryContainer else Color.Transparent,
+                                modifier = Modifier.weight(1f).height(38.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = "Random QR",
+                                        style = typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                                        color = if (qrMode == 0) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
 
-                            Spacer(Modifier.height(10.dp))
-
-                            Text(
-                                text = "Save or copy this QR token. You will need to scan or paste it to revoke Device Owner and uninstall Brik.",
-                                style = typography.bodySmall,
-                                color = colorScheme.onSurfaceVariant,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                            )
-
-                            Spacer(Modifier.height(8.dp))
-
-                            OutlinedButton(
-                                onClick = {
-                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                    clipboard.setPrimaryClip(ClipData.newPlainText("Brik QR Token", generatedQrToken))
-                                    Toast.makeText(context, "QR Token copied to clipboard!", Toast.LENGTH_SHORT).show()
-                                },
-                                shape = RoundedCornerShape(10.dp)
+                            Surface(
+                                onClick = { qrMode = 1 },
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (qrMode == 1) colorScheme.primaryContainer else Color.Transparent,
+                                modifier = Modifier.weight(1f).height(38.dp)
                             ) {
-                                Text("Copy Token Text", style = typography.labelSmall)
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = "Scan Any QR",
+                                        style = typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                                        color = if (qrMode == 1) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.height(14.dp))
+
+                        if (qrMode == 0) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                if (qrBitmap != null) {
+                                    Image(
+                                        bitmap = qrBitmap.asImageBitmap(),
+                                        contentDescription = "Uninstall QR Key",
+                                        modifier = Modifier
+                                            .size(180.dp)
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .background(android.graphics.Color.WHITE.let { Color(it) })
+                                            .padding(8.dp)
+                                    )
+                                }
+
+                                Spacer(Modifier.height(10.dp))
+
+                                Text(
+                                    text = "Save or copy this random QR token. You will need to scan or paste it to revoke Device Owner.",
+                                    style = typography.bodySmall,
+                                    color = colorScheme.onSurfaceVariant,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+
+                                Spacer(Modifier.height(8.dp))
+
+                                OutlinedButton(
+                                    onClick = {
+                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                        clipboard.setPrimaryClip(ClipData.newPlainText("Brik QR Token", generatedQrToken))
+                                        Toast.makeText(context, "QR Token copied to clipboard!", Toast.LENGTH_SHORT).show()
+                                    },
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Text("Copy Token Text", style = typography.labelSmall)
+                                }
+                            }
+                        } else {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                if (scannedQrToken == null) {
+                                    Surface(
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = colorScheme.surfaceContainerLowest,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(18.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.qr_code_fill0),
+                                                contentDescription = null,
+                                                tint = colorScheme.primary,
+                                                modifier = Modifier.size(36.dp)
+                                            )
+                                            Spacer(Modifier.height(8.dp))
+                                            Text(
+                                                text = "Scan Physical QR Code",
+                                                style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = "Point camera at any physical QR code you have (card, book, packaging) to use it as your key.",
+                                                style = typography.bodySmall,
+                                                color = colorScheme.onSurfaceVariant,
+                                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                                modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
+                                            )
+                                            Button(
+                                                onClick = { showScannerDialog = true },
+                                                shape = RoundedCornerShape(10.dp)
+                                            ) {
+                                                Text("Start Camera Scanner")
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    if (qrBitmap != null) {
+                                        Image(
+                                            bitmap = qrBitmap.asImageBitmap(),
+                                            contentDescription = "Scanned QR Key",
+                                            modifier = Modifier
+                                                .size(160.dp)
+                                                .clip(RoundedCornerShape(16.dp))
+                                                .background(android.graphics.Color.WHITE.let { Color(it) })
+                                                .padding(8.dp)
+                                        )
+                                    }
+
+                                    Spacer(Modifier.height(10.dp))
+
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = colorScheme.primaryContainer
+                                    ) {
+                                        Text(
+                                            text = "Physical QR Captured",
+                                            style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                            color = colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                                        )
+                                    }
+
+                                    Spacer(Modifier.height(8.dp))
+
+                                    Text(
+                                        text = scannedQrToken!!,
+                                        style = typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                                        color = colorScheme.onSurfaceVariant,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+
+                                    Spacer(Modifier.height(8.dp))
+
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        OutlinedButton(
+                                            onClick = { showScannerDialog = true },
+                                            shape = RoundedCornerShape(10.dp)
+                                        ) {
+                                            Text("Scan Again", style = typography.labelSmall)
+                                        }
+
+                                        OutlinedButton(
+                                            onClick = {
+                                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                                clipboard.setPrimaryClip(ClipData.newPlainText("Brik QR Token", scannedQrToken))
+                                                Toast.makeText(context, "Scanned key copied!", Toast.LENGTH_SHORT).show()
+                                            },
+                                            shape = RoundedCornerShape(10.dp)
+                                        ) {
+                                            Text("Copy Text", style = typography.labelSmall)
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
             },
             confirmButton = {
+                val isFormValid = if (selectedKeyType == KeyType.PASSWORD) {
+                    password.isNotBlank()
+                } else {
+                    if (qrMode == 0) true else scannedQrToken != null
+                }
+
                 Button(
                     onClick = {
-                        val secret = if (selectedKeyType == KeyType.PASSWORD) password.trim() else generatedQrToken
+                        val secret = if (selectedKeyType == KeyType.PASSWORD) {
+                            password.trim()
+                        } else {
+                            if (qrMode == 0) generatedQrToken else scannedQrToken!!
+                        }
                         keyViewModel.setDpmUninstallLock(selectedKeyType, secret)
                         Toast.makeText(context, "Security key saved in Keys section!", Toast.LENGTH_SHORT).show()
                         showSetUninstallKeyDialog = false
                         showVerifyUninstallKeyDialog = true
                     },
-                    enabled = selectedKeyType == KeyType.QR_CODE || password.isNotBlank(),
+                    enabled = isFormValid,
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text("Save Key & Proceed")
@@ -567,6 +728,40 @@ fun SettingsScreen(
             shape = RoundedCornerShape(24.dp),
             containerColor = colorScheme.surfaceContainerHigh
         )
+
+        // Nested Scanner Dialog for Scanning Any External QR
+        if (showScannerDialog) {
+            AlertDialog(
+                onDismissRequest = { showScannerDialog = false },
+                title = {
+                    Text("Scan Any QR Code", fontWeight = FontWeight.Bold)
+                },
+                text = {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(280.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                    ) {
+                        QrScannerView(
+                            onQrDetected = { detected ->
+                                scannedQrToken = detected
+                                showScannerDialog = false
+                                Toast.makeText(context, "QR Code scanned successfully!", Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = { showScannerDialog = false }) {
+                        Text("Cancel")
+                    }
+                },
+                shape = RoundedCornerShape(24.dp)
+            )
+        }
     }
 
     // --- Step 2: Verify Uninstall Key Dialog ---

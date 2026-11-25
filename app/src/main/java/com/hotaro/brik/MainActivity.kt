@@ -161,58 +161,29 @@ fun BrikMainScreen() {
                     alpha = mainAlpha
                 }
         ) {
-            Scaffold(
-                modifier = Modifier.fillMaxSize(),
-                topBar = {
-                    TopAppBar(
-                        title = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_brik),
-                                    contentDescription = null,
-                                    tint = Color.Unspecified,
-                                    modifier = Modifier.size(28.dp)
-                                )
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text(
-                                    text = "Brik",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 22.sp,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                        },
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = Color.Transparent
-                        ),
-                        modifier = Modifier.statusBarsPadding()
-                    )
-                }
-            ) { innerPadding ->
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(top = innerPadding.calculateTopPadding())
-                ) {
-                    Crossfade(
-                        targetState = selectedIndex,
-                        label = "tab_transition",
-                        modifier = Modifier.fillMaxSize()
-                    ) { tab ->
-                        when (tab) {
-                            0 -> KeyScreen()
-                            1 -> ToolsScreen()
-                            2 -> SettingsScreen(onNavigateToKeys = onNavigateToKeys)
-                        }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+            ) {
+                Crossfade(
+                    targetState = selectedIndex,
+                    label = "tab_transition",
+                    modifier = Modifier.fillMaxSize()
+                ) { tab ->
+                    when (tab) {
+                        0 -> KeyScreen()
+                        1 -> ToolsScreen()
+                        2 -> SettingsScreen(onNavigateToKeys = onNavigateToKeys)
                     }
-
-                    BrikFloatingNavBar(
-                        items = navItems,
-                        selectedIndex = selectedIndex,
-                        onItemSelected = { selectedIndex = it },
-                        modifier = Modifier.align(Alignment.BottomCenter)
-                    )
                 }
+
+                BrikFloatingNavBar(
+                    items = navItems,
+                    selectedIndex = selectedIndex,
+                    onItemSelected = { selectedIndex = it },
+                    modifier = Modifier.align(Alignment.BottomCenter)
+                )
             }
         }
 
