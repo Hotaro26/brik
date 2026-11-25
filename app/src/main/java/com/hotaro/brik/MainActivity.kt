@@ -105,6 +105,18 @@ class MainActivity : ComponentActivity() {
         setContent {
             BrikTheme {
                 val isWindDownActive by com.hotaro.brik.util.WindDownManager.isWindDownActive.collectAsState()
+                val isZenActive by com.hotaro.brik.util.ZenManager.isZenActive.collectAsState()
+
+                androidx.compose.runtime.LaunchedEffect(isWindDownActive, isZenActive) {
+                    if (!isWindDownActive && !isZenActive) {
+                        try {
+                            stopLockTask()
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                }
+
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background

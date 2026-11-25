@@ -56,7 +56,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hotaro.brik.R
 import com.hotaro.brik.data.model.AppInfo
+import com.hotaro.brik.ui.component.VerifyEmergencyKeyDialog
 import com.hotaro.brik.util.WindDownManager
+import com.hotaro.brik.util.ZenManager
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -73,18 +75,19 @@ fun WindDownDesktop() {
     val isNoAppsMode by WindDownManager.isNoAppsMode.collectAsState()
     val allowedPackages by WindDownManager.allowedPackages.collectAsState()
     val isPreviewMode by WindDownManager.isPreviewMode.collectAsState()
+    var showEmergencyUnlockDialog by remember { mutableStateOf(false) }
 
     val wakeTimeFormatted = remember(wakeHour, wakeMinute) {
         String.format(Locale.getDefault(), "%02d:%02d", wakeHour, wakeMinute)
     }
 
-    // Intercept back key: early exit is strictly disabled
+    // Intercept back key: offers emergency key unlock
     BackHandler(enabled = true) {
         if (isPreviewMode) {
             WindDownManager.stopPreviewMode(activity)
             Toast.makeText(context, "Exited Wind Down preview", Toast.LENGTH_SHORT).show()
         } else {
-            Toast.makeText(context, "Wind Down is active until $wakeTimeFormatted. Early exit is disabled.", Toast.LENGTH_SHORT).show()
+            showEmergencyUnlockDialog = true
         }
     }
 
@@ -276,20 +279,50 @@ fun WindDownDesktop() {
                     }
                 } else {
                     Surface(
+                        onClick = { showEmergencyUnlockDialog = true },
                         shape = CircleShape,
                         color = Color(0xFF141518),
                         border = BorderStroke(1.dp, Color(0xFF23242A))
                     ) {
-                        Text(
-                            text = "Early exit disabled until $wakeTimeFormatted",
-                            style = typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
-                            color = Color(0xFF7A7D8A),
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.key_fill0),
+                                contentDescription = null,
+                                tint = Color(0xFF8E90A0),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = "Emergency Unlock",
+                                style = typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                                color = Color(0xFFB0B3C0)
+                            )
+                        }
                     }
                 }
             }
         }
+    }
+
+    if (showEmergencyUnlockDialog) {
+        VerifyEmergencyKeyDialog(
+            title = "Exit Wind Down",
+            subtitle = "Verify your security key to unlock and turn off Wind Down mode.",
+            keyTypeOverride = ZenManager.getKeyType(context),
+            onVerifyCustom = { input ->
+                ZenManager.verifySecurityKey(context, input)
+            },
+            onDismiss = { showEmergencyUnlockDialog = false },
+            onVerified = {
+                showEmergencyUnlockDialog = false
+                WindDownManager.setEnabled(context, false, activity)
+                WindDownManager.stopPreviewMode(activity)
+                Toast.makeText(context, "Wind Down mode unlocked and turned off", Toast.LENGTH_SHORT).show()
+            }
+        )
     }
 }
 
