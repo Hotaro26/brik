@@ -301,7 +301,10 @@ class TimeBlockRepository(private val context: Context) {
                     packagesSuspended = resolvePackages(mode.targetBagIds, mode.targetPackageNames),
                     dnsBlocked = mode.enableDnsBlocking,
                     keyType = mode.keyType,
-                    keySecret = mode.keySecret
+                    keySecret = mode.keySecret,
+                    enableKioskMode = mode.enableKioskMode,
+                    kioskAllowedPackages = mode.kioskAllowedPackages,
+                    kioskDisableSystemGestures = mode.kioskDisableSystemGestures
                 )
             }
             activeRoutine != null -> {
@@ -426,5 +429,16 @@ class TimeBlockRepository(private val context: Context) {
     private fun persistRoutines(list: List<AutomatedRoutine>) {
         _routines.value = list
         prefs.edit().putString("saved_routines", json.encodeToString(list)).apply()
+    }
+
+    companion object {
+        @Volatile
+        private var instance: TimeBlockRepository? = null
+
+        fun getInstance(context: Context): TimeBlockRepository {
+            return instance ?: synchronized(this) {
+                instance ?: TimeBlockRepository(context.applicationContext).also { instance = it }
+            }
+        }
     }
 }

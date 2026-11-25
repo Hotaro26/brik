@@ -83,8 +83,10 @@ import com.hotaro.brik.policy.DnsManager
 import com.hotaro.brik.policy.DnsMode
 import com.hotaro.brik.ui.component.QrScannerView
 import com.hotaro.brik.ui.component.RoundedPullRefreshPage
+import com.hotaro.brik.ui.component.SetEmergencyKeyDialog
 import com.hotaro.brik.ui.component.TomatoSectionHeader
 import com.hotaro.brik.ui.component.TomatoSettingsItem
+import com.hotaro.brik.ui.component.VerifyEmergencyKeyDialog
 import com.hotaro.brik.ui.component.segmentedItemShape
 import com.hotaro.brik.ui.viewmodel.KeyViewModel
 import com.hotaro.brik.ui.viewmodel.ToolsViewModel
@@ -121,6 +123,10 @@ fun ToolsScreen(
     }
 
     var dnsStatus by remember { mutableStateOf(DnsManager.getCurrentDns(context)) }
+    var hasDnsLock by remember { mutableStateOf(DnsManager.hasKeyLock(context)) }
+    var showSetDnsKeyDialog by remember { mutableStateOf(false) }
+    var showVerifyDnsKeyDialog by remember { mutableStateOf(false) }
+    var pendingDnsAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     var isAppHidden by remember { mutableStateOf(StealthUtils.isAppHidden(context)) }
     var dialerCode by remember { mutableStateOf(StealthUtils.getDialerCode(context)) }
 
@@ -571,18 +577,114 @@ fun ToolsScreen(
                     )
                 }
 
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(18.dp))
+
+                // Optional Protection Key Lock Section
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = colorScheme.surfaceContainerHigh,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = if (hasDnsLock) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.key_fill0),
+                                        contentDescription = null,
+                                        tint = if (hasDnsLock) colorScheme.primary else colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "Protection Key (Optional)",
+                                    style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = colorScheme.onSurface
+                                )
+                                Text(
+                                    text = if (hasDnsLock) {
+                                        "Locked (${DnsManager.getKeyType(context).name.lowercase().replaceFirstChar { it.uppercase() }}) • Key required to change"
+                                    } else {
+                                        "Optional key guard • None set"
+                                    },
+                                    style = typography.bodySmall.copy(fontSize = 11.sp),
+                                    color = colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (hasDnsLock) {
+                                TextButton(
+                                    onClick = {
+                                        pendingDnsAction = {
+                                            DnsManager.clearSecurityKey(context)
+                                            hasDnsLock = false
+                                            Toast.makeText(context, "DNS protection key removed", Toast.LENGTH_SHORT).show()
+                                        }
+                                        showVerifyDnsKeyDialog = true
+                                    }
+                                ) {
+                                    Text("Remove", color = colorScheme.error, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            Button(
+                                onClick = {
+                                    if (hasDnsLock) {
+                                        pendingDnsAction = {
+                                            showSetDnsKeyDialog = true
+                                        }
+                                        showVerifyDnsKeyDialog = true
+                                    } else {
+                                        showSetDnsKeyDialog = true
+                                    }
+                                },
+                                shape = CircleShape,
+                                colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary)
+                            ) {
+                                Text(if (hasDnsLock) "Change" else "Set Key")
+                            }
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(20.dp))
 
                 Button(
                     onClick = {
-                        val (ok, msg) = DnsManager.setDns(context, selectedMode, hostInput)
-                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                        if (ok) {
-                            dnsStatus = DnsManager.getCurrentDns(context)
-                            coroutineScope.launch {
-                                dnsSheetState.hide()
-                                showDnsSheet = false
+                        val applyAction = {
+                            val (ok, msg) = DnsManager.setDns(context, selectedMode, hostInput)
+                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                            if (ok) {
+                                dnsStatus = DnsManager.getCurrentDns(context)
+                                coroutineScope.launch {
+                                    dnsSheetState.hide()
+                                    showDnsSheet = false
+                                }
                             }
+                        }
+
+                        if (hasDnsLock) {
+                            pendingDnsAction = applyAction
+                            showVerifyDnsKeyDialog = true
+                        } else {
+                            applyAction()
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
@@ -592,6 +694,44 @@ fun ToolsScreen(
                 }
             }
         }
+    }
+
+    if (showSetDnsKeyDialog) {
+        SetEmergencyKeyDialog(
+            title = "Set DNS Protection Key",
+            subtitle = "Set a secure password or QR key. This key will be required whenever you wish to modify or turn off Private DNS.",
+            onDismiss = { showSetDnsKeyDialog = false },
+            onSaveKey = { keyType, secret ->
+                DnsManager.setSecurityKey(context, keyType, secret)
+                hasDnsLock = true
+                showSetDnsKeyDialog = false
+                Toast.makeText(context, "DNS Protection Key set", Toast.LENGTH_SHORT).show()
+            },
+            onKeySet = {
+                showSetDnsKeyDialog = false
+            }
+        )
+    }
+
+    if (showVerifyDnsKeyDialog) {
+        VerifyEmergencyKeyDialog(
+            title = "Verify DNS Key",
+            subtitle = "Enter your security key to modify or apply Private DNS settings.",
+            keyTypeOverride = DnsManager.getKeyType(context),
+            onVerifyCustom = { input ->
+                DnsManager.verifySecurityKey(context, input)
+            },
+            onDismiss = {
+                showVerifyDnsKeyDialog = false
+                pendingDnsAction = null
+            },
+            onVerified = {
+                showVerifyDnsKeyDialog = false
+                val action = pendingDnsAction
+                pendingDnsAction = null
+                action?.invoke()
+            }
+        )
     }
 
     // --- Stealth Mode Bottom Sheet ---

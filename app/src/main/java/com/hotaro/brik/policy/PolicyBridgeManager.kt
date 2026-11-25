@@ -315,6 +315,42 @@ object PolicyBridgeManager {
         }
     }
 
+    /**
+     * Configure whether lock task mode allows system navigation gestures and panels or blocks them.
+     */
+    fun setLockTaskFeatures(context: Context, disableSystemGestures: Boolean): Result<Boolean> {
+        val status = getBridgeStatus(context)
+        val flags = if (disableSystemGestures) {
+            DevicePolicyManager.LOCK_TASK_FEATURE_NONE
+        } else {
+            DevicePolicyManager.LOCK_TASK_FEATURE_SYSTEM_INFO or
+            DevicePolicyManager.LOCK_TASK_FEATURE_NOTIFICATIONS or
+            DevicePolicyManager.LOCK_TASK_FEATURE_HOME or
+            DevicePolicyManager.LOCK_TASK_FEATURE_OVERVIEW
+        }
+        return runCatching {
+            when (status.activeBridge) {
+                BridgeType.DEVICE_OWNER -> {
+                    val dpm = context.getSystemService(DevicePolicyManager::class.java)!!
+                    val dar = BrikAdminReceiver.getComponentName(context)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        dpm.setLockTaskFeatures(dar, flags)
+                    }
+                    true
+                }
+                BridgeType.DHIZUKU -> {
+                    val dpm = getDhizukuDpm(context)
+                    val dar = Dhizuku.getOwnerComponent()
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        dpm.setLockTaskFeatures(dar, flags)
+                    }
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
     fun getLockTaskPackages(context: Context): List<String> {
         val status = getBridgeStatus(context)
         return try {

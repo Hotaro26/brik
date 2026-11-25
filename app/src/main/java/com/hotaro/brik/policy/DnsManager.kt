@@ -5,6 +5,8 @@ import android.content.Context
 import android.os.Build
 import android.provider.Settings
 import com.hotaro.brik.admin.BrikAdminReceiver
+import com.hotaro.brik.data.model.KeyType
+import com.hotaro.brik.util.QrUtils
 import com.topjohnwu.superuser.Shell
 
 enum class DnsMode(val title: String, val modeKey: String) {
@@ -162,5 +164,47 @@ object DnsManager {
         } else {
             false to "Cannot configure DNS: requires Device Owner, Dhizuku, Shizuku, or Root"
         }
+    }
+
+    private const val PREFS_DNS_LOCK = "brik_dns_lock_prefs"
+    private const val KEY_DNS_LOCK_ENABLED = "dns_lock_enabled"
+    private const val KEY_DNS_KEY_TYPE = "dns_key_type"
+    private const val KEY_DNS_KEY_HASH = "dns_key_hash"
+
+    fun hasKeyLock(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_DNS_LOCK, Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_DNS_LOCK_ENABLED, false) && !prefs.getString(KEY_DNS_KEY_HASH, null).isNullOrBlank()
+    }
+
+    fun getKeyType(context: Context): KeyType {
+        val prefs = context.getSharedPreferences(PREFS_DNS_LOCK, Context.MODE_PRIVATE)
+        val name = prefs.getString(KEY_DNS_KEY_TYPE, KeyType.PASSWORD.name) ?: KeyType.PASSWORD.name
+        return try { KeyType.valueOf(name) } catch (e: Exception) { KeyType.PASSWORD }
+    }
+
+    fun setSecurityKey(context: Context, keyType: KeyType, secret: String) {
+        val hash = QrUtils.sha256(secret)
+        val prefs = context.getSharedPreferences(PREFS_DNS_LOCK, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putBoolean(KEY_DNS_LOCK_ENABLED, true)
+            .putString(KEY_DNS_KEY_TYPE, keyType.name)
+            .putString(KEY_DNS_KEY_HASH, hash)
+            .apply()
+    }
+
+    fun clearSecurityKey(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_DNS_LOCK, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putBoolean(KEY_DNS_LOCK_ENABLED, false)
+            .remove(KEY_DNS_KEY_HASH)
+            .remove(KEY_DNS_KEY_TYPE)
+            .apply()
+    }
+
+    fun verifySecurityKey(context: Context, input: String): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_DNS_LOCK, Context.MODE_PRIVATE)
+        val storedHash = prefs.getString(KEY_DNS_KEY_HASH, null) ?: return true
+        val inputHash = QrUtils.sha256(input)
+        return storedHash.equals(inputHash, ignoreCase = true)
     }
 }

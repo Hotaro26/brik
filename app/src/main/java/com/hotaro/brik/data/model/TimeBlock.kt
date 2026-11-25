@@ -18,7 +18,10 @@ data class FocusMode(
     val defaultDurationMinutes: Int = 45,
     val isRunning: Boolean = false,
     val sessionStartedAt: Long? = null,
-    val sessionEndsAt: Long? = null
+    val sessionEndsAt: Long? = null,
+    val enableKioskMode: Boolean = false,
+    val kioskAllowedPackages: List<String> = emptyList(),
+    val kioskDisableSystemGestures: Boolean = true
 )
 
 @Serializable
@@ -54,5 +57,8 @@ data class ActiveTimeBlockState(
     val packagesSuspended: List<String>,
     val dnsBlocked: Boolean,
     val keyType: KeyType,
-    val keySecret: String?
+    val keySecret: String?,
+    val enableKioskMode: Boolean = false,
+    val kioskAllowedPackages: List<String> = emptyList(),
+    val kioskDisableSystemGestures: Boolean = true
 )

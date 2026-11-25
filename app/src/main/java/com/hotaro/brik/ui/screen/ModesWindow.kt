@@ -1108,9 +1108,19 @@ private fun ModeDetailWindow(
     var isTargetsExpanded by remember { mutableStateOf(false) }
     var isKeyExpanded by remember { mutableStateOf(false) }
 
+    var isKioskMode by remember { mutableStateOf(mode.enableKioskMode) }
+    var kioskPackages by remember { mutableStateOf(mode.kioskAllowedPackages.toSet()) }
+    var disableSystemGestures by remember { mutableStateOf(mode.kioskDisableSystemGestures) }
+    var showKioskAppPickerSheet by remember { mutableStateOf(false) }
+
+    var isKioskAppsExpanded by remember { mutableStateOf(false) }
+    var isKioskPolicyExpanded by remember { mutableStateOf(false) }
+
     val profileChevronRotation by animateFloatAsState(if (isProfileExpanded) 90f else 0f, label = "profileChevron")
     val durationChevronRotation by animateFloatAsState(if (isDurationExpanded) 90f else 0f, label = "durationChevron")
     val targetsChevronRotation by animateFloatAsState(if (isTargetsExpanded) 90f else 0f, label = "targetsChevron")
+    val kioskAppsChevronRotation by animateFloatAsState(if (isKioskAppsExpanded) 90f else 0f, label = "kioskAppsChevron")
+    val kioskPolicyChevronRotation by animateFloatAsState(if (isKioskPolicyExpanded) 90f else 0f, label = "kioskPolicyChevron")
     val keyChevronRotation by animateFloatAsState(if (isKeyExpanded) 90f else 0f, label = "keyChevron")
 
     val icons = listOf(
@@ -1160,13 +1170,16 @@ private fun ModeDetailWindow(
                                 name = nameInput.trim(),
                                 iconName = selectedIcon,
                                 defaultDurationMinutes = durationMinutes,
-                                targetBagIds = selectedBags.toList(),
-                                targetPackageNames = selectedPackages.toList(),
+                                targetBagIds = if (!isKioskMode) selectedBags.toList() else emptyList(),
+                                targetPackageNames = if (!isKioskMode) selectedPackages.toList() else emptyList(),
                                 enableDnsBlocking = enableDns,
                                 dnsHost = selectedDnsHost,
                                 keyType = selectedKeyType,
                                 keySecret = currentSecret,
-                                savedKeyId = selectedSavedKeyId
+                                savedKeyId = selectedSavedKeyId,
+                                enableKioskMode = isKioskMode,
+                                kioskAllowedPackages = if (isKioskMode) kioskPackages.toList() else emptyList(),
+                                kioskDisableSystemGestures = disableSystemGestures
                             )
                             onSave(updated)
                         },
@@ -1390,176 +1403,481 @@ private fun ModeDetailWindow(
                 }
             }
 
-            // --- SECTION 3: TARGETS TO BLOCK ---
+            // --- SECTION 3: FOCUS STRATEGY (MUTUALLY EXCLUSIVE) ---
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    TomatoSectionHeader(title = "TARGETS TO BLOCK")
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TomatoSectionHeader(title = "FOCUS STRATEGY")
 
-                    val targetsSummary = when {
-                        selectedBags.isNotEmpty() && selectedPackages.isNotEmpty() -> "${selectedBags.size} bags • ${selectedPackages.size} apps"
-                        selectedBags.isNotEmpty() -> "${selectedBags.size} bags"
-                        selectedPackages.isNotEmpty() -> "${selectedPackages.size} apps"
-                        else -> "No targets selected"
-                    }
-
-                    TomatoSettingsItem(
-                        title = "Blocked Apps & Bags",
-                        subtitle = "$targetsSummary • Tap to select",
-                        leadingIcon = R.drawable.backpack_fill0,
-                        iconContainerColor = colorScheme.tertiaryContainer,
-                        iconTint = colorScheme.onTertiaryContainer,
-                        trailingContent = {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = if (selectedBags.isNotEmpty() || selectedPackages.isNotEmpty()) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest
-                                ) {
-                                    Text(
-                                        text = "${selectedBags.size + selectedPackages.size}",
-                                        style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                        color = if (selectedBags.isNotEmpty() || selectedPackages.isNotEmpty()) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                                    )
-                                }
-                                Icon(
-                                    painter = painterResource(R.drawable.arrow_forward_big),
-                                    contentDescription = null,
-                                    modifier = Modifier
-                                        .size(16.dp)
-                                        .graphicsLayer { rotationZ = targetsChevronRotation },
-                                    tint = colorScheme.onSurfaceVariant
-                                )
-                            }
-                        },
-                        shape = if (isTargetsExpanded) {
-                            RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
-                        } else {
-                            segmentedItemShape(0, 1)
-                        },
-                        onClick = { isTargetsExpanded = !isTargetsExpanded }
-                    )
-
-                    AnimatedVisibility(
-                        visible = isTargetsExpanded,
-                        enter = expandVertically() + fadeIn(),
-                        exit = shrinkVertically() + fadeOut()
+                    // Mutually Exclusive Selector: Block Targets vs Minimalist Kiosk Launcher
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(CircleShape)
+                            .background(colorScheme.surfaceContainerHigh)
+                            .padding(4.dp)
                     ) {
                         Surface(
-                            color = colorScheme.surfaceContainerHigh,
-                            shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 22.dp, bottomEnd = 22.dp),
-                            modifier = Modifier.fillMaxWidth()
+                            onClick = { isKioskMode = false },
+                            shape = CircleShape,
+                            color = if (!isKioskMode) colorScheme.primary else Color.Transparent,
+                            modifier = Modifier.weight(1f)
                         ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 20.dp, vertical = 14.dp)
+                            Box(
+                                modifier = Modifier.padding(vertical = 10.dp),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Text("Choose bags or individual apps to suspend during this focus mode", style = typography.bodySmall, color = colorScheme.onSurfaceVariant)
-                                Spacer(Modifier.height(12.dp))
+                                Text(
+                                    text = "Block Targets",
+                                    style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = if (!isKioskMode) colorScheme.onPrimary else colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
 
-                                // Two Pills: Bags and Custom
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    // Bags Pill
-                                    Surface(
-                                        onClick = { showBagsSheet = true },
-                                        shape = CircleShape,
-                                        color = if (selectedBags.isNotEmpty()) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
-                                        border = BorderStroke(1.dp, if (selectedBags.isNotEmpty()) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                                        modifier = Modifier.weight(1f).height(44.dp)
+                        Surface(
+                            onClick = { isKioskMode = true },
+                            shape = CircleShape,
+                            color = if (isKioskMode) colorScheme.primary else Color.Transparent,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(
+                                modifier = Modifier.padding(vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "Minimalist Kiosk",
+                                    style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = if (isKioskMode) colorScheme.onPrimary else colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    if (!isKioskMode) {
+                        // Targets to Block Configuration
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            val targetsSummary = when {
+                                selectedBags.isNotEmpty() && selectedPackages.isNotEmpty() -> "${selectedBags.size} bags • ${selectedPackages.size} apps"
+                                selectedBags.isNotEmpty() -> "${selectedBags.size} bags"
+                                selectedPackages.isNotEmpty() -> "${selectedPackages.size} apps"
+                                else -> "No targets selected"
+                            }
+
+                            TomatoSettingsItem(
+                                title = "Blocked Apps & Bags",
+                                subtitle = "$targetsSummary • Tap to select",
+                                leadingIcon = R.drawable.backpack_fill0,
+                                iconContainerColor = colorScheme.tertiaryContainer,
+                                iconTint = colorScheme.onTertiaryContainer,
+                                trailingContent = {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        Row(
-                                            modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.Center
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = if (selectedBags.isNotEmpty() || selectedPackages.isNotEmpty()) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest
                                         ) {
-                                            Icon(
-                                                painter = painterResource(R.drawable.backpack_fill0),
-                                                contentDescription = null,
-                                                modifier = Modifier.size(18.dp),
-                                                tint = if (selectedBags.isNotEmpty()) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
-                                            )
-                                            Spacer(Modifier.width(8.dp))
                                             Text(
-                                                text = if (selectedBags.isNotEmpty()) "Bags (${selectedBags.size})" else "Bags",
-                                                style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                                color = if (selectedBags.isNotEmpty()) colorScheme.onPrimaryContainer else colorScheme.onSurface
+                                                text = "${selectedBags.size + selectedPackages.size}",
+                                                style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = if (selectedBags.isNotEmpty() || selectedPackages.isNotEmpty()) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                                             )
                                         }
+                                        Icon(
+                                            painter = painterResource(R.drawable.arrow_forward_big),
+                                            contentDescription = null,
+                                            modifier = Modifier
+                                                .size(16.dp)
+                                                .graphicsLayer { rotationZ = targetsChevronRotation },
+                                            tint = colorScheme.onSurfaceVariant
+                                        )
                                     }
+                                },
+                                shape = if (isTargetsExpanded) {
+                                    RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+                                } else {
+                                    segmentedItemShape(0, 1)
+                                },
+                                onClick = { isTargetsExpanded = !isTargetsExpanded }
+                            )
 
-                                    // Custom Pill
-                                    Surface(
-                                        onClick = { showCustomAppsSheet = true },
-                                        shape = CircleShape,
-                                        color = if (selectedPackages.isNotEmpty()) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
-                                        border = BorderStroke(1.dp, if (selectedPackages.isNotEmpty()) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                                        modifier = Modifier.weight(1f).height(44.dp)
+                            AnimatedVisibility(
+                                visible = isTargetsExpanded,
+                                enter = expandVertically() + fadeIn(),
+                                exit = shrinkVertically() + fadeOut()
+                            ) {
+                                Surface(
+                                    color = colorScheme.surfaceContainerHigh,
+                                    shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 22.dp, bottomEnd = 22.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 20.dp, vertical = 14.dp)
                                     ) {
-                                        Row(
-                                            modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.Center
-                                        ) {
-                                            Icon(
-                                                painter = painterResource(R.drawable.apps_fill0),
-                                                contentDescription = null,
-                                                modifier = Modifier.size(18.dp),
-                                                tint = if (selectedPackages.isNotEmpty()) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
-                                            )
-                                            Spacer(Modifier.width(8.dp))
-                                            Text(
-                                                text = if (selectedPackages.isNotEmpty()) "Custom (${selectedPackages.size})" else "Custom",
-                                                style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                                color = if (selectedPackages.isNotEmpty()) colorScheme.onPrimaryContainer else colorScheme.onSurface
-                                            )
+                                        Text("Choose bags or individual apps to suspend during this focus mode", style = typography.bodySmall, color = colorScheme.onSurfaceVariant)
+                                        Spacer(Modifier.height(12.dp))
+
+                                        // Two Pills: Bags and Custom
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                            // Bags Pill
+                                            Surface(
+                                                onClick = { showBagsSheet = true },
+                                                shape = CircleShape,
+                                                color = if (selectedBags.isNotEmpty()) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                                border = BorderStroke(1.dp, if (selectedBags.isNotEmpty()) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                                modifier = Modifier.weight(1f).height(44.dp)
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.Center
+                                                ) {
+                                                    Icon(
+                                                        painter = painterResource(R.drawable.backpack_fill0),
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(18.dp),
+                                                        tint = if (selectedBags.isNotEmpty()) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
+                                                    )
+                                                    Spacer(Modifier.width(8.dp))
+                                                    Text(
+                                                        text = if (selectedBags.isNotEmpty()) "Bags (${selectedBags.size})" else "Bags",
+                                                        style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                                        color = if (selectedBags.isNotEmpty()) colorScheme.onPrimaryContainer else colorScheme.onSurface
+                                                    )
+                                                }
+                                            }
+
+                                            // Custom Pill
+                                            Surface(
+                                                onClick = { showCustomAppsSheet = true },
+                                                shape = CircleShape,
+                                                color = if (selectedPackages.isNotEmpty()) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                                border = BorderStroke(1.dp, if (selectedPackages.isNotEmpty()) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                                modifier = Modifier.weight(1f).height(44.dp)
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.Center
+                                                ) {
+                                                    Icon(
+                                                        painter = painterResource(R.drawable.apps_fill0),
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(18.dp),
+                                                        tint = if (selectedPackages.isNotEmpty()) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
+                                                    )
+                                                    Spacer(Modifier.width(8.dp))
+                                                    Text(
+                                                        text = if (selectedPackages.isNotEmpty()) "Custom (${selectedPackages.size})" else "Custom",
+                                                        style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                                        color = if (selectedPackages.isNotEmpty()) colorScheme.onPrimaryContainer else colorScheme.onSurface
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        // Summary badges preview
+                                        if (selectedBags.isEmpty() && selectedPackages.isEmpty()) {
+                                            Spacer(Modifier.height(10.dp))
+                                            Text("No targets selected yet. Tap Bags or Custom to choose apps to block.", style = typography.bodySmall, color = colorScheme.outline)
+                                        } else {
+                                            Spacer(Modifier.height(12.dp))
+                                            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                bags.filter { selectedBags.contains(it.id) }.forEach { b ->
+                                                    InputChip(
+                                                        selected = true,
+                                                        onClick = { selectedBags = selectedBags - b.id },
+                                                        label = { Text(b.name) },
+                                                        leadingIcon = {
+                                                            Icon(painter = painterResource(R.drawable.backpack_fill0), contentDescription = null, modifier = Modifier.size(14.dp))
+                                                        },
+                                                        trailingIcon = {
+                                                            Icon(painter = painterResource(R.drawable.close_fill0), contentDescription = "Remove", modifier = Modifier.size(14.dp))
+                                                        }
+                                                    )
+                                                }
+
+                                                installedApps.filter { selectedPackages.contains(it.packageName) }.take(6).forEach { app ->
+                                                    InputChip(
+                                                        selected = true,
+                                                        onClick = { selectedPackages = selectedPackages - app.packageName },
+                                                        label = { Text(app.label) },
+                                                        leadingIcon = {
+                                                            Icon(painter = painterResource(R.drawable.apps_fill0), contentDescription = null, modifier = Modifier.size(14.dp))
+                                                        },
+                                                        trailingIcon = {
+                                                            Icon(painter = painterResource(R.drawable.close_fill0), contentDescription = "Remove", modifier = Modifier.size(14.dp))
+                                                        }
+                                                    )
+                                                }
+
+                                                val remainingCustom = selectedPackages.size - installedApps.filter { selectedPackages.contains(it.packageName) }.take(6).size
+                                                if (remainingCustom > 0) {
+                                                    SuggestionChip(
+                                                        onClick = { showCustomAppsSheet = true },
+                                                        label = { Text("+$remainingCustom more") }
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }
-
-                                // Summary badges preview
-                                if (selectedBags.isEmpty() && selectedPackages.isEmpty()) {
-                                    Spacer(Modifier.height(10.dp))
-                                    Text("No targets selected yet. Tap Bags or Custom to choose apps to block.", style = typography.bodySmall, color = colorScheme.outline)
+                            }
+                        }
+                    } else {
+                        // Minimalist Kiosk Launcher Configuration
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            // 1. Permitted Apps
+                            TomatoSettingsItem(
+                                title = "Permitted Kiosk Apps",
+                                subtitle = if (kioskPackages.isEmpty()) "Pure Focus • No apps allowed" else "${kioskPackages.size} apps permitted (max 10) • Tap to configure",
+                                leadingIcon = R.drawable.apps_fill0,
+                                iconContainerColor = colorScheme.tertiaryContainer,
+                                iconTint = colorScheme.onTertiaryContainer,
+                                trailingContent = {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = if (kioskPackages.isNotEmpty()) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest
+                                        ) {
+                                            Text(
+                                                text = "${kioskPackages.size}/10",
+                                                style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = if (kioskPackages.isNotEmpty()) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                            )
+                                        }
+                                        Icon(
+                                            painter = painterResource(R.drawable.arrow_forward_big),
+                                            contentDescription = null,
+                                            modifier = Modifier
+                                                .size(16.dp)
+                                                .graphicsLayer { rotationZ = kioskAppsChevronRotation },
+                                            tint = colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                },
+                                shape = if (isKioskAppsExpanded) {
+                                    RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
                                 } else {
-                                    Spacer(Modifier.height(12.dp))
-                                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        bags.filter { selectedBags.contains(it.id) }.forEach { b ->
-                                            InputChip(
-                                                selected = true,
-                                                onClick = { selectedBags = selectedBags - b.id },
-                                                label = { Text(b.name) },
-                                                leadingIcon = {
-                                                    Icon(painter = painterResource(R.drawable.backpack_fill0), contentDescription = null, modifier = Modifier.size(14.dp))
-                                                },
-                                                trailingIcon = {
-                                                    Icon(painter = painterResource(R.drawable.close_fill0), contentDescription = "Remove", modifier = Modifier.size(14.dp))
-                                                }
+                                    segmentedItemShape(0, 2)
+                                },
+                                onClick = { isKioskAppsExpanded = !isKioskAppsExpanded }
+                            )
+
+                            AnimatedVisibility(
+                                visible = isKioskAppsExpanded,
+                                enter = expandVertically() + fadeIn(),
+                                exit = shrinkVertically() + fadeOut()
+                            ) {
+                                Surface(
+                                    color = colorScheme.surfaceContainerHigh,
+                                    shape = RoundedCornerShape(4.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 20.dp, vertical = 14.dp)
+                                    ) {
+                                        Text(
+                                            text = "Allowed apps will appear in the distraction-free minimal text launcher during focus mode.",
+                                            style = typography.bodySmall,
+                                            color = colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(Modifier.height(10.dp))
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "Selected Apps (${kioskPackages.size}/10)",
+                                                style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = colorScheme.onSurface
                                             )
+
+                                            Button(
+                                                onClick = { showKioskAppPickerSheet = true },
+                                                shape = CircleShape
+                                            ) {
+                                                Text("Manage Apps", fontWeight = FontWeight.Bold)
+                                            }
                                         }
 
-                                        installedApps.filter { selectedPackages.contains(it.packageName) }.take(6).forEach { app ->
-                                            InputChip(
-                                                selected = true,
-                                                onClick = { selectedPackages = selectedPackages - app.packageName },
-                                                label = { Text(app.label) },
-                                                leadingIcon = {
-                                                    Icon(painter = painterResource(R.drawable.apps_fill0), contentDescription = null, modifier = Modifier.size(14.dp))
-                                                },
-                                                trailingIcon = {
-                                                    Icon(painter = painterResource(R.drawable.close_fill0), contentDescription = "Remove", modifier = Modifier.size(14.dp))
+                                        Spacer(Modifier.height(10.dp))
+
+                                        if (kioskPackages.isEmpty()) {
+                                            Text(
+                                                text = "No apps selected. Focus mode will run in Pure Focus mode without external apps.",
+                                                style = typography.bodySmall,
+                                                color = colorScheme.outline
+                                            )
+                                        } else {
+                                            FlowRow(
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                installedApps.filter { kioskPackages.contains(it.packageName) }.forEach { app ->
+                                                    InputChip(
+                                                        selected = true,
+                                                        onClick = { kioskPackages = kioskPackages - app.packageName },
+                                                        label = { Text(app.label) },
+                                                        leadingIcon = {
+                                                            Icon(painter = painterResource(R.drawable.apps_fill0), contentDescription = null, modifier = Modifier.size(14.dp))
+                                                        },
+                                                        trailingIcon = {
+                                                            Icon(painter = painterResource(R.drawable.close_fill0), contentDescription = "Remove", modifier = Modifier.size(14.dp))
+                                                        }
+                                                    )
                                                 }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // 2. Pinning & Gestures Flexibility
+                            TomatoSettingsItem(
+                                title = "Pinning & Gesture Policy",
+                                subtitle = if (disableSystemGestures) {
+                                    "Strict Kiosk • Gestures & panels disabled"
+                                } else {
+                                    "Flexible Pinning • Gestures & panels enabled"
+                                },
+                                leadingIcon = R.drawable.shield_fill0,
+                                iconContainerColor = colorScheme.primaryContainer,
+                                iconTint = colorScheme.onPrimaryContainer,
+                                trailingContent = {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = colorScheme.surfaceContainerLowest
+                                        ) {
+                                            Text(
+                                                text = if (disableSystemGestures) "Strict" else "Flexible",
+                                                style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = colorScheme.onSurface,
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                                             )
                                         }
+                                        Icon(
+                                            painter = painterResource(R.drawable.arrow_forward_big),
+                                            contentDescription = null,
+                                            modifier = Modifier
+                                                .size(16.dp)
+                                                .graphicsLayer { rotationZ = kioskPolicyChevronRotation },
+                                            tint = colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                },
+                                shape = if (isKioskPolicyExpanded) {
+                                    RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+                                } else {
+                                    segmentedItemShape(1, 2)
+                                },
+                                onClick = { isKioskPolicyExpanded = !isKioskPolicyExpanded }
+                            )
 
-                                        val remainingCustom = selectedPackages.size - installedApps.filter { selectedPackages.contains(it.packageName) }.take(6).size
-                                        if (remainingCustom > 0) {
-                                            SuggestionChip(
-                                                onClick = { showCustomAppsSheet = true },
-                                                label = { Text("+$remainingCustom more") }
-                                            )
+                            AnimatedVisibility(
+                                visible = isKioskPolicyExpanded,
+                                enter = expandVertically() + fadeIn(),
+                                exit = shrinkVertically() + fadeOut()
+                            ) {
+                                Surface(
+                                    color = colorScheme.surfaceContainerHigh,
+                                    shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 22.dp, bottomEnd = 22.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 20.dp, vertical = 14.dp),
+                                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        // Option 1: Strict Kiosk
+                                        Surface(
+                                            onClick = { disableSystemGestures = true },
+                                            shape = RoundedCornerShape(14.dp),
+                                            color = if (disableSystemGestures) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                            border = BorderStroke(1.dp, if (disableSystemGestures) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(14.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        text = "Strict Kiosk (Gestures & Panels Disabled)",
+                                                        style = typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                                        color = if (disableSystemGestures) colorScheme.onPrimaryContainer else colorScheme.onSurface
+                                                    )
+                                                    Spacer(Modifier.height(2.dp))
+                                                    Text(
+                                                        text = "Pin window and completely disable navigation gestures, status bar, and notification shade.",
+                                                        style = typography.bodySmall,
+                                                        color = colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                                if (disableSystemGestures) {
+                                                    Spacer(Modifier.width(8.dp))
+                                                    Icon(
+                                                        painter = painterResource(R.drawable.check_fill0),
+                                                        contentDescription = null,
+                                                        tint = colorScheme.onPrimaryContainer,
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        // Option 2: Flexible Pinning
+                                        Surface(
+                                            onClick = { disableSystemGestures = false },
+                                            shape = RoundedCornerShape(14.dp),
+                                            color = if (!disableSystemGestures) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                            border = BorderStroke(1.dp, if (!disableSystemGestures) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(14.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        text = "Flexible Pinning (Gestures & Panels Enabled)",
+                                                        style = typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                                        color = if (!disableSystemGestures) colorScheme.onPrimaryContainer else colorScheme.onSurface
+                                                    )
+                                                    Spacer(Modifier.height(2.dp))
+                                                    Text(
+                                                        text = "Pins to single launcher window but keeps system navigation gestures and panels active.",
+                                                        style = typography.bodySmall,
+                                                        color = colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                                if (!disableSystemGestures) {
+                                                    Spacer(Modifier.width(8.dp))
+                                                    Icon(
+                                                        painter = painterResource(R.drawable.check_fill0),
+                                                        contentDescription = null,
+                                                        tint = colorScheme.onPrimaryContainer,
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -2119,6 +2437,123 @@ private fun ModeDetailWindow(
                         },
                         modifier = Modifier.fillMaxSize()
                     )
+                }
+            }
+        }
+    }
+
+    // --- BOTTOM SHEET: SELECT KIOSK ALLOWED APPS ---
+    if (showKioskAppPickerSheet) {
+        var kioskSearch by remember { mutableStateOf("") }
+        val filteredApps = remember(installedApps, kioskSearch) {
+            if (kioskSearch.isBlank()) installedApps else installedApps.filter { it.label.contains(kioskSearch, ignoreCase = true) || it.packageName.contains(kioskSearch, ignoreCase = true) }
+        }
+
+        ModalBottomSheet(
+            onDismissRequest = { showKioskAppPickerSheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = colorScheme.surfaceContainerHigh,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 32.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("Kiosk Allowed Apps", style = typography.titleLarge.copy(fontWeight = FontWeight.Bold))
+                        Text("${kioskPackages.size}/10 apps selected", style = typography.bodySmall, color = colorScheme.onSurfaceVariant)
+                    }
+                    Button(
+                        onClick = { showKioskAppPickerSheet = false },
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary)
+                    ) {
+                        Text("Done", fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = kioskSearch,
+                    onValueChange = { kioskSearch = it },
+                    placeholder = { Text("Search apps...") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(Modifier.height(14.dp))
+
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(filteredApps, key = { it.packageName }) { app ->
+                        val isSelected = kioskPackages.contains(app.packageName)
+                        Surface(
+                            onClick = {
+                                if (isSelected) {
+                                    kioskPackages = kioskPackages - app.packageName
+                                } else {
+                                    if (kioskPackages.size < 10) {
+                                        kioskPackages = kioskPackages + app.packageName
+                                    } else {
+                                        Toast.makeText(context, "Maximum 10 apps allowed in kiosk", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            },
+                            shape = RoundedCornerShape(14.dp),
+                            color = if (isSelected) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                            border = BorderStroke(1.dp, if (isSelected) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (app.icon != null) {
+                                    Image(
+                                        painter = rememberDrawablePainter(app.icon),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(36.dp)
+                                    )
+                                } else {
+                                    Icon(
+                                        painter = painterResource(R.drawable.apps_fill0),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(36.dp)
+                                    )
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(app.label, style = typography.bodyMedium.copy(fontWeight = FontWeight.Bold), color = if (isSelected) colorScheme.onPrimaryContainer else colorScheme.onSurface)
+                                    Text(app.packageName, style = typography.bodySmall.copy(fontSize = 11.sp), color = colorScheme.onSurfaceVariant)
+                                }
+                                Checkbox(
+                                    checked = isSelected,
+                                    onCheckedChange = { checked ->
+                                        if (checked) {
+                                            if (kioskPackages.size < 10) {
+                                                kioskPackages = kioskPackages + app.packageName
+                                            } else {
+                                                Toast.makeText(context, "Maximum 10 apps allowed in kiosk", Toast.LENGTH_SHORT).show()
+                                            }
+                                        } else {
+                                            kioskPackages = kioskPackages - app.packageName
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

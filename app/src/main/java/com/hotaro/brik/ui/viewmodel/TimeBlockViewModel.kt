@@ -24,7 +24,7 @@ import kotlinx.coroutines.withContext
 
 class TimeBlockViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository = TimeBlockRepository(application)
+    private val repository = TimeBlockRepository.getInstance(application)
     private val bagRepository = BagRepository(application)
     private val keyRepository = KeyRepository(application)
 

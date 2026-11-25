@@ -106,9 +106,26 @@ class MainActivity : ComponentActivity() {
             BrikTheme {
                 val isWindDownActive by com.hotaro.brik.util.WindDownManager.isWindDownActive.collectAsState()
                 val isZenActive by com.hotaro.brik.util.ZenManager.isZenActive.collectAsState()
+                val timeBlockRepo = remember { com.hotaro.brik.data.repository.TimeBlockRepository.getInstance(applicationContext) }
+                val activeSession by timeBlockRepo.activeSession.collectAsState()
+                val focusModes by timeBlockRepo.focusModes.collectAsState()
+                val activeKioskFocusMode = remember(activeSession, focusModes) {
+                    if (activeSession?.type == com.hotaro.brik.data.model.TimeBlockType.FOCUS_MODE) {
+                        focusModes.find { it.id == activeSession?.id && it.isRunning && it.enableKioskMode }
+                    } else null
+                }
 
-                androidx.compose.runtime.LaunchedEffect(isWindDownActive, isZenActive) {
-                    if (!isWindDownActive && !isZenActive) {
+                androidx.compose.runtime.LaunchedEffect(isWindDownActive, isZenActive, activeKioskFocusMode) {
+                    if (activeKioskFocusMode != null) {
+                        try {
+                            val packagesToAllow = (activeKioskFocusMode.kioskAllowedPackages + packageName).toList()
+                            com.hotaro.brik.policy.PolicyBridgeManager.setLockTaskPackages(this@MainActivity, packagesToAllow)
+                            com.hotaro.brik.policy.PolicyBridgeManager.setLockTaskFeatures(this@MainActivity, activeKioskFocusMode.kioskDisableSystemGestures)
+                            startLockTask()
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    } else if (!isWindDownActive && !isZenActive) {
                         try {
                             stopLockTask()
                         } catch (e: Exception) {
@@ -123,6 +140,23 @@ class MainActivity : ComponentActivity() {
                 ) {
                     if (isWindDownActive) {
                         com.hotaro.brik.ui.screen.WindDownDesktop()
+                    } else if (activeKioskFocusMode != null) {
+                        com.hotaro.brik.ui.screen.ModeKioskDesktop(
+                            mode = activeKioskFocusMode,
+                            sessionEndsAt = activeKioskFocusMode.sessionEndsAt,
+                            onExitSession = {
+                                timeBlockRepo.stopFocusMode(activeKioskFocusMode.id, activeKioskFocusMode.keySecret ?: "") { success, _ ->
+                                    if (success) {
+                                        try {
+                                            stopLockTask()
+                                        } catch (e: Exception) {
+                                            e.printStackTrace()
+                                        }
+                                        android.widget.Toast.makeText(this@MainActivity, "Exited Focus Mode", android.widget.Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
+                        )
                     } else {
                         BrikMainScreen()
                     }
