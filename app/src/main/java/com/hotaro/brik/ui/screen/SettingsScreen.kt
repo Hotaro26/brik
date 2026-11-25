@@ -6,6 +6,12 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -94,6 +100,7 @@ import java.util.UUID
 fun SettingsScreen(
     modifier: Modifier = Modifier,
     onNavigateToKeys: () -> Unit = {},
+    onNavigateToAbout: () -> Unit = {},
     settingsViewModel: SettingsViewModel = viewModel(),
     toolsViewModel: ToolsViewModel = viewModel(),
     keyViewModel: com.hotaro.brik.ui.viewmodel.KeyViewModel = viewModel()
@@ -120,6 +127,7 @@ fun SettingsScreen(
     var showVerifyUninstallKeyDialog by remember { mutableStateOf(false) }
     var showBridgeSetupSheet by remember { mutableStateOf(false) }
     var bridgeSetupInitialTab by remember { mutableIntStateOf(0) }
+    var isDeviceOwnerExpanded by remember { mutableStateOf(false) }
     var isRefreshing by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -194,32 +202,103 @@ fun SettingsScreen(
             val isDeviceOwner = bridgeStatus.isDeviceOwner
             val totalItems = if (isDeviceOwner) 2 else 4
 
+            val chevronRotation by animateFloatAsState(
+                targetValue = if (isDeviceOwner && isDeviceOwnerExpanded) 90f else 0f,
+                label = "dpmChevron"
+            )
+
             // 1. Device Owner (DPM)
             TomatoSettingsItem(
                 title = "Device Owner (DPM)",
-                subtitle = if (isDeviceOwner) "Active & Full Control" else "Not Provisioned (Tap to copy ADB command)",
+                subtitle = if (isDeviceOwner) {
+                    if (isDeviceOwnerExpanded) "Tap to collapse" else "Active • Tap to manage or deactivate"
+                } else {
+                    "Not Provisioned (Tap to set up)"
+                },
                 leadingIcon = R.drawable.shield_fill0,
                 iconContainerColor = if (isDeviceOwner) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
                 iconTint = if (isDeviceOwner) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
                 trailingContent = {
-                    Surface(
-                        shape = CircleShape,
-                        color = if (isDeviceOwner) colorScheme.primaryContainer else colorScheme.errorContainer
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(
-                            text = if (isDeviceOwner) "Active" else "Not Set",
-                            style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = if (isDeviceOwner) colorScheme.onPrimaryContainer else colorScheme.onErrorContainer,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                        )
+                        Surface(
+                            shape = CircleShape,
+                            color = if (isDeviceOwner) colorScheme.primaryContainer else colorScheme.errorContainer
+                        ) {
+                            Text(
+                                text = if (isDeviceOwner) "Active" else "Not Set",
+                                style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = if (isDeviceOwner) colorScheme.onPrimaryContainer else colorScheme.onErrorContainer,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            )
+                        }
+                        if (isDeviceOwner) {
+                            Icon(
+                                painter = painterResource(R.drawable.arrow_forward_big),
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .graphicsLayer { rotationZ = chevronRotation },
+                                tint = colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 },
-                shape = segmentedItemShape(0, totalItems),
+                shape = if (isDeviceOwner && isDeviceOwnerExpanded) {
+                    RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+                } else {
+                    segmentedItemShape(0, totalItems)
+                },
                 onClick = {
-                    bridgeSetupInitialTab = 0
-                    showBridgeSetupSheet = true
+                    if (isDeviceOwner) {
+                        isDeviceOwnerExpanded = !isDeviceOwnerExpanded
+                    } else {
+                        bridgeSetupInitialTab = 0
+                        showBridgeSetupSheet = true
+                    }
                 }
             )
+
+            // Morphic slide out of Deactivate Device Owner card
+            AnimatedVisibility(
+                visible = isDeviceOwner && isDeviceOwnerExpanded,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                Column(modifier = Modifier.padding(top = 2.dp)) {
+                    TomatoSettingsItem(
+                        title = "Deactivate Device Owner",
+                        subtitle = "Requires security key verification to allow uninstalling Brik",
+                        leadingIcon = R.drawable.delete_fill0,
+                        iconContainerColor = colorScheme.errorContainer,
+                        iconTint = colorScheme.onErrorContainer,
+                        trailingContent = {
+                            Surface(
+                                shape = CircleShape,
+                                color = colorScheme.errorContainer
+                            ) {
+                                Text(
+                                    text = "Revoke",
+                                    style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = colorScheme.onErrorContainer,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                )
+                            }
+                        },
+                        shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 22.dp, bottomEnd = 22.dp),
+                        onClick = {
+                            val existing = keyViewModel.getDpmUninstallLock()
+                            if (existing == null) {
+                                showSetUninstallKeyDialog = true
+                            } else {
+                                showVerifyUninstallKeyDialog = true
+                            }
+                        }
+                    )
+                }
+            }
 
             // If DPM is not active, display Dhizuku and Shizuku
             if (!isDeviceOwner) {
@@ -428,41 +507,27 @@ fun SettingsScreen(
             )
         }
 
-        // --- SECTION 4: ADMINISTRATION ---
-        if (bridgeStatus.isDeviceOwner) {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                TomatoSectionHeader(title = "ADMINISTRATION")
+        // --- SECTION 4: ABOUT ---
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            TomatoSectionHeader(title = "ABOUT")
 
-                TomatoSettingsItem(
-                    title = "Deactivate Device Owner",
-                    subtitle = "Requires security key verification to allow uninstalling Brik",
-                    leadingIcon = R.drawable.delete_fill0,
-                    iconContainerColor = colorScheme.errorContainer,
-                    iconTint = colorScheme.onErrorContainer,
-                    trailingContent = {
-                        Surface(
-                            shape = CircleShape,
-                            color = colorScheme.errorContainer
-                        ) {
-                            Text(
-                                text = "Revoke",
-                                style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = colorScheme.onErrorContainer,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                            )
-                        }
-                    },
-                    shape = segmentedItemShape(0, 1),
-                    onClick = {
-                        val existing = keyViewModel.getDpmUninstallLock()
-                        if (existing == null) {
-                            showSetUninstallKeyDialog = true
-                        } else {
-                            showVerifyUninstallKeyDialog = true
-                        }
-                    }
-                )
-            }
+            TomatoSettingsItem(
+                title = "About Brik",
+                subtitle = "v1.0.3 (Build 4) • App info, GitHub repo & privacy policy",
+                leadingIcon = R.drawable.ic_brik,
+                iconTint = Color.Unspecified,
+                iconContainerColor = colorScheme.surfaceContainerLowest,
+                trailingContent = {
+                    Icon(
+                        painter = painterResource(R.drawable.arrow_forward_big),
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = colorScheme.onSurfaceVariant
+                    )
+                },
+                shape = segmentedItemShape(0, 1),
+                onClick = onNavigateToAbout
+            )
         }
 
         Spacer(Modifier.height(160.dp))
