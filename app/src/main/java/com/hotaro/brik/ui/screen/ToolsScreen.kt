@@ -255,7 +255,7 @@ fun ToolsScreen(
                 // 3. Zen
                 TomatoSettingsItem(
                     title = "Zen",
-                    subtitle = "Mindfulness, deep detox & calm sessions",
+                    subtitle = "lockdown and deep digital detox",
                     leadingIcon = R.drawable.self_improvement_fill0,
                     iconContainerColor = colorScheme.secondaryContainer,
                     iconTint = colorScheme.onSecondaryContainer,

@@ -507,50 +507,7 @@ fun SettingsScreen(
             )
         }
 
-        // --- SECTION 3: POLICY ENFORCEMENT ---
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            TomatoSectionHeader(title = "POLICY ENFORCEMENT")
-
-            // 1. App Hiding
-            TomatoSettingsItem(
-                title = "App Hiding (Invisible)",
-                subtitle = if (hiddenPackages.isNotEmpty()) "${hiddenPackages.size} apps hidden from launcher" else "Completely hide packages from system launcher",
-                leadingIcon = R.drawable.visibility_off_fill0,
-                iconContainerColor = colorScheme.secondaryContainer,
-                iconTint = colorScheme.onSecondaryContainer,
-                trailingContent = {
-                    Icon(
-                        painter = painterResource(R.drawable.arrow_forward_big),
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                        tint = colorScheme.onSurfaceVariant
-                    )
-                },
-                shape = segmentedItemShape(0, 2),
-                onClick = { showHideSheet = true }
-            )
-
-            // 2. Lock / Kiosk Mode
-            TomatoSettingsItem(
-                title = "Lock / Kiosk Mode",
-                subtitle = if (isKioskActive) "Kiosk Active (App is pinned)" else "Pin app into single-task kiosk mode",
-                leadingIcon = R.drawable.screen_lock_portrait_fill0,
-                iconContainerColor = colorScheme.tertiaryContainer,
-                iconTint = colorScheme.onTertiaryContainer,
-                trailingContent = {
-                    Icon(
-                        painter = painterResource(R.drawable.arrow_forward_big),
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                        tint = colorScheme.onSurfaceVariant
-                    )
-                },
-                shape = segmentedItemShape(1, 2),
-                onClick = { showKioskSheet = true }
-            )
-        }
-
-        // --- SECTION 4: ABOUT ---
+        // --- SECTION 3: ABOUT ---
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             TomatoSectionHeader(title = "ABOUT")
 
