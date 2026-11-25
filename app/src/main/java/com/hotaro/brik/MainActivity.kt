@@ -267,7 +267,9 @@ fun BrikMainScreen() {
                     modifier = Modifier.fillMaxSize()
                 ) { tab ->
                     when (tab) {
-                        0 -> KeyScreen()
+                        0 -> KeyScreen(
+                            onNavigateToZen = { onNavigateToSubScreen("zen") }
+                        )
                         1 -> ToolsScreen(
                             onNavigateToAppManager = { onNavigateToSubScreen("app_manager") },
                             onNavigateToBags = { onNavigateToSubScreen("bags") },
