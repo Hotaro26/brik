@@ -3,10 +3,16 @@ package com.hotaro.brik.ui.screen
 import android.widget.Toast
 import androidx.activity.BackEventCompat
 import androidx.activity.compose.PredictiveBackHandler
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -46,6 +52,7 @@ import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.MaterialTheme.typography
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SuggestionChip
@@ -91,6 +98,9 @@ import com.hotaro.brik.data.model.TimeBlockType
 import com.hotaro.brik.policy.DnsManager
 import com.hotaro.brik.ui.component.QrScannerView
 import com.hotaro.brik.ui.component.RoundedPullRefreshPage
+import com.hotaro.brik.ui.component.TomatoSectionHeader
+import com.hotaro.brik.ui.component.TomatoSettingsItem
+import com.hotaro.brik.ui.component.segmentedItemShape
 import com.hotaro.brik.ui.viewmodel.TimeBlockViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -134,6 +144,7 @@ fun ModesWindow(
     var modeToStart by remember { mutableStateOf<FocusMode?>(null) }
     var modeToStop by remember { mutableStateOf<FocusMode?>(null) }
     var modeToDelete by remember { mutableStateOf<FocusMode?>(null) }
+    var expandedModeId by remember { mutableStateOf<String?>(null) }
 
     // Live countdown timer state
     var currentTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -286,8 +297,8 @@ fun ModesWindow(
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 20.dp),
-                    contentPadding = PaddingValues(top = 12.dp, bottom = 80.dp),
+                        .padding(horizontal = 16.dp),
+                    contentPadding = PaddingValues(top = 12.dp, bottom = 96.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     // Active Mode Banner
@@ -303,11 +314,9 @@ fun ModesWindow(
                         }
 
                         item {
-                            ElevatedCard(
+                            Surface(
                                 shape = RoundedCornerShape(22.dp),
-                                colors = CardDefaults.elevatedCardColors(
-                                    containerColor = colorScheme.primaryContainer
-                                ),
+                                color = colorScheme.primaryContainer,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Column(modifier = Modifier.padding(18.dp)) {
@@ -367,91 +376,74 @@ fun ModesWindow(
                         }
                     }
 
-                    // Explanatory Header Card
+                    // Explanatory Hero Card
                     item {
                         ElevatedCard(
-                            shape = RoundedCornerShape(24.dp),
+                            shape = RoundedCornerShape(22.dp),
                             colors = CardDefaults.elevatedCardColors(
                                 containerColor = colorScheme.surfaceContainerHigh
                             ),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Column(modifier = Modifier.padding(20.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Surface(
-                                        shape = RoundedCornerShape(12.dp),
-                                        color = colorScheme.primaryContainer,
-                                        modifier = Modifier.size(40.dp)
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                painter = painterResource(R.drawable.mode_fill0),
-                                                contentDescription = null,
-                                                tint = colorScheme.primary,
-                                                modifier = Modifier.size(22.dp)
-                                            )
-                                        }
-                                    }
-                                    Spacer(Modifier.width(14.dp))
-                                    Column {
-                                        Text(
-                                            text = "On-Demand Focus Modes",
-                                            style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                            color = colorScheme.onSurface
-                                        )
-                                        Text(
-                                            text = "Timed restriction with strict protection",
-                                            style = typography.bodySmall,
-                                            color = colorScheme.onSurfaceVariant
+                            Row(
+                                modifier = Modifier.padding(20.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = colorScheme.primaryContainer,
+                                    modifier = Modifier.size(50.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.mode_fill0),
+                                            contentDescription = null,
+                                            tint = colorScheme.primary,
+                                            modifier = Modifier.size(26.dp)
                                         )
                                     }
                                 }
-
-                                Spacer(Modifier.height(14.dp))
-
-                                Text(
-                                    text = "Start customized focus profiles for deep work, study, or digital detox. Once a session starts, early termination strictly requires unlocking with your assigned key.",
-                                    style = typography.bodySmall,
-                                    color = colorScheme.onSurfaceVariant,
-                                    lineHeight = 18.sp
-                                )
+                                Spacer(Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "On-Demand Focus Profiles",
+                                        style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = colorScheme.onSurface
+                                    )
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        text = "Start customized focus profiles for deep work, study, or detox. Early termination strictly requires your key.",
+                                        style = typography.bodySmall,
+                                        color = colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
                     }
 
-                    // Focus Profiles List Header
+                    // SECTION 1: FOCUS PROFILES
                     item {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Configured Focus Modes (${focusModes.size})",
-                                style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                color = colorScheme.onSurface
-                            )
-                        }
+                        TomatoSectionHeader(title = "FOCUS PROFILES (${focusModes.size})")
                     }
 
                     if (focusModes.isEmpty()) {
                         item {
                             Surface(
                                 shape = RoundedCornerShape(20.dp),
-                                color = colorScheme.surfaceContainerLow,
+                                color = colorScheme.surfaceContainerHigh,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Column(
-                                    modifier = Modifier.padding(32.dp),
+                                    modifier = Modifier.padding(28.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                     Icon(
                                         painter = painterResource(R.drawable.mode_fill0),
                                         contentDescription = null,
                                         tint = colorScheme.outline,
-                                        modifier = Modifier.size(44.dp)
+                                        modifier = Modifier.size(40.dp)
                                     )
-                                    Spacer(Modifier.height(12.dp))
+                                    Spacer(Modifier.height(10.dp))
                                     Text(
                                         text = "No Focus Modes Created",
                                         style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
@@ -468,145 +460,155 @@ fun ModesWindow(
                         }
                     } else {
                         items(focusModes, key = { it.id }) { mode ->
+                            val index = focusModes.indexOf(mode)
                             val isRunning = mode.isRunning || (activeSession?.id == mode.id)
-                            ElevatedCard(
-                                shape = RoundedCornerShape(20.dp),
-                                colors = CardDefaults.elevatedCardColors(
-                                    containerColor = if (isRunning) colorScheme.primaryContainer.copy(alpha = 0.5f) else colorScheme.surfaceContainerHigh
-                                ),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { openDetailWindow(mode) }
-                            ) {
-                                Column(modifier = Modifier.padding(18.dp)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                            Surface(
-                                                shape = RoundedCornerShape(12.dp),
-                                                color = if (isRunning) colorScheme.primary else colorScheme.surfaceContainerHighest,
-                                                modifier = Modifier.size(46.dp)
-                                            ) {
-                                                Box(contentAlignment = Alignment.Center) {
-                                                    Icon(
-                                                        painter = painterResource(getModeIcon(mode.iconName)),
-                                                        contentDescription = null,
-                                                        tint = if (isRunning) colorScheme.onPrimary else colorScheme.onSurfaceVariant,
-                                                        modifier = Modifier.size(24.dp)
+                            val isExpanded = expandedModeId == mode.id
+                            val chevronRotation by animateFloatAsState(
+                                targetValue = if (isExpanded) 90f else 0f,
+                                label = "modeChevron_${mode.id}"
+                            )
+
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                TomatoSettingsItem(
+                                    title = mode.name,
+                                    subtitle = "${mode.defaultDurationMinutes} min session • ${mode.targetBagIds.size} bags • DNS ${if (mode.enableDnsBlocking) "filtered" else "normal"}",
+                                    leadingIcon = getModeIcon(mode.iconName),
+                                    iconContainerColor = if (isRunning) colorScheme.primaryContainer else colorScheme.surfaceContainerHighest,
+                                    iconTint = if (isRunning) colorScheme.primary else colorScheme.onSurfaceVariant,
+                                    trailingContent = {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            if (isRunning) {
+                                                Surface(
+                                                    shape = CircleShape,
+                                                    color = colorScheme.primary
+                                                ) {
+                                                    Text(
+                                                        text = "RUNNING",
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = colorScheme.onPrimary,
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                                     )
+                                                }
+
+                                                Button(
+                                                    onClick = { modeToStop = mode },
+                                                    colors = ButtonDefaults.buttonColors(containerColor = colorScheme.error),
+                                                    shape = RoundedCornerShape(10.dp)
+                                                ) {
+                                                    Text("Unlock", fontSize = 12.sp)
+                                                }
+                                            } else {
+                                                Button(
+                                                    onClick = { modeToStart = mode },
+                                                    shape = RoundedCornerShape(10.dp)
+                                                ) {
+                                                    Text("Start", fontSize = 12.sp)
                                                 }
                                             }
 
-                                            Spacer(Modifier.width(14.dp))
+                                            Icon(
+                                                painter = painterResource(R.drawable.arrow_forward_big),
+                                                contentDescription = null,
+                                                modifier = Modifier
+                                                    .size(16.dp)
+                                                    .graphicsLayer { rotationZ = chevronRotation },
+                                                tint = colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    },
+                                    shape = if (isExpanded) {
+                                        RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+                                    } else {
+                                        segmentedItemShape(index, focusModes.size)
+                                    },
+                                    onClick = {
+                                        expandedModeId = if (isExpanded) null else mode.id
+                                    }
+                                )
 
-                                            Column {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Text(
-                                                        text = mode.name,
-                                                        style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                                        color = colorScheme.onSurface
-                                                    )
-                                                    if (isRunning) {
-                                                        Spacer(Modifier.width(8.dp))
-                                                        Surface(
-                                                            shape = CircleShape,
-                                                            color = colorScheme.primary,
-                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                        ) {
-                                                            Text(
-                                                                text = "RUNNING",
-                                                                fontSize = 9.sp,
-                                                                fontWeight = FontWeight.Bold,
-                                                                color = colorScheme.onPrimary,
-                                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                            )
-                                                        }
-                                                    }
-                                                }
+                                AnimatedVisibility(
+                                    visible = isExpanded,
+                                    enter = expandVertically() + fadeIn(),
+                                    exit = shrinkVertically() + fadeOut()
+                                ) {
+                                    Surface(
+                                        color = colorScheme.surfaceContainerHigh,
+                                        shape = RoundedCornerShape(bottomStart = 22.dp, bottomEnd = 22.dp, topStart = 4.dp, topEnd = 4.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 20.dp, vertical = 14.dp)
+                                        ) {
+                                            // Target bags summary
+                                            val targetBagsNames = bags.filter { mode.targetBagIds.contains(it.id) }.map { it.name }
+                                            val targetsText = when {
+                                                targetBagsNames.isNotEmpty() && mode.targetPackageNames.isNotEmpty() ->
+                                                    "${targetBagsNames.joinToString()} + ${mode.targetPackageNames.size} apps"
+                                                targetBagsNames.isNotEmpty() -> targetBagsNames.joinToString(", ")
+                                                mode.targetPackageNames.isNotEmpty() -> "${mode.targetPackageNames.size} apps"
+                                                else -> "No bags or apps assigned"
+                                            }
+                                            Text(
+                                                text = "Blocks: $targetsText",
+                                                style = typography.bodySmall,
+                                                color = colorScheme.onSurfaceVariant
+                                            )
+
+                                            if (mode.enableDnsBlocking) {
+                                                Spacer(Modifier.height(4.dp))
                                                 Text(
-                                                    text = "${mode.defaultDurationMinutes} min session",
-                                                    style = typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
-                                                    color = colorScheme.primary
+                                                    text = "DNS Filter: ${mode.dnsHost}",
+                                                    style = typography.bodySmall,
+                                                    color = colorScheme.secondary
                                                 )
                                             }
-                                        }
 
-                                        // Start / Stop Action
-                                        if (isRunning) {
-                                            Button(
-                                                onClick = { modeToStop = mode },
-                                                colors = ButtonDefaults.buttonColors(containerColor = colorScheme.error),
-                                                shape = RoundedCornerShape(12.dp)
+                                            Spacer(Modifier.height(14.dp))
+
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                                             ) {
-                                                Text("Unlock")
+                                                Button(
+                                                    onClick = { openDetailWindow(mode) },
+                                                    shape = RoundedCornerShape(12.dp),
+                                                    modifier = Modifier.weight(1f)
+                                                ) {
+                                                    Icon(
+                                                        painter = painterResource(R.drawable.tune_fill0),
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                    Spacer(Modifier.width(6.dp))
+                                                    Text("Configure", fontWeight = FontWeight.Bold)
+                                                }
+
+                                                OutlinedButton(
+                                                    onClick = { modeToDelete = mode },
+                                                    shape = RoundedCornerShape(12.dp),
+                                                    colors = ButtonDefaults.outlinedButtonColors(
+                                                        contentColor = colorScheme.error
+                                                    )
+                                                ) {
+                                                    Icon(
+                                                        painter = painterResource(R.drawable.delete_fill0),
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                    Spacer(Modifier.width(4.dp))
+                                                    Text("Delete")
+                                                }
                                             }
-                                        } else {
-                                            Button(
-                                                onClick = { modeToStart = mode },
-                                                shape = RoundedCornerShape(12.dp)
-                                            ) {
-                                                Text("Start")
-                                            }
-                                        }
-                                    }
-
-                                    Spacer(Modifier.height(10.dp))
-
-                                    // Target bags summary
-                                    val targetBagsNames = bags.filter { mode.targetBagIds.contains(it.id) }.map { it.name }
-                                    val targetsText = when {
-                                        targetBagsNames.isNotEmpty() && mode.targetPackageNames.isNotEmpty() ->
-                                            "${targetBagsNames.joinToString()} + ${mode.targetPackageNames.size} apps"
-                                        targetBagsNames.isNotEmpty() -> targetBagsNames.joinToString(", ")
-                                        mode.targetPackageNames.isNotEmpty() -> "${mode.targetPackageNames.size} apps"
-                                        else -> "No bags or apps assigned"
-                                    }
-                                    Text(
-                                        text = "Blocks: $targetsText",
-                                        style = typography.bodySmall,
-                                        color = colorScheme.onSurfaceVariant,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-
-                                    if (mode.enableDnsBlocking) {
-                                        Text(
-                                            text = "DNS Filter: ${mode.dnsHost}",
-                                            style = typography.bodySmall,
-                                            color = colorScheme.secondary
-                                        )
-                                    }
-
-                                    Spacer(Modifier.height(8.dp))
-
-                                    // Actions Row (Edit & Delete)
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.End,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        IconButton(onClick = { openDetailWindow(mode) }) {
-                                            Icon(
-                                                painter = painterResource(R.drawable.tune_fill0),
-                                                contentDescription = "Edit Configuration",
-                                                tint = colorScheme.primary,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
-
-                                        IconButton(onClick = { modeToDelete = mode }) {
-                                            Icon(
-                                                painter = painterResource(R.drawable.delete_fill0),
-                                                contentDescription = "Delete",
-                                                tint = colorScheme.error,
-                                                modifier = Modifier.size(20.dp)
-                                            )
                                         }
                                     }
                                 }
+                                Spacer(Modifier.height(2.dp))
                             }
                         }
                     }

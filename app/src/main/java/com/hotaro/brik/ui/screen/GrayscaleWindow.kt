@@ -4,11 +4,19 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
+import android.provider.Settings
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,12 +55,14 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -62,6 +72,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -74,8 +85,12 @@ import com.hotaro.brik.R
 import com.hotaro.brik.data.model.AppInfo
 import com.hotaro.brik.data.model.KeyType
 import com.hotaro.brik.data.model.SavedKey
+import com.hotaro.brik.service.BrikAccessibilityService
 import com.hotaro.brik.ui.component.SetEmergencyKeyDialog
+import com.hotaro.brik.ui.component.TomatoSectionHeader
+import com.hotaro.brik.ui.component.TomatoSettingsItem
 import com.hotaro.brik.ui.component.VerifyEmergencyKeyDialog
+import com.hotaro.brik.ui.component.segmentedItemShape
 import com.hotaro.brik.util.GrayscaleManager
 import java.util.Locale
 
@@ -97,6 +112,27 @@ fun GrayscaleWindow(
     val isKeyGuardEnabled by GrayscaleManager.isKeyGuardEnabled.collectAsState()
     val hasSecurityKey by GrayscaleManager.hasSecurityKey.collectAsState()
 
+    var isAccessibilityServiceEnabled by remember { mutableStateOf(BrikAccessibilityService.isEnabled(context)) }
+
+    // Expandable card states
+    var isSystemwideExpanded by remember { mutableStateOf(false) }
+    val systemwideChevronRotation by animateFloatAsState(
+        targetValue = if (isSystemwideExpanded) 90f else 0f,
+        label = "systemwideChevron"
+    )
+
+    var isAppSpecificExpanded by remember { mutableStateOf(false) }
+    val appSpecificChevronRotation by animateFloatAsState(
+        targetValue = if (isAppSpecificExpanded) 90f else 0f,
+        label = "appSpecificChevron"
+    )
+
+    var isKeyGuardExpanded by remember { mutableStateOf(false) }
+    val keyGuardChevronRotation by animateFloatAsState(
+        targetValue = if (isKeyGuardExpanded) 90f else 0f,
+        label = "keyGuardChevron"
+    )
+
     var showSystemwideSheet by remember { mutableStateOf(false) }
     var showAppSpecificSheet by remember { mutableStateOf(false) }
     var showSetKeyDialog by remember { mutableStateOf(false) }
@@ -112,7 +148,12 @@ fun GrayscaleWindow(
         launcherApps.filter { appSpecificApps.contains(it.packageName) }
     }
 
-    // Helper to guard actions with Key Guard
+    // Refresh accessibility service status
+    LaunchedEffect(Unit) {
+        isAccessibilityServiceEnabled = BrikAccessibilityService.isEnabled(context)
+    }
+
+    // Guard actions with Key Guard
     val performGuardedAction: (() -> Unit) -> Unit = { action ->
         if (isKeyGuardEnabled && hasSecurityKey) {
             pendingGuardedAction = action
@@ -160,7 +201,8 @@ fun GrayscaleWindow(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = appBackground
+                    containerColor = Color.Transparent,
+                    scrolledContainerColor = Color.Transparent
                 ),
                 modifier = Modifier.statusBarsPadding()
             )
@@ -171,166 +213,69 @@ fun GrayscaleWindow(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) { /* Absorb empty area taps */ }
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 12.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .padding(bottom = 80.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // --- CARD 1: SYSTEMWIDE GRAYSCALE WITH EXCEPTIONS ---
+            // Hero Explanatory Card
             ElevatedCard(
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.elevatedCardColors(
-                    containerColor = if (isSystemwideEnabled) colorScheme.primaryContainer.copy(alpha = 0.45f) else colorScheme.surfaceContainerHigh
+                    containerColor = colorScheme.surfaceContainerHigh
                 ),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                Row(
+                    modifier = Modifier.padding(20.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = colorScheme.primaryContainer,
+                        modifier = Modifier.size(50.dp)
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Surface(
-                                shape = RoundedCornerShape(14.dp),
-                                color = if (isSystemwideEnabled) colorScheme.primary else colorScheme.primaryContainer,
-                                modifier = Modifier.size(44.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.contrast_fill0),
-                                        contentDescription = null,
-                                        tint = if (isSystemwideEnabled) colorScheme.onPrimary else colorScheme.primary,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                }
-                            }
-                            Spacer(Modifier.width(14.dp))
-                            Column {
-                                Text(
-                                    text = "System-wide Grayscale",
-                                    style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = colorScheme.onSurface
-                                )
-                                Text(
-                                    text = if (isSystemwideEnabled) "Active • Monochrome filter applied" else "Inactive • Normal screen colors",
-                                    style = typography.bodySmall,
-                                    color = if (isSystemwideEnabled) colorScheme.primary else colorScheme.onSurfaceVariant
-                                )
-                            }
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                painter = painterResource(R.drawable.contrast_fill0),
+                                contentDescription = null,
+                                tint = colorScheme.primary,
+                                modifier = Modifier.size(26.dp)
+                            )
                         }
-
-                        Spacer(Modifier.width(10.dp))
-
-                        Switch(
-                            checked = isSystemwideEnabled,
-                            onCheckedChange = { targetState ->
-                                if (!targetState && isKeyGuardEnabled) {
-                                    performGuardedAction {
-                                        GrayscaleManager.setSystemwideEnabled(context, false)
-                                    }
-                                } else {
-                                    GrayscaleManager.setSystemwideEnabled(context, targetState)
-                                }
-                            }
-                        )
                     }
-
-                    Spacer(Modifier.height(10.dp))
-
-                    Text(
-                        text = "Applies monochrome color suppression across the whole operating system, keeping selected apps in full color.",
-                        style = typography.bodySmall,
-                        color = colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(Modifier.height(14.dp))
-
-                    // Exceptions summary & Manage button
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Spacer(Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = if (systemwideExceptions.isEmpty()) "No Exceptions" else "${systemwideExceptions.size} Excepted Apps (Color)",
-                            style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            text = "Monochrome Screen Filter",
+                            style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                             color = colorScheme.onSurface
                         )
-
-                        TextButton(
-                            onClick = {
-                                performGuardedAction {
-                                    showSystemwideSheet = true
-                                }
-                            }
-                        ) {
-                            Text("Choose Exceptions", fontWeight = FontWeight.Bold)
-                        }
-                    }
-
-                    if (exceptedAppInfos.isNotEmpty()) {
-                        FlowRow(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            exceptedAppInfos.forEach { app ->
-                                InputChip(
-                                    selected = true,
-                                    onClick = {
-                                        performGuardedAction {
-                                            GrayscaleManager.setSystemwideExceptions(
-                                                context,
-                                                systemwideExceptions - app.packageName
-                                            )
-                                        }
-                                    },
-                                    label = {
-                                        Text(text = app.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    },
-                                    leadingIcon = {
-                                        if (app.icon != null) {
-                                            Image(
-                                                painter = rememberDrawablePainter(app.icon),
-                                                contentDescription = null,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                        }
-                                    },
-                                    trailingIcon = {
-                                        Icon(
-                                            painter = painterResource(R.drawable.close_fill0),
-                                            contentDescription = "Remove",
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                    }
-                                )
-                            }
-                        }
-                    } else {
+                        Spacer(Modifier.height(4.dp))
                         Text(
-                            text = "All applications will display in grayscale without color exemptions.",
+                            text = "Suppress vibrant colors to minimize mindless scrolling and reduce dopamine feedback loops.",
                             style = typography.bodySmall,
-                            color = colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                            color = colorScheme.onSurfaceVariant
                         )
                     }
                 }
             }
 
-            // --- CARD 2: GRAYSCALE ON SPECIFIC CHOSEN APPS ---
-            ElevatedCard(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.elevatedCardColors(
-                    containerColor = if (isAppSpecificEnabled) colorScheme.primaryContainer.copy(alpha = 0.45f) else colorScheme.surfaceContainerHigh
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(20.dp)) {
+            // Accessibility Service Banner (if disabled)
+            if (!isAccessibilityServiceEnabled) {
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = colorScheme.errorContainer.copy(alpha = 0.65f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
@@ -338,252 +283,465 @@ fun GrayscaleWindow(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.weight(1f)
                         ) {
-                            Surface(
-                                shape = RoundedCornerShape(14.dp),
-                                color = if (isAppSpecificEnabled) colorScheme.primary else colorScheme.primaryContainer,
-                                modifier = Modifier.size(44.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.apps_fill0),
-                                        contentDescription = null,
-                                        tint = if (isAppSpecificEnabled) colorScheme.onPrimary else colorScheme.primary,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                }
-                            }
-                            Spacer(Modifier.width(14.dp))
+                            Icon(
+                                painter = painterResource(R.drawable.shield_fill0),
+                                contentDescription = null,
+                                tint = colorScheme.onErrorContainer,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = "App-Specific Grayscale",
-                                    style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = colorScheme.onSurface
+                                    text = "Accessibility Service Inactive",
+                                    style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = colorScheme.onErrorContainer
                                 )
                                 Text(
-                                    text = if (isAppSpecificEnabled) "Active • Grayscale on target apps" else "Inactive • Disabled",
+                                    text = "Required for dynamic app targeting and exception filtering.",
                                     style = typography.bodySmall,
-                                    color = if (isAppSpecificEnabled) colorScheme.primary else colorScheme.onSurfaceVariant
+                                    color = colorScheme.onErrorContainer.copy(alpha = 0.85f)
                                 )
                             }
                         }
 
-                        Spacer(Modifier.width(10.dp))
+                        Spacer(Modifier.width(8.dp))
 
-                        Switch(
-                            checked = isAppSpecificEnabled,
-                            onCheckedChange = { targetState ->
-                                if (!targetState && isKeyGuardEnabled) {
-                                    performGuardedAction {
-                                        GrayscaleManager.setAppSpecificEnabled(context, false)
-                                    }
-                                } else {
-                                    GrayscaleManager.setAppSpecificEnabled(context, targetState)
-                                }
-                            }
-                        )
-                    }
-
-                    Spacer(Modifier.height(10.dp))
-
-                    Text(
-                        text = "Keeps your device in vibrant color normally, but automatically switches to grayscale when designated distraction apps are opened.",
-                        style = typography.bodySmall,
-                        color = colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(Modifier.height(14.dp))
-
-                    // Specific apps summary & Manage button
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = if (appSpecificApps.isEmpty()) "No Designated Apps" else "${appSpecificApps.size} Grayscale Apps",
-                            style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                            color = colorScheme.onSurface
-                        )
-
-                        TextButton(
+                        Button(
                             onClick = {
-                                performGuardedAction {
-                                    showAppSpecificSheet = true
-                                }
-                            }
-                        ) {
-                            Text("Choose Apps", fontWeight = FontWeight.Bold)
-                        }
-                    }
-
-                    if (specificAppInfos.isNotEmpty()) {
-                        FlowRow(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            specificAppInfos.forEach { app ->
-                                InputChip(
-                                    selected = true,
-                                    onClick = {
-                                        performGuardedAction {
-                                            GrayscaleManager.setAppSpecificApps(
-                                                context,
-                                                appSpecificApps - app.packageName
-                                            )
-                                        }
-                                    },
-                                    label = {
-                                        Text(text = app.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    },
-                                    leadingIcon = {
-                                        if (app.icon != null) {
-                                            Image(
-                                                painter = rememberDrawablePainter(app.icon),
-                                                contentDescription = null,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                        }
-                                    },
-                                    trailingIcon = {
-                                        Icon(
-                                            painter = painterResource(R.drawable.close_fill0),
-                                            contentDescription = "Remove",
-                                            modifier = Modifier.size(14.dp)
-                                        )
+                                val silentlyEnabled = BrikAccessibilityService.tryEnableSilently(context)
+                                if (silentlyEnabled) {
+                                    isAccessibilityServiceEnabled = true
+                                    Toast.makeText(context, "Accessibility service enabled", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    runCatching {
+                                        context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                        })
                                     }
-                                )
-                            }
+                                }
+                            },
+                            shape = CircleShape,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = colorScheme.onErrorContainer,
+                                contentColor = colorScheme.errorContainer
+                            )
+                        ) {
+                            Text("Enable", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         }
-                    } else {
-                        Text(
-                            text = "No apps designated yet. Tap Choose Apps to select apps for monochrome focus.",
-                            style = typography.bodySmall,
-                            color = colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                        )
                     }
                 }
             }
 
-            // --- OPTIONAL KEY GUARD PROTECTION CARD ---
-            ElevatedCard(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.elevatedCardColors(containerColor = colorScheme.surfaceContainerHigh),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
+            // --- SECTION 1: SYSTEM DISPLAY FILTER ---
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                TomatoSectionHeader(title = "SYSTEM DISPLAY FILTER")
+
+                TomatoSettingsItem(
+                    title = "System-wide Grayscale",
+                    subtitle = if (isSystemwideEnabled) "Active • Monochrome filter applied" else "Inactive • Normal screen colors",
+                    leadingIcon = R.drawable.contrast_fill0,
+                    iconContainerColor = if (isSystemwideEnabled) colorScheme.primaryContainer else colorScheme.surfaceContainerHighest,
+                    iconTint = if (isSystemwideEnabled) colorScheme.primary else colorScheme.onSurfaceVariant,
+                    trailingContent = {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Surface(
-                                shape = CircleShape,
-                                color = if (isKeyGuardEnabled) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
-                                modifier = Modifier.size(40.dp)
+                            Switch(
+                                checked = isSystemwideEnabled,
+                                onCheckedChange = { targetState ->
+                                    if (!targetState && isKeyGuardEnabled) {
+                                        performGuardedAction {
+                                            GrayscaleManager.setSystemwideEnabled(context, false)
+                                        }
+                                    } else {
+                                        GrayscaleManager.setSystemwideEnabled(context, targetState)
+                                    }
+                                },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = colorScheme.onPrimary,
+                                    checkedTrackColor = colorScheme.primary
+                                )
+                            )
+                            Icon(
+                                painter = painterResource(R.drawable.arrow_forward_big),
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .graphicsLayer { rotationZ = systemwideChevronRotation },
+                                tint = colorScheme.onSurfaceVariant
+                            )
+                        }
+                    },
+                    shape = if (isSystemwideExpanded) {
+                        RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+                    } else {
+                        segmentedItemShape(0, 1)
+                    },
+                    onClick = { isSystemwideExpanded = !isSystemwideExpanded }
+                )
+
+                AnimatedVisibility(
+                    visible = isSystemwideExpanded,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    Surface(
+                        color = colorScheme.surfaceContainerHigh,
+                        shape = RoundedCornerShape(bottomStart = 22.dp, bottomEnd = 22.dp, topStart = 4.dp, topEnd = 4.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 14.dp)
+                        ) {
+                            Text(
+                                text = "Applies monochrome color suppression across the whole operating system, keeping selected apps in full color.",
+                                style = typography.bodySmall,
+                                color = colorScheme.onSurfaceVariant
+                            )
+
+                            Spacer(Modifier.height(14.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.key_fill0),
-                                        contentDescription = null,
-                                        tint = if (isKeyGuardEnabled) colorScheme.primary else colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
-                            Spacer(Modifier.width(14.dp))
-                            Column {
                                 Text(
-                                    text = "Key Guard Protection (Optional)",
+                                    text = if (systemwideExceptions.isEmpty()) "No Exceptions" else "${systemwideExceptions.size} Excepted Apps (Color)",
                                     style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                                     color = colorScheme.onSurface
                                 )
-                                Text(
-                                    text = if (isKeyGuardEnabled) "Guarded • Key required to modify or turn off" else "Unguarded • Free to modify",
-                                    style = typography.bodySmall,
-                                    color = colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
 
-                        Spacer(Modifier.width(10.dp))
-
-                        Switch(
-                            checked = isKeyGuardEnabled,
-                            onCheckedChange = { targetState ->
-                                if (targetState) {
-                                    if (!hasSecurityKey) {
-                                        showSetKeyDialog = true
-                                    } else {
-                                        GrayscaleManager.setKeyGuardEnabled(context, true)
-                                        Toast.makeText(context, "Key guard protection enabled", Toast.LENGTH_SHORT).show()
+                                TextButton(
+                                    onClick = {
+                                        performGuardedAction {
+                                            showSystemwideSheet = true
+                                        }
                                     }
-                                } else {
-                                    performGuardedAction {
-                                        GrayscaleManager.setKeyGuardEnabled(context, false)
-                                        Toast.makeText(context, "Key guard protection disabled", Toast.LENGTH_SHORT).show()
-                                    }
+                                ) {
+                                    Text("Choose Exceptions", fontWeight = FontWeight.Bold)
                                 }
                             }
-                        )
-                    }
 
-                    Spacer(Modifier.height(10.dp))
-
-                    Text(
-                        text = "Prevents turning off Grayscale or modifying app lists without verifying a designated security key.",
-                        style = typography.bodySmall,
-                        color = colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(Modifier.height(14.dp))
-
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = colorScheme.surfaceContainerLowest,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(14.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column {
+                            if (exceptedAppInfos.isNotEmpty()) {
+                                Spacer(Modifier.height(8.dp))
+                                FlowRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    exceptedAppInfos.forEach { app ->
+                                        InputChip(
+                                            selected = true,
+                                            onClick = {
+                                                performGuardedAction {
+                                                    GrayscaleManager.setSystemwideExceptions(
+                                                        context,
+                                                        systemwideExceptions - app.packageName
+                                                    )
+                                                }
+                                            },
+                                            label = {
+                                                Text(text = app.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                            },
+                                            leadingIcon = {
+                                                if (app.icon != null) {
+                                                    Image(
+                                                        painter = rememberDrawablePainter(app.icon),
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                }
+                                            },
+                                            trailingIcon = {
+                                                Icon(
+                                                    painter = painterResource(R.drawable.close_fill0),
+                                                    contentDescription = "Remove",
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                            }
+                                        )
+                                    }
+                                }
+                            } else {
                                 Text(
-                                    text = "Grayscale Security Key",
-                                    style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = colorScheme.onSurface
-                                )
-                                Text(
-                                    text = if (hasSecurityKey) "Configured (${GrayscaleManager.getKeyType(context).name})" else "Uses System Emergency Key",
+                                    text = "All applications will display in grayscale without color exemptions.",
                                     style = typography.bodySmall,
-                                    color = colorScheme.onSurfaceVariant
+                                    color = colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                                 )
-                            }
-
-                            Button(
-                                onClick = { showSetKeyDialog = true },
-                                shape = CircleShape,
-                                colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary)
-                            ) {
-                                Text(if (hasSecurityKey) "Change" else "Configure")
                             }
                         }
                     }
                 }
             }
 
-            Spacer(Modifier.height(24.dp))
+            // --- SECTION 2: APP COLOR PROFILES ---
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                TomatoSectionHeader(title = "APP COLOR PROFILES")
+
+                TomatoSettingsItem(
+                    title = "App-Specific Grayscale",
+                    subtitle = if (isAppSpecificEnabled) "Active • Grayscale on ${appSpecificApps.size} apps" else "Inactive • Normal screen colors",
+                    leadingIcon = R.drawable.apps_fill0,
+                    iconContainerColor = if (isAppSpecificEnabled) colorScheme.primaryContainer else colorScheme.surfaceContainerHighest,
+                    iconTint = if (isAppSpecificEnabled) colorScheme.primary else colorScheme.onSurfaceVariant,
+                    trailingContent = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Switch(
+                                checked = isAppSpecificEnabled,
+                                onCheckedChange = { targetState ->
+                                    if (!targetState && isKeyGuardEnabled) {
+                                        performGuardedAction {
+                                            GrayscaleManager.setAppSpecificEnabled(context, false)
+                                        }
+                                    } else {
+                                        GrayscaleManager.setAppSpecificEnabled(context, targetState)
+                                    }
+                                },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = colorScheme.onPrimary,
+                                    checkedTrackColor = colorScheme.primary
+                                )
+                            )
+                            Icon(
+                                painter = painterResource(R.drawable.arrow_forward_big),
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .graphicsLayer { rotationZ = appSpecificChevronRotation },
+                                tint = colorScheme.onSurfaceVariant
+                            )
+                        }
+                    },
+                    shape = if (isAppSpecificExpanded) {
+                        RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+                    } else {
+                        segmentedItemShape(0, 1)
+                    },
+                    onClick = { isAppSpecificExpanded = !isAppSpecificExpanded }
+                )
+
+                AnimatedVisibility(
+                    visible = isAppSpecificExpanded,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    Surface(
+                        color = colorScheme.surfaceContainerHigh,
+                        shape = RoundedCornerShape(bottomStart = 22.dp, bottomEnd = 22.dp, topStart = 4.dp, topEnd = 4.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 14.dp)
+                        ) {
+                            Text(
+                                text = "Keeps your device in vibrant color normally, but automatically switches to grayscale when designated distraction apps are opened.",
+                                style = typography.bodySmall,
+                                color = colorScheme.onSurfaceVariant
+                            )
+
+                            Spacer(Modifier.height(14.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (appSpecificApps.isEmpty()) "No Designated Apps" else "${appSpecificApps.size} Grayscale Apps",
+                                    style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = colorScheme.onSurface
+                                )
+
+                                TextButton(
+                                    onClick = {
+                                        performGuardedAction {
+                                            showAppSpecificSheet = true
+                                        }
+                                    }
+                                ) {
+                                    Text("Choose Apps", fontWeight = FontWeight.Bold)
+                                }
+                            }
+
+                            if (specificAppInfos.isNotEmpty()) {
+                                Spacer(Modifier.height(8.dp))
+                                FlowRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    specificAppInfos.forEach { app ->
+                                        InputChip(
+                                            selected = true,
+                                            onClick = {
+                                                performGuardedAction {
+                                                    GrayscaleManager.setAppSpecificApps(
+                                                        context,
+                                                        appSpecificApps - app.packageName
+                                                    )
+                                                }
+                                            },
+                                            label = {
+                                                Text(text = app.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                            },
+                                            leadingIcon = {
+                                                if (app.icon != null) {
+                                                    Image(
+                                                        painter = rememberDrawablePainter(app.icon),
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                }
+                                            },
+                                            trailingIcon = {
+                                                Icon(
+                                                    painter = painterResource(R.drawable.close_fill0),
+                                                    contentDescription = "Remove",
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                            }
+                                        )
+                                    }
+                                }
+                            } else {
+                                Text(
+                                    text = "No apps designated yet. Tap Choose Apps to select apps for monochrome focus.",
+                                    style = typography.bodySmall,
+                                    color = colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // --- SECTION 3: SECURITY & PROTECTION ---
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                TomatoSectionHeader(title = "SECURITY & PROTECTION")
+
+                TomatoSettingsItem(
+                    title = "Key Guard Protection",
+                    subtitle = if (isKeyGuardEnabled) "Guarded • Key required to modify or turn off" else "Unguarded • Free to modify",
+                    leadingIcon = R.drawable.key_fill0,
+                    iconContainerColor = if (isKeyGuardEnabled) colorScheme.primaryContainer else colorScheme.surfaceContainerHighest,
+                    iconTint = if (isKeyGuardEnabled) colorScheme.primary else colorScheme.onSurfaceVariant,
+                    trailingContent = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Switch(
+                                checked = isKeyGuardEnabled,
+                                onCheckedChange = { targetState ->
+                                    if (targetState) {
+                                        if (!hasSecurityKey) {
+                                            showSetKeyDialog = true
+                                        } else {
+                                            GrayscaleManager.setKeyGuardEnabled(context, true)
+                                            Toast.makeText(context, "Key guard protection enabled", Toast.LENGTH_SHORT).show()
+                                        }
+                                    } else {
+                                        performGuardedAction {
+                                            GrayscaleManager.setKeyGuardEnabled(context, false)
+                                            Toast.makeText(context, "Key guard protection disabled", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = colorScheme.onPrimary,
+                                    checkedTrackColor = colorScheme.primary
+                                )
+                            )
+                            Icon(
+                                painter = painterResource(R.drawable.arrow_forward_big),
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .graphicsLayer { rotationZ = keyGuardChevronRotation },
+                                tint = colorScheme.onSurfaceVariant
+                            )
+                        }
+                    },
+                    shape = if (isKeyGuardExpanded) {
+                        RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+                    } else {
+                        segmentedItemShape(0, 1)
+                    },
+                    onClick = { isKeyGuardExpanded = !isKeyGuardExpanded }
+                )
+
+                AnimatedVisibility(
+                    visible = isKeyGuardExpanded,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    Surface(
+                        color = colorScheme.surfaceContainerHigh,
+                        shape = RoundedCornerShape(bottomStart = 22.dp, bottomEnd = 22.dp, topStart = 4.dp, topEnd = 4.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 14.dp)
+                        ) {
+                            Text(
+                                text = "Prevents turning off Grayscale or modifying app lists without verifying a designated security key.",
+                                style = typography.bodySmall,
+                                color = colorScheme.onSurfaceVariant
+                            )
+
+                            Spacer(Modifier.height(14.dp))
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(colorScheme.surfaceContainerLowest)
+                                    .padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Grayscale Security Key",
+                                        style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = if (hasSecurityKey) "Configured (${GrayscaleManager.getKeyType(context).name})" else "Uses System Emergency Key",
+                                        style = typography.bodySmall,
+                                        color = colorScheme.onSurfaceVariant
+                                    )
+                                }
+
+                                Button(
+                                    onClick = { showSetKeyDialog = true },
+                                    shape = CircleShape,
+                                    colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary)
+                                ) {
+                                    Text(if (hasSecurityKey) "Change" else "Configure")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
         }
     }
 
-    // --- BOTTOM SHEET 1: SYSTEMWIDE EXCEPTIONS (WITH ON/OFF TOGGLE & OK PILL) ---
+    // --- BOTTOM SHEET 1: SYSTEMWIDE EXCEPTIONS ---
     if (showSystemwideSheet) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         var searchQuery by remember { mutableStateOf("") }
@@ -608,7 +766,6 @@ fun GrayscaleWindow(
                     .padding(horizontal = 24.dp)
                     .padding(bottom = 36.dp)
             ) {
-                // Header with Title, Switch, and OK Pill
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -636,7 +793,6 @@ fun GrayscaleWindow(
                             onCheckedChange = { tempEnabled = it }
                         )
 
-                        // OK Pill button at top corner to save
                         Surface(
                             onClick = {
                                 GrayscaleManager.setSystemwideExceptions(context, tempSelected)
@@ -750,7 +906,7 @@ fun GrayscaleWindow(
         }
     }
 
-    // --- BOTTOM SHEET 2: APP-SPECIFIC GRAYSCALE (WITH ON/OFF TOGGLE & OK PILL) ---
+    // --- BOTTOM SHEET 2: APP-SPECIFIC GRAYSCALE ---
     if (showAppSpecificSheet) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         var searchQuery by remember { mutableStateOf("") }
@@ -775,7 +931,6 @@ fun GrayscaleWindow(
                     .padding(horizontal = 24.dp)
                     .padding(bottom = 36.dp)
             ) {
-                // Header with Title, Switch, and OK Pill
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -803,7 +958,6 @@ fun GrayscaleWindow(
                             onCheckedChange = { tempEnabled = it }
                         )
 
-                        // OK Pill button at top corner to save
                         Surface(
                             onClick = {
                                 GrayscaleManager.setAppSpecificApps(context, tempSelected)

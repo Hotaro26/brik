@@ -37,6 +37,8 @@ object GrayscaleManager {
     private val _hasSecurityKey = MutableStateFlow(false)
     val hasSecurityKey: StateFlow<Boolean> = _hasSecurityKey.asStateFlow()
 
+    private var lastForegroundPackage: String? = null
+
     fun init(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         _isSystemwideEnabled.value = prefs.getBoolean(KEY_SYSTEMWIDE_ENABLED, false)
@@ -48,35 +50,62 @@ object GrayscaleManager {
         val hash = prefs.getString(KEY_SECRET_HASH, null)
         _hasSecurityKey.value = !hash.isNullOrBlank() || EmergencyManager.hasKey(context) || ZenManager.hasKey(context)
 
-        // Sync initial state if systemwide is enabled
-        if (_isSystemwideEnabled.value) {
-            applyGrayscale(context, true)
+        // Sync initial state
+        evaluateAndApplyGrayscale(context)
+    }
+
+    fun onForegroundAppChanged(context: Context, packageName: String) {
+        lastForegroundPackage = packageName
+        evaluateAndApplyGrayscale(context, packageName)
+    }
+
+    fun evaluateAndApplyGrayscale(context: Context, currentPackage: String? = lastForegroundPackage): Boolean {
+        val shouldBeGrayscale = when {
+            _isSystemwideEnabled.value -> {
+                if (currentPackage != null && _systemwideExceptions.value.contains(currentPackage)) {
+                    false
+                } else {
+                    true
+                }
+            }
+            _isAppSpecificEnabled.value -> {
+                if (currentPackage != null && _appSpecificApps.value.contains(currentPackage)) {
+                    true
+                } else {
+                    false
+                }
+            }
+            else -> false
         }
+        return applyGrayscale(context, shouldBeGrayscale)
     }
 
     fun setSystemwideEnabled(context: Context, enabled: Boolean): Boolean {
         _isSystemwideEnabled.value = enabled
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putBoolean(KEY_SYSTEMWIDE_ENABLED, enabled).apply()
-        return applyGrayscale(context, enabled)
+        return evaluateAndApplyGrayscale(context)
     }
 
     fun setSystemwideExceptions(context: Context, packages: Set<String>) {
         _systemwideExceptions.value = packages
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putStringSet(KEY_SYSTEMWIDE_EXCEPTIONS, packages).apply()
+        evaluateAndApplyGrayscale(context)
     }
 
     fun setAppSpecificEnabled(context: Context, enabled: Boolean) {
         _isAppSpecificEnabled.value = enabled
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putBoolean(KEY_APP_SPECIFIC_ENABLED, enabled).apply()
+        evaluateAndApplyGrayscale(context)
     }
 
     fun setAppSpecificApps(context: Context, packages: Set<String>) {
         _appSpecificApps.value = packages
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putStringSet(KEY_APP_SPECIFIC_APPS, packages).apply()
+        evaluateAndApplyGrayscale(context)
     }
 
     fun setKeyGuardEnabled(context: Context, enabled: Boolean) {

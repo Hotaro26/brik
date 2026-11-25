@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Brik</string>
+    <string name="accessibility_service_description">Brik Accessibility Service monitors foreground apps to apply monochrome Grayscale and enforce focus rules on target apps.</string>
 </resources>

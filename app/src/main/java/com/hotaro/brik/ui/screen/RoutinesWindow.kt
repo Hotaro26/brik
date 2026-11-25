@@ -4,10 +4,16 @@ import android.app.Activity
 import android.widget.Toast
 import androidx.activity.BackEventCompat
 import androidx.activity.compose.PredictiveBackHandler
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -93,6 +99,9 @@ import com.hotaro.brik.data.model.TimeBlockType
 import com.hotaro.brik.policy.DnsManager
 import com.hotaro.brik.ui.component.QrScannerView
 import com.hotaro.brik.ui.component.RoundedPullRefreshPage
+import com.hotaro.brik.ui.component.TomatoSectionHeader
+import com.hotaro.brik.ui.component.TomatoSettingsItem
+import com.hotaro.brik.ui.component.segmentedItemShape
 import com.hotaro.brik.ui.viewmodel.TimeBlockViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -154,6 +163,7 @@ fun RoutinesWindow(
     // Toggle / Delete verification dialog states
     var routineToToggle by remember { mutableStateOf<AutomatedRoutine?>(null) }
     var routineToDelete by remember { mutableStateOf<AutomatedRoutine?>(null) }
+    var expandedRoutineId by remember { mutableStateOf<String?>(null) }
 
     // Predictive Back gesture handler for RoutineDetailWindow
     PredictiveBackHandler(enabled = configuringRoutine != null) { progress: Flow<BackEventCompat> ->
@@ -335,19 +345,17 @@ fun RoutinesWindow(
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 20.dp),
-                    contentPadding = PaddingValues(top = 12.dp, bottom = 80.dp),
+                        .padding(horizontal = 16.dp),
+                    contentPadding = PaddingValues(top = 12.dp, bottom = 96.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     // Active Routine Banner
                     if (activeSession != null && activeSession!!.type == TimeBlockType.ROUTINE) {
                         val session = activeSession!!
                         item {
-                            ElevatedCard(
-                                shape = RoundedCornerShape(22.dp),
-                                colors = CardDefaults.elevatedCardColors(
-                                    containerColor = colorScheme.tertiaryContainer
-                                ),
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = colorScheme.tertiaryContainer,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
@@ -381,161 +389,105 @@ fun RoutinesWindow(
                         }
                     }
 
-                    // Explanatory Header Card
+                    // Explanatory Hero Card
                     item {
                         ElevatedCard(
-                            shape = RoundedCornerShape(24.dp),
+                            shape = RoundedCornerShape(22.dp),
                             colors = CardDefaults.elevatedCardColors(
                                 containerColor = colorScheme.surfaceContainerHigh
                             ),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Column(modifier = Modifier.padding(20.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Surface(
-                                        shape = RoundedCornerShape(12.dp),
-                                        color = colorScheme.primaryContainer,
-                                        modifier = Modifier.size(40.dp)
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                painter = painterResource(R.drawable.schedule_fill0),
-                                                contentDescription = null,
-                                                tint = colorScheme.primary,
-                                                modifier = Modifier.size(22.dp)
-                                            )
-                                        }
-                                    }
-                                    Spacer(Modifier.width(14.dp))
-                                    Column {
-                                        Text(
-                                            text = "Daily Automated Routines",
-                                            style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                            color = colorScheme.onSurface
-                                        )
-                                        Text(
-                                            text = "Enforces strict time blocks automatically",
-                                            style = typography.bodySmall,
-                                            color = colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-
-                                Spacer(Modifier.height(14.dp))
-
-                                Text(
-                                    text = "Routines automatically suspend assigned bags and enforce DNS filtering during specified hours and days. Disabling or modifying a routine requires unlocking with its assigned protection key.",
-                                    style = typography.bodySmall,
-                                    color = colorScheme.onSurfaceVariant,
-                                    lineHeight = 18.sp
-                                )
-                            }
-                        }
-                    }
-
-                    // Wind Down Routine Card
-                    item {
-                        ElevatedCard(
-                            shape = RoundedCornerShape(24.dp),
-                            colors = CardDefaults.elevatedCardColors(
-                                containerColor = if (isWindDownActive) colorScheme.primaryContainer.copy(alpha = 0.45f) else colorScheme.surfaceContainerHigh
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { openWindDownWindow() }
-                        ) {
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(20.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                modifier = Modifier.padding(20.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(
-                                    modifier = Modifier.weight(1f),
-                                    verticalAlignment = Alignment.CenterVertically
+                                Surface(
+                                    shape = CircleShape,
+                                    color = colorScheme.primaryContainer,
+                                    modifier = Modifier.size(50.dp)
                                 ) {
-                                    Surface(
-                                        shape = RoundedCornerShape(14.dp),
-                                        color = if (isWindDownActive) colorScheme.primary else colorScheme.primaryContainer,
-                                        modifier = Modifier.size(46.dp)
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                painter = painterResource(R.drawable.dark_mode_fill0),
-                                                contentDescription = null,
-                                                tint = if (isWindDownActive) colorScheme.onPrimary else colorScheme.primary,
-                                                modifier = Modifier.size(24.dp)
-                                            )
-                                        }
-                                    }
-                                    Spacer(Modifier.width(14.dp))
-                                    Column {
-                                        Text(
-                                            text = "Wind Down Routine",
-                                            style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                            color = colorScheme.onSurface
-                                        )
-                                        Spacer(Modifier.height(2.dp))
-                                        Text(
-                                            text = if (isWindDownActive) {
-                                                "Active now • Bedtime lockdown engaged"
-                                            } else if (isWindDownEnabled) {
-                                                "Daily ${String.format(Locale.getDefault(), "%02d:%02d", windDownSleepH, windDownSleepM)} - ${String.format(Locale.getDefault(), "%02d:%02d", windDownWakeH, windDownWakeM)} • ${if (isWindDownNoApps) "Pure Rest" else "${windDownAllowedApps.size} apps"}"
-                                            } else {
-                                                "Off • Bedtime minimal kiosk lockdown"
-                                            },
-                                            style = typography.bodySmall,
-                                            color = if (isWindDownActive) colorScheme.primary else colorScheme.onSurfaceVariant
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.schedule_fill0),
+                                            contentDescription = null,
+                                            tint = colorScheme.primary,
+                                            modifier = Modifier.size(26.dp)
                                         )
                                     }
                                 }
-
-                                Spacer(Modifier.width(10.dp))
-
-                                Icon(
-                                    painter = painterResource(R.drawable.arrow_forward_big),
-                                    contentDescription = "Open Wind Down",
-                                    tint = colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                    modifier = Modifier.size(20.dp)
-                                )
+                                Spacer(Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Automated Schedules",
+                                        style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = colorScheme.onSurface
+                                    )
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        text = "Automated routines enforce strict distraction-free time blocks across your days without manual intervention.",
+                                        style = typography.bodySmall,
+                                        color = colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
                     }
 
-                    // Routines List Header
+                    // SECTION 1: BEDTIME & SCHEDULED REST
                     item {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Your Routines (${routines.size})",
-                                style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                color = colorScheme.onSurface
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            TomatoSectionHeader(title = "BEDTIME & SCHEDULED REST")
+
+                            TomatoSettingsItem(
+                                title = "Wind Down Routine",
+                                subtitle = if (isWindDownActive) {
+                                    "Active now • Bedtime lockdown engaged"
+                                } else if (isWindDownEnabled) {
+                                    "Daily ${String.format(Locale.getDefault(), "%02d:%02d", windDownSleepH, windDownSleepM)} - ${String.format(Locale.getDefault(), "%02d:%02d", windDownWakeH, windDownWakeM)} • ${if (isWindDownNoApps) "Pure Rest" else "${windDownAllowedApps.size} apps"}"
+                                } else {
+                                    "Off • Bedtime minimal kiosk lockdown"
+                                },
+                                leadingIcon = R.drawable.dark_mode_fill0,
+                                iconContainerColor = if (isWindDownActive) colorScheme.primaryContainer else colorScheme.secondaryContainer,
+                                iconTint = if (isWindDownActive) colorScheme.primary else colorScheme.onSecondaryContainer,
+                                trailingContent = {
+                                    Icon(
+                                        painter = painterResource(R.drawable.arrow_forward_big),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                        tint = colorScheme.onSurfaceVariant
+                                    )
+                                },
+                                shape = segmentedItemShape(0, 1),
+                                onClick = { openWindDownWindow() }
                             )
                         }
+                    }
+
+                    // SECTION 2: RECURRING ROUTINES
+                    item {
+                        TomatoSectionHeader(title = "RECURRING ROUTINES (${routines.size})")
                     }
 
                     if (routines.isEmpty()) {
                         item {
                             Surface(
                                 shape = RoundedCornerShape(20.dp),
-                                color = colorScheme.surfaceContainerLow,
+                                color = colorScheme.surfaceContainerHigh,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Column(
-                                    modifier = Modifier.padding(32.dp),
+                                    modifier = Modifier.padding(28.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                     Icon(
                                         painter = painterResource(R.drawable.schedule_fill0),
                                         contentDescription = null,
                                         tint = colorScheme.outline,
-                                        modifier = Modifier.size(44.dp)
+                                        modifier = Modifier.size(40.dp)
                                     )
-                                    Spacer(Modifier.height(12.dp))
+                                    Spacer(Modifier.height(10.dp))
                                     Text(
                                         text = "No Routines Created",
                                         style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
@@ -552,157 +504,168 @@ fun RoutinesWindow(
                         }
                     } else {
                         items(routines, key = { it.id }) { routine ->
+                            val index = routines.indexOf(routine)
                             val isCurrentlyActive = routine.isActiveNow || (activeSession?.id == routine.id)
-                            ElevatedCard(
-                                shape = RoundedCornerShape(20.dp),
-                                colors = CardDefaults.elevatedCardColors(
-                                    containerColor = if (isCurrentlyActive) colorScheme.primaryContainer.copy(alpha = 0.5f) else colorScheme.surfaceContainerHigh
-                                ),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { openDetailWindow(routine) }
-                            ) {
-                                Column(modifier = Modifier.padding(18.dp)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                            Surface(
-                                                shape = RoundedCornerShape(12.dp),
-                                                color = if (routine.isEnabled) colorScheme.primaryContainer else colorScheme.surfaceContainerHighest,
-                                                modifier = Modifier.size(44.dp)
-                                            ) {
-                                                Box(contentAlignment = Alignment.Center) {
-                                                    Icon(
-                                                        painter = painterResource(R.drawable.schedule_fill0),
-                                                        contentDescription = null,
-                                                        tint = if (routine.isEnabled) colorScheme.primary else colorScheme.onSurfaceVariant,
-                                                        modifier = Modifier.size(24.dp)
+                            val isExpanded = expandedRoutineId == routine.id
+                            val chevronRotation by animateFloatAsState(
+                                targetValue = if (isExpanded) 90f else 0f,
+                                label = "routineChevron_${routine.id}"
+                            )
+
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                TomatoSettingsItem(
+                                    title = routine.name,
+                                    subtitle = formatRoutineTime(routine.startHour, routine.startMinute, routine.endHour, routine.endMinute) + " • ${routine.daysOfWeek.size} days",
+                                    leadingIcon = R.drawable.schedule_fill0,
+                                    iconContainerColor = if (routine.isEnabled) colorScheme.primaryContainer else colorScheme.surfaceContainerHighest,
+                                    iconTint = if (routine.isEnabled) colorScheme.primary else colorScheme.onSurfaceVariant,
+                                    trailingContent = {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            if (isCurrentlyActive) {
+                                                Surface(
+                                                    shape = CircleShape,
+                                                    color = colorScheme.primary
+                                                ) {
+                                                    Text(
+                                                        text = "ACTIVE",
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = colorScheme.onPrimary,
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                                     )
                                                 }
                                             }
 
-                                            Spacer(Modifier.width(14.dp))
+                                            Switch(
+                                                checked = routine.isEnabled,
+                                                onCheckedChange = { routineToToggle = routine }
+                                            )
 
-                                            Column {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Text(
-                                                        text = routine.name,
-                                                        style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                                        color = colorScheme.onSurface
-                                                    )
-                                                    if (isCurrentlyActive) {
-                                                        Spacer(Modifier.width(8.dp))
-                                                        Surface(
-                                                            shape = CircleShape,
-                                                            color = colorScheme.primary,
-                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                        ) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.arrow_forward_big),
+                                                contentDescription = null,
+                                                modifier = Modifier
+                                                    .size(16.dp)
+                                                    .graphicsLayer { rotationZ = chevronRotation },
+                                                tint = colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    },
+                                    shape = if (isExpanded) {
+                                        RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+                                    } else {
+                                        segmentedItemShape(index, routines.size)
+                                    },
+                                    onClick = {
+                                        expandedRoutineId = if (isExpanded) null else routine.id
+                                    }
+                                )
+
+                                AnimatedVisibility(
+                                    visible = isExpanded,
+                                    enter = expandVertically() + fadeIn(),
+                                    exit = shrinkVertically() + fadeOut()
+                                ) {
+                                    Surface(
+                                        color = colorScheme.surfaceContainerHigh,
+                                        shape = RoundedCornerShape(bottomStart = 22.dp, bottomEnd = 22.dp, topStart = 4.dp, topEnd = 4.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 20.dp, vertical = 14.dp)
+                                        ) {
+                                            // Days of week indicator
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                val dayLetters = listOf("S", "M", "T", "W", "T", "F", "S")
+                                                (1..7).forEach { dayNum ->
+                                                    val isDayActive = routine.daysOfWeek.contains(dayNum)
+                                                    Surface(
+                                                        shape = CircleShape,
+                                                        color = if (isDayActive) colorScheme.primary else colorScheme.surfaceContainerLowest,
+                                                        modifier = Modifier.size(28.dp)
+                                                    ) {
+                                                        Box(contentAlignment = Alignment.Center) {
                                                             Text(
-                                                                text = "ACTIVE",
-                                                                fontSize = 9.sp,
+                                                                text = dayLetters[dayNum - 1],
+                                                                fontSize = 11.sp,
                                                                 fontWeight = FontWeight.Bold,
-                                                                color = colorScheme.onPrimary,
-                                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                                color = if (isDayActive) colorScheme.onPrimary else colorScheme.outline
                                                             )
                                                         }
                                                     }
                                                 }
+                                            }
+
+                                            Spacer(Modifier.height(12.dp))
+
+                                            // Target bags summary
+                                            val targetBagsNames = bags.filter { routine.targetBagIds.contains(it.id) }.map { it.name }
+                                            val targetsText = when {
+                                                targetBagsNames.isNotEmpty() && routine.targetPackageNames.isNotEmpty() ->
+                                                    "${targetBagsNames.joinToString()} + ${routine.targetPackageNames.size} apps"
+                                                targetBagsNames.isNotEmpty() -> targetBagsNames.joinToString(", ")
+                                                routine.targetPackageNames.isNotEmpty() -> "${routine.targetPackageNames.size} apps"
+                                                else -> "No bags or apps assigned"
+                                            }
+                                            Text(
+                                                text = "Blocks: $targetsText",
+                                                style = typography.bodySmall,
+                                                color = colorScheme.onSurfaceVariant
+                                            )
+
+                                            if (routine.enableDnsBlocking) {
+                                                Spacer(Modifier.height(4.dp))
                                                 Text(
-                                                    text = formatRoutineTime(routine.startHour, routine.startMinute, routine.endHour, routine.endMinute),
-                                                    style = typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
-                                                    color = colorScheme.primary
+                                                    text = "DNS Filter: ${routine.dnsHost}",
+                                                    style = typography.bodySmall,
+                                                    color = colorScheme.secondary
                                                 )
                                             }
-                                        }
 
-                                        // Switch to toggle with Key verification
-                                        Switch(
-                                            checked = routine.isEnabled,
-                                            onCheckedChange = { routineToToggle = routine }
-                                        )
-                                    }
+                                            Spacer(Modifier.height(14.dp))
 
-                                    Spacer(Modifier.height(12.dp))
-
-                                    // Days of week indicator
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        val dayLetters = listOf("S", "M", "T", "W", "T", "F", "S")
-                                        (1..7).forEach { dayNum ->
-                                            val isDayActive = routine.daysOfWeek.contains(dayNum)
-                                            Surface(
-                                                shape = CircleShape,
-                                                color = if (isDayActive) colorScheme.primary else colorScheme.surfaceContainerLowest,
-                                                modifier = Modifier.size(26.dp)
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                                             ) {
-                                                Box(contentAlignment = Alignment.Center) {
-                                                    Text(
-                                                        text = dayLetters[dayNum - 1],
-                                                        fontSize = 11.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = if (isDayActive) colorScheme.onPrimary else colorScheme.outline
+                                                Button(
+                                                    onClick = { openDetailWindow(routine) },
+                                                    shape = RoundedCornerShape(12.dp),
+                                                    modifier = Modifier.weight(1f)
+                                                ) {
+                                                    Icon(
+                                                        painter = painterResource(R.drawable.tune_fill0),
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(16.dp)
                                                     )
+                                                    Spacer(Modifier.width(6.dp))
+                                                    Text("Configure", fontWeight = FontWeight.Bold)
+                                                }
+
+                                                OutlinedButton(
+                                                    onClick = { routineToDelete = routine },
+                                                    shape = RoundedCornerShape(12.dp),
+                                                    colors = ButtonDefaults.outlinedButtonColors(
+                                                        contentColor = colorScheme.error
+                                                    )
+                                                ) {
+                                                    Icon(
+                                                        painter = painterResource(R.drawable.delete_fill0),
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                    Spacer(Modifier.width(4.dp))
+                                                    Text("Delete")
                                                 }
                                             }
-                                        }
-                                    }
-
-                                    Spacer(Modifier.height(10.dp))
-
-                                    // Target bags summary
-                                    val targetBagsNames = bags.filter { routine.targetBagIds.contains(it.id) }.map { it.name }
-                                    val targetsText = when {
-                                        targetBagsNames.isNotEmpty() && routine.targetPackageNames.isNotEmpty() ->
-                                            "${targetBagsNames.joinToString()} + ${routine.targetPackageNames.size} apps"
-                                        targetBagsNames.isNotEmpty() -> targetBagsNames.joinToString(", ")
-                                        routine.targetPackageNames.isNotEmpty() -> "${routine.targetPackageNames.size} apps"
-                                        else -> "No bags or apps assigned"
-                                    }
-                                    Text(
-                                        text = "Blocks: $targetsText",
-                                        style = typography.bodySmall,
-                                        color = colorScheme.onSurfaceVariant,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-
-                                    if (routine.enableDnsBlocking) {
-                                        Text(
-                                            text = "DNS Filter: ${routine.dnsHost}",
-                                            style = typography.bodySmall,
-                                            color = colorScheme.secondary
-                                        )
-                                    }
-
-                                    Spacer(Modifier.height(8.dp))
-
-                                    // Actions Row (Edit & Delete)
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.End,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        IconButton(onClick = { openDetailWindow(routine) }) {
-                                            Icon(
-                                                painter = painterResource(R.drawable.tune_fill0),
-                                                contentDescription = "Edit Configuration",
-                                                tint = colorScheme.primary,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
-
-                                        IconButton(onClick = { routineToDelete = routine }) {
-                                            Icon(
-                                                painter = painterResource(R.drawable.delete_fill0),
-                                                contentDescription = "Delete",
-                                                tint = colorScheme.error,
-                                                modifier = Modifier.size(20.dp)
-                                            )
                                         }
                                     }
                                 }

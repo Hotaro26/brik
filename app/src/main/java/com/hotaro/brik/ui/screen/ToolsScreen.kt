@@ -56,6 +56,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -110,6 +111,14 @@ fun ToolsScreen(
 
     var showDnsSheet by remember { mutableStateOf(false) }
     var showStealthSheet by remember { mutableStateOf(false) }
+    var showToolsCustomizationSheet by remember { mutableStateOf(false) }
+
+    val pullTimestamps = remember { mutableStateListOf<Long>() }
+
+    val toolsPrefs = remember { context.getSharedPreferences("brik_tools_prefs", Context.MODE_PRIVATE) }
+    var hiddenCardIds by remember {
+        mutableStateOf(toolsPrefs.getStringSet("hidden_tool_cards", emptySet())?.toSet() ?: emptySet())
+    }
 
     var dnsStatus by remember { mutableStateOf(DnsManager.getCurrentDns(context)) }
     var isAppHidden by remember { mutableStateOf(StealthUtils.isAppHidden(context)) }
@@ -129,6 +138,14 @@ fun ToolsScreen(
         isRefreshing = isRefreshing,
         onRefresh = {
             coroutineScope.launch {
+                val now = System.currentTimeMillis()
+                pullTimestamps.removeAll { now - it > 5000L }
+                pullTimestamps.add(now)
+                if (pullTimestamps.size >= 3) {
+                    pullTimestamps.clear()
+                    showToolsCustomizationSheet = true
+                }
+
                 isRefreshing = true
                 viewModel.loadInstalledApps()
                 dnsStatus = DnsManager.getCurrentDns(context)
@@ -167,216 +184,239 @@ fun ToolsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // --- SECTION 1: APPLICATIONS & BAGS ---
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                TomatoSectionHeader(title = "APPLICATIONS & BAGS")
+            val section1Cards = listOf("app_manager", "bags").filter { !hiddenCardIds.contains(it) }
+            if (section1Cards.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    TomatoSectionHeader(title = "APPLICATIONS & BAGS")
 
-                // 1. App Manager
-                val visibleAppsCount = if (showSystemApps) installedApps.size else installedApps.count { !it.isSystemApp }
-                TomatoSettingsItem(
-                    title = "App Manager",
-                    subtitle = if (installedApps.isNotEmpty()) "$visibleAppsCount apps available" else "Manage and inspect applications",
-                    leadingIcon = R.drawable.apps_fill0,
-                    iconContainerColor = colorScheme.primaryContainer,
-                    iconTint = colorScheme.primary,
-                    trailingContent = {
-                        Icon(
-                            painter = painterResource(R.drawable.arrow_forward_big),
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = colorScheme.onSurfaceVariant
-                        )
-                    },
-                    shape = segmentedItemShape(0, 2),
-                    onClick = onNavigateToAppManager
-                )
-
-                // 2. Bags
-                TomatoSettingsItem(
-                    title = "Bags",
-                    subtitle = if (bags.isNotEmpty()) "${bags.size} bags configured (${activeLocks.size} locked)" else "Pack apps into custom bundles",
-                    leadingIcon = R.drawable.backpack_fill0,
-                    iconContainerColor = colorScheme.secondaryContainer,
-                    iconTint = colorScheme.onSecondaryContainer,
-                    trailingContent = {
-                        Icon(
-                            painter = painterResource(R.drawable.arrow_forward_big),
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = colorScheme.onSurfaceVariant
-                        )
-                    },
-                    shape = segmentedItemShape(1, 2),
-                    onClick = onNavigateToBags
-                )
+                    section1Cards.forEachIndexed { index, cardId ->
+                        when (cardId) {
+                            "app_manager" -> {
+                                val visibleAppsCount = if (showSystemApps) installedApps.size else installedApps.count { !it.isSystemApp }
+                                TomatoSettingsItem(
+                                    title = "App Manager",
+                                    subtitle = if (installedApps.isNotEmpty()) "$visibleAppsCount apps available" else "Manage and inspect applications",
+                                    leadingIcon = R.drawable.apps_fill0,
+                                    iconContainerColor = colorScheme.primaryContainer,
+                                    iconTint = colorScheme.primary,
+                                    trailingContent = {
+                                        Icon(
+                                            painter = painterResource(R.drawable.arrow_forward_big),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp),
+                                            tint = colorScheme.onSurfaceVariant
+                                        )
+                                    },
+                                    shape = segmentedItemShape(index, section1Cards.size),
+                                    onClick = onNavigateToAppManager
+                                )
+                            }
+                            "bags" -> {
+                                TomatoSettingsItem(
+                                    title = "Bags",
+                                    subtitle = if (bags.isNotEmpty()) "${bags.size} bags configured (${activeLocks.size} locked)" else "Pack apps into custom bundles",
+                                    leadingIcon = R.drawable.backpack_fill0,
+                                    iconContainerColor = colorScheme.secondaryContainer,
+                                    iconTint = colorScheme.onSecondaryContainer,
+                                    trailingContent = {
+                                        Icon(
+                                            painter = painterResource(R.drawable.arrow_forward_big),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp),
+                                            tint = colorScheme.onSurfaceVariant
+                                        )
+                                    },
+                                    shape = segmentedItemShape(index, section1Cards.size),
+                                    onClick = onNavigateToBags
+                                )
+                            }
+                        }
+                    }
+                }
             }
 
             // --- SECTION 2: TIME BLOCK ---
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                TomatoSectionHeader(title = "TIME BLOCK")
+            val section2Cards = listOf("routines", "modes", "zen", "grayscale").filter { !hiddenCardIds.contains(it) }
+            if (section2Cards.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    TomatoSectionHeader(title = "TIME BLOCK")
 
-                // 1. Automated Routines
-                TomatoSettingsItem(
-                    title = "Automated Routines",
-                    subtitle = "Scheduled locks, intervals & smart triggers",
-                    leadingIcon = R.drawable.schedule_fill0,
-                    iconContainerColor = colorScheme.tertiaryContainer,
-                    iconTint = colorScheme.onTertiaryContainer,
-                    trailingContent = {
-                        Icon(
-                            painter = painterResource(R.drawable.arrow_forward_big),
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = colorScheme.onSurfaceVariant
-                        )
-                    },
-                    shape = segmentedItemShape(0, 4),
-                    onClick = onNavigateToRoutines
-                )
-
-                // 2. Focus Modes
-                TomatoSettingsItem(
-                    title = "Focus Modes",
-                    subtitle = "Deep work, study & sleep restriction profiles",
-                    leadingIcon = R.drawable.mode_fill0,
-                    iconContainerColor = colorScheme.primaryContainer,
-                    iconTint = colorScheme.onPrimaryContainer,
-                    trailingContent = {
-                        Icon(
-                            painter = painterResource(R.drawable.arrow_forward_big),
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = colorScheme.onSurfaceVariant
-                        )
-                    },
-                    shape = segmentedItemShape(1, 4),
-                    onClick = onNavigateToModes
-                )
-
-                // 3. Zen
-                TomatoSettingsItem(
-                    title = "Zen",
-                    subtitle = "lockdown and deep digital detox",
-                    leadingIcon = R.drawable.self_improvement_fill0,
-                    iconContainerColor = colorScheme.secondaryContainer,
-                    iconTint = colorScheme.onSecondaryContainer,
-                    trailingContent = {
-                        Icon(
-                            painter = painterResource(R.drawable.arrow_forward_big),
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = colorScheme.onSurfaceVariant
-                        )
-                    },
-                    shape = segmentedItemShape(2, 4),
-                    onClick = onNavigateToZen
-                )
-
-                // 4. Grayscale
-                TomatoSettingsItem(
-                    title = "Grayscale",
-                    subtitle = "Monochrome screen filter & wind down display",
-                    leadingIcon = R.drawable.contrast_fill0,
-                    iconContainerColor = colorScheme.tertiaryContainer,
-                    iconTint = colorScheme.onTertiaryContainer,
-                    trailingContent = {
-                        Icon(
-                            painter = painterResource(R.drawable.arrow_forward_big),
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = colorScheme.onSurfaceVariant
-                        )
-                    },
-                    shape = segmentedItemShape(3, 4),
-                    onClick = onNavigateToGrayscale
-                )
+                    section2Cards.forEachIndexed { index, cardId ->
+                        when (cardId) {
+                            "routines" -> {
+                                TomatoSettingsItem(
+                                    title = "Automated Routines",
+                                    subtitle = "Scheduled locks, intervals & smart triggers",
+                                    leadingIcon = R.drawable.schedule_fill0,
+                                    iconContainerColor = colorScheme.tertiaryContainer,
+                                    iconTint = colorScheme.onTertiaryContainer,
+                                    trailingContent = {
+                                        Icon(
+                                            painter = painterResource(R.drawable.arrow_forward_big),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp),
+                                            tint = colorScheme.onSurfaceVariant
+                                        )
+                                    },
+                                    shape = segmentedItemShape(index, section2Cards.size),
+                                    onClick = onNavigateToRoutines
+                                )
+                            }
+                            "modes" -> {
+                                TomatoSettingsItem(
+                                    title = "Focus Modes",
+                                    subtitle = "Deep work, study & sleep restriction profiles",
+                                    leadingIcon = R.drawable.mode_fill0,
+                                    iconContainerColor = colorScheme.primaryContainer,
+                                    iconTint = colorScheme.onPrimaryContainer,
+                                    trailingContent = {
+                                        Icon(
+                                            painter = painterResource(R.drawable.arrow_forward_big),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp),
+                                            tint = colorScheme.onSurfaceVariant
+                                        )
+                                    },
+                                    shape = segmentedItemShape(index, section2Cards.size),
+                                    onClick = onNavigateToModes
+                                )
+                            }
+                            "zen" -> {
+                                TomatoSettingsItem(
+                                    title = "Zen",
+                                    subtitle = "lockdown and deep digital detox",
+                                    leadingIcon = R.drawable.self_improvement_fill0,
+                                    iconContainerColor = colorScheme.secondaryContainer,
+                                    iconTint = colorScheme.onSecondaryContainer,
+                                    trailingContent = {
+                                        Icon(
+                                            painter = painterResource(R.drawable.arrow_forward_big),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp),
+                                            tint = colorScheme.onSurfaceVariant
+                                        )
+                                    },
+                                    shape = segmentedItemShape(index, section2Cards.size),
+                                    onClick = onNavigateToZen
+                                )
+                            }
+                            "grayscale" -> {
+                                TomatoSettingsItem(
+                                    title = "Grayscale",
+                                    subtitle = "Monochrome screen filter & wind down display",
+                                    leadingIcon = R.drawable.contrast_fill0,
+                                    iconContainerColor = colorScheme.tertiaryContainer,
+                                    iconTint = colorScheme.onTertiaryContainer,
+                                    trailingContent = {
+                                        Icon(
+                                            painter = painterResource(R.drawable.arrow_forward_big),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp),
+                                            tint = colorScheme.onSurfaceVariant
+                                        )
+                                    },
+                                    shape = segmentedItemShape(index, section2Cards.size),
+                                    onClick = onNavigateToGrayscale
+                                )
+                            }
+                        }
+                    }
+                }
             }
 
-            // --- SECTION 4: PRIVACY & NETWORK ---
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                TomatoSectionHeader(title = "PRIVACY & NETWORK")
+            // --- SECTION 3: PRIVACY & NETWORK ---
+            val section3Cards = listOf("private_dns", "stealth").filter { !hiddenCardIds.contains(it) }
+            if (section3Cards.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    TomatoSectionHeader(title = "PRIVACY & NETWORK")
 
-                val dnsSub = when (dnsStatus.mode) {
-                    DnsMode.OFF -> "Disabled (Standard ISP DNS)"
-                    DnsMode.OPPORTUNISTIC -> "Automatic (Opportunistic)"
-                    DnsMode.SPECIFIED_HOST -> dnsStatus.host ?: "Custom Host"
-                }
-
-                // 1. Private DNS (DoT)
-                TomatoSettingsItem(
-                    title = "Private DNS (DoT)",
-                    subtitle = dnsSub,
-                    leadingIcon = R.drawable.dns_fill0,
-                    iconContainerColor = colorScheme.tertiaryContainer,
-                    iconTint = colorScheme.onTertiaryContainer,
-                    trailingContent = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                shape = CircleShape,
-                                color = if (dnsStatus.mode == DnsMode.SPECIFIED_HOST) colorScheme.primaryContainer else if (dnsStatus.mode == DnsMode.OPPORTUNISTIC) colorScheme.secondaryContainer else colorScheme.surfaceContainerLowest
-                            ) {
-                                Text(
-                                    text = when (dnsStatus.mode) {
-                                        DnsMode.OFF -> "Off"
-                                        DnsMode.OPPORTUNISTIC -> "Auto"
-                                        DnsMode.SPECIFIED_HOST -> "Custom"
+                    section3Cards.forEachIndexed { index, cardId ->
+                        when (cardId) {
+                            "private_dns" -> {
+                                val dnsSub = when (dnsStatus.mode) {
+                                    DnsMode.OFF -> "Disabled (Standard ISP DNS)"
+                                    DnsMode.OPPORTUNISTIC -> "Automatic (Opportunistic)"
+                                    DnsMode.SPECIFIED_HOST -> dnsStatus.host ?: "Custom Host"
+                                }
+                                TomatoSettingsItem(
+                                    title = "Private DNS (DoT)",
+                                    subtitle = dnsSub,
+                                    leadingIcon = R.drawable.dns_fill0,
+                                    iconContainerColor = colorScheme.tertiaryContainer,
+                                    iconTint = colorScheme.onTertiaryContainer,
+                                    trailingContent = {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = if (dnsStatus.mode == DnsMode.SPECIFIED_HOST) colorScheme.primaryContainer else if (dnsStatus.mode == DnsMode.OPPORTUNISTIC) colorScheme.secondaryContainer else colorScheme.surfaceContainerLowest
+                                            ) {
+                                                Text(
+                                                    text = when (dnsStatus.mode) {
+                                                        DnsMode.OFF -> "Off"
+                                                        DnsMode.OPPORTUNISTIC -> "Auto"
+                                                        DnsMode.SPECIFIED_HOST -> "Custom"
+                                                    },
+                                                    style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                    color = if (dnsStatus.mode == DnsMode.SPECIFIED_HOST) colorScheme.onPrimaryContainer else if (dnsStatus.mode == DnsMode.OPPORTUNISTIC) colorScheme.onSecondaryContainer else colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                                )
+                                            }
+                                            Spacer(Modifier.width(8.dp))
+                                            Icon(
+                                                painter = painterResource(R.drawable.arrow_forward_big),
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp),
+                                                tint = colorScheme.onSurfaceVariant
+                                            )
+                                        }
                                     },
-                                    style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = if (dnsStatus.mode == DnsMode.SPECIFIED_HOST) colorScheme.onPrimaryContainer else if (dnsStatus.mode == DnsMode.OPPORTUNISTIC) colorScheme.onSecondaryContainer else colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                    shape = segmentedItemShape(index, section3Cards.size),
+                                    onClick = {
+                                        dnsStatus = DnsManager.getCurrentDns(context)
+                                        showDnsSheet = true
+                                    }
                                 )
                             }
-                            Spacer(Modifier.width(8.dp))
-                            Icon(
-                                painter = painterResource(R.drawable.arrow_forward_big),
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = colorScheme.onSurfaceVariant
-                            )
-                        }
-                    },
-                    shape = segmentedItemShape(0, 2),
-                    onClick = {
-                        dnsStatus = DnsManager.getCurrentDns(context)
-                        showDnsSheet = true
-                    }
-                )
-
-                // 2. Stealth Mode
-                TomatoSettingsItem(
-                    title = "Stealth Mode (App Concealment)",
-                    subtitle = if (isAppHidden) "Hidden • Dial *#*#$dialerCode#*#*" else "Visible • Dial code: *#*#$dialerCode#*#*",
-                    leadingIcon = R.drawable.stealth_fill0,
-                    iconContainerColor = if (isAppHidden) colorScheme.errorContainer else colorScheme.surfaceContainerLowest,
-                    iconTint = if (isAppHidden) colorScheme.onErrorContainer else colorScheme.primary,
-                    trailingContent = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                shape = CircleShape,
-                                color = if (isAppHidden) colorScheme.errorContainer else colorScheme.surfaceContainerHighest
-                            ) {
-                                Text(
-                                    text = if (isAppHidden) "Hidden" else "Visible",
-                                    style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = if (isAppHidden) colorScheme.onErrorContainer else colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            "stealth" -> {
+                                TomatoSettingsItem(
+                                    title = "Stealth Mode (App Concealment)",
+                                    subtitle = if (isAppHidden) "Hidden • Dial *#*#$dialerCode#*#*" else "Visible • Dial code: *#*#$dialerCode#*#*",
+                                    leadingIcon = R.drawable.stealth_fill0,
+                                    iconContainerColor = if (isAppHidden) colorScheme.errorContainer else colorScheme.surfaceContainerLowest,
+                                    iconTint = if (isAppHidden) colorScheme.onErrorContainer else colorScheme.primary,
+                                    trailingContent = {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = if (isAppHidden) colorScheme.errorContainer else colorScheme.surfaceContainerHighest
+                                            ) {
+                                                Text(
+                                                    text = if (isAppHidden) "Hidden" else "Visible",
+                                                    style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                    color = if (isAppHidden) colorScheme.onErrorContainer else colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                                )
+                                            }
+                                            Spacer(Modifier.width(8.dp))
+                                            Icon(
+                                                painter = painterResource(R.drawable.arrow_forward_big),
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp),
+                                                tint = colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    },
+                                    shape = segmentedItemShape(index, section3Cards.size),
+                                    onClick = {
+                                        isAppHidden = StealthUtils.isAppHidden(context)
+                                        dialerCode = StealthUtils.getDialerCode(context)
+                                        showStealthSheet = true
+                                    }
                                 )
                             }
-                            Spacer(Modifier.width(8.dp))
-                            Icon(
-                                painter = painterResource(R.drawable.arrow_forward_big),
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = colorScheme.onSurfaceVariant
-                            )
                         }
-                    },
-                    shape = segmentedItemShape(1, 2),
-                    onClick = {
-                        isAppHidden = StealthUtils.isAppHidden(context)
-                        dialerCode = StealthUtils.getDialerCode(context)
-                        showStealthSheet = true
                     }
-                )
+                }
             }
 
             Spacer(Modifier.height(130.dp))
@@ -735,6 +775,134 @@ fun ToolsScreen(
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Text("Test in Dialer")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // --- Tools Card Customization Bottom Sheet ---
+    if (showToolsCustomizationSheet) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        val allCards = listOf(
+            Triple("app_manager", "App Manager", R.drawable.apps_fill0),
+            Triple("bags", "Bags", R.drawable.backpack_fill0),
+            Triple("routines", "Automated Routines", R.drawable.schedule_fill0),
+            Triple("modes", "Focus Modes", R.drawable.mode_fill0),
+            Triple("zen", "Zen Mode", R.drawable.self_improvement_fill0),
+            Triple("grayscale", "Grayscale", R.drawable.contrast_fill0),
+            Triple("private_dns", "Private DNS", R.drawable.dns_fill0),
+            Triple("stealth", "Stealth Mode", R.drawable.stealth_fill0)
+        )
+
+        ModalBottomSheet(
+            onDismissRequest = { showToolsCustomizationSheet = false },
+            sheetState = sheetState,
+            containerColor = colorScheme.surfaceContainerHigh,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 36.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Customize Tools",
+                            style = typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                            color = colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Choose which cards appear on your Tools screen",
+                            style = typography.bodySmall,
+                            color = colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Surface(
+                        onClick = {
+                            showToolsCustomizationSheet = false
+                        },
+                        shape = CircleShape,
+                        color = colorScheme.primary
+                    ) {
+                        Text(
+                            text = "Done",
+                            fontWeight = FontWeight.Bold,
+                            color = colorScheme.onPrimary,
+                            modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp)
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(18.dp))
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                ) {
+                    allCards.forEachIndexed { index, (cardId, label, iconRes) ->
+                        val isVisible = !hiddenCardIds.contains(cardId)
+                        Surface(
+                            shape = segmentedItemShape(index, allCards.size),
+                            color = colorScheme.surfaceContainerLowest,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = if (isVisible) colorScheme.primaryContainer else colorScheme.surfaceContainerHighest,
+                                        modifier = Modifier.size(38.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                painter = painterResource(iconRes),
+                                                contentDescription = null,
+                                                tint = if (isVisible) colorScheme.primary else colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+                                    Spacer(Modifier.width(14.dp))
+                                    Text(
+                                        text = label,
+                                        style = typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                        color = colorScheme.onSurface
+                                    )
+                                }
+
+                                Switch(
+                                    checked = isVisible,
+                                    onCheckedChange = { checked ->
+                                        val newSet = if (checked) {
+                                            hiddenCardIds - cardId
+                                        } else {
+                                            hiddenCardIds + cardId
+                                        }
+                                        hiddenCardIds = newSet
+                                        toolsPrefs.edit().putStringSet("hidden_tool_cards", newSet).apply()
+                                    }
+                                )
                             }
                         }
                     }
