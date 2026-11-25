@@ -75,7 +75,7 @@ class ToolsViewModel(application: Application) : AndroidViewModel(application) {
         for (info in resolveInfos) {
             val pkg = info.activityInfo.packageName
             if (pkg != getApplication<Application>().packageName && seenPackages.add(pkg)) {
-                val label = info.loadLabel(pm)?.toString() ?: pkg
+                val label = info.loadLabel(pm).toString().ifBlank { pkg }
                 val icon = try {
                     info.loadIcon(pm)
                 } catch (e: Exception) {
@@ -147,6 +147,10 @@ class ToolsViewModel(application: Application) : AndroidViewModel(application) {
         bagRepository.saveBag(trimmed, pkgs)
         _selectedPackages.value = emptySet()
         return true
+    }
+
+    fun updateBag(bag: AppBag) {
+        bagRepository.updateBag(bag)
     }
 
     fun deleteBag(bagId: String) {

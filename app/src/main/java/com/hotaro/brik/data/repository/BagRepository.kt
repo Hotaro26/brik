@@ -46,6 +46,17 @@ class BagRepository(context: Context) {
         return newBag
     }
 
+    fun updateBag(bag: AppBag): AppBag {
+        val existingIndex = _bags.value.indexOfFirst { it.id == bag.id }
+        val updated = if (existingIndex >= 0) {
+            _bags.value.toMutableList().apply { set(existingIndex, bag) }
+        } else {
+            _bags.value + bag
+        }
+        persistBags(updated)
+        return bag
+    }
+
     fun deleteBag(bagId: String) {
         val updated = _bags.value.filterNot { it.id == bagId }
         persistBags(updated)
