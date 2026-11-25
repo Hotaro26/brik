@@ -31,6 +31,10 @@ class KeyViewModel(application: Application) : AndroidViewModel(application) {
         repository.deleteSavedKey(id)
     }
 
+    fun updateSavedKey(id: String, name: String, description: String) {
+        repository.updateSavedKey(id, name, description)
+    }
+
     fun isBagLocked(bagId: String): Boolean {
         return repository.isBagLocked(bagId)
     }

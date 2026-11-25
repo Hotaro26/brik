@@ -188,6 +188,13 @@ class KeyRepository(context: Context) {
         return key
     }
 
+    fun updateSavedKey(id: String, name: String, description: String) {
+        val updated = _savedKeys.value.map {
+            if (it.id == id) it.copy(name = name.trim(), description = description.trim()) else it
+        }
+        persistSavedKeys(updated)
+    }
+
     fun deleteSavedKey(id: String) {
         val updated = _savedKeys.value.filterNot { it.id == id }
         persistSavedKeys(updated)

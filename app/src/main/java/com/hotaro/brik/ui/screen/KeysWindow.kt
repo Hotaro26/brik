@@ -35,9 +35,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.MaterialTheme.typography
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -272,107 +277,134 @@ fun KeysWindow(
                 }
             } else {
                 item {
-                    ElevatedCard(
-                        shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.elevatedCardColors(
-                            containerColor = colorScheme.surfaceContainerHigh
+                    Text(
+                        text = "SAVED KEYS",
+                        style = typography.labelMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.2.sp
                         ),
-                        modifier = Modifier.fillMaxWidth()
+                        color = colorScheme.primary,
+                        modifier = Modifier.padding(start = 6.dp, bottom = 4.dp)
+                    )
+                }
+
+                items(savedKeys, key = { it.id }) { key ->
+                    val dismissState = rememberSwipeToDismissBoxState(
+                        confirmValueChange = { dismissValue ->
+                            if (dismissValue == SwipeToDismissBoxValue.StartToEnd || dismissValue == SwipeToDismissBoxValue.EndToStart) {
+                                deleteSavedKeyTarget = key
+                                false
+                            } else {
+                                false
+                            }
+                        }
+                    )
+
+                    SwipeToDismissBox(
+                        state = dismissState,
+                        backgroundContent = {
+                            val direction = dismissState.dismissDirection
+                            val alignment = if (direction == SwipeToDismissBoxValue.StartToEnd) {
+                                Alignment.CenterStart
+                            } else {
+                                Alignment.CenterEnd
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(RoundedCornerShape(18.dp))
+                                    .background(colorScheme.error)
+                                    .padding(horizontal = 24.dp),
+                                contentAlignment = alignment
+                            ) {
+                                Icon(
+                                    painter = painterResource(R.drawable.delete_fill0),
+                                    contentDescription = "Delete",
+                                    tint = colorScheme.onError,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
                     ) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            savedKeys.forEachIndexed { index, key ->
-                                if (index > 0) {
-                                    HorizontalDivider(
-                                        color = colorScheme.surfaceContainerHighest,
-                                        modifier = Modifier.padding(horizontal = 16.dp)
-                                    )
-                                }
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                        Surface(
+                            onClick = { viewSavedKey = key },
+                            shape = RoundedCornerShape(18.dp),
+                            color = colorScheme.surfaceContainerHigh,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = colorScheme.surfaceContainerLowest,
+                                    modifier = Modifier.size(48.dp)
                                 ) {
-                                    Surface(
-                                        shape = RoundedCornerShape(12.dp),
-                                        color = colorScheme.surfaceContainerLowest,
-                                        modifier = Modifier.size(48.dp)
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                painter = painterResource(R.drawable.qr_code_fill0),
-                                                contentDescription = null,
-                                                tint = colorScheme.primary,
-                                                modifier = Modifier.size(26.dp)
-                                            )
-                                        }
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.qr_code_fill0),
+                                            contentDescription = null,
+                                            tint = colorScheme.primary,
+                                            modifier = Modifier.size(26.dp)
+                                        )
                                     }
+                                }
 
-                                    Spacer(Modifier.width(14.dp))
+                                Spacer(Modifier.width(14.dp))
 
-                                    Column(modifier = Modifier.weight(1f)) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = key.name,
+                                        style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    if (key.description.isNotBlank()) {
                                         Text(
-                                            text = key.name,
-                                            style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                            color = colorScheme.onSurface,
+                                            text = key.description,
+                                            style = typography.bodySmall,
+                                            color = colorScheme.onSurfaceVariant,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
-                                        if (key.description.isNotBlank()) {
-                                            Text(
-                                                text = key.description,
-                                                style = typography.bodySmall,
-                                                color = colorScheme.onSurfaceVariant,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
+                                    }
+                                    val dateStr = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date(key.createdAt))
+                                    Text(
+                                        text = "Saved $dateStr",
+                                        style = typography.bodySmall.copy(fontSize = 10.sp),
+                                        color = colorScheme.outline
+                                    )
+                                }
+
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    IconButton(
+                                        onClick = {
+                                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                            clipboard.setPrimaryClip(ClipData.newPlainText("Brik Saved Key", key.token))
+                                            Toast.makeText(context, "Key token copied!", Toast.LENGTH_SHORT).show()
                                         }
-                                        val dateStr = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date(key.createdAt))
-                                        Text(
-                                            text = "Saved $dateStr",
-                                            style = typography.bodySmall.copy(fontSize = 10.sp),
-                                            color = colorScheme.outline
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.content_copy_fill0),
+                                            contentDescription = "Copy Token",
+                                            tint = colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(20.dp)
                                         )
                                     }
 
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        IconButton(
-                                            onClick = {
-                                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                                clipboard.setPrimaryClip(ClipData.newPlainText("Brik Saved Key", key.token))
-                                                Toast.makeText(context, "Key token copied!", Toast.LENGTH_SHORT).show()
-                                            }
-                                        ) {
-                                            Icon(
-                                                painter = painterResource(R.drawable.content_copy_fill0),
-                                                contentDescription = "Copy Token",
-                                                tint = colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
-
-                                        IconButton(
-                                            onClick = { viewSavedKey = key }
-                                        ) {
-                                            Icon(
-                                                painter = painterResource(R.drawable.qr_code_scanner_fill0),
-                                                contentDescription = "View QR",
-                                                tint = colorScheme.primary,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
-
-                                        IconButton(
-                                            onClick = { deleteSavedKeyTarget = key }
-                                        ) {
-                                            Icon(
-                                                painter = painterResource(R.drawable.delete_fill0),
-                                                contentDescription = "Delete Key",
-                                                tint = colorScheme.error,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
-                                    }
+                                    Icon(
+                                        painter = painterResource(R.drawable.arrow_forward_big),
+                                        contentDescription = "View QR Details",
+                                        tint = colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                        modifier = Modifier.size(16.dp)
+                                    )
                                 }
                             }
                         }
@@ -1120,7 +1152,7 @@ fun KeysWindow(
         }
     }
 
-    // --- View Saved Key Dialog ---
+    // --- View / Edit Saved Key Bottom Sheet ---
     if (viewSavedKey != null) {
         val key = viewSavedKey!!
         val qrBitmap = remember(key.token) {
@@ -1130,74 +1162,158 @@ fun KeysWindow(
                 null
             }
         }
+        var isEditingKey by remember(key.id) { mutableStateOf(false) }
+        var editedName by remember(key.id, key.name) { mutableStateOf(key.name) }
+        var editedDesc by remember(key.id, key.description) { mutableStateOf(key.description) }
 
-        AlertDialog(
-            onDismissRequest = { viewSavedKey = null },
-            title = {
-                Column {
-                    Text(
-                        text = key.name,
-                        fontWeight = FontWeight.Bold,
-                        color = colorScheme.onSurface
-                    )
-                    if (key.description.isNotBlank()) {
+        ModalBottomSheet(
+            onDismissRequest = {
+                viewSavedKey = null
+                isEditingKey = false
+            },
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            containerColor = colorScheme.surfaceContainerHigh
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 36.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Header with Name, Description, and Edit Icon
+                if (!isEditingKey) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = key.name,
+                                style = typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                                color = colorScheme.onSurface
+                            )
+                            if (key.description.isNotBlank()) {
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    text = key.description,
+                                    style = typography.bodyMedium,
+                                    color = colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        IconButton(onClick = { isEditingKey = true }) {
+                            Icon(
+                                painter = painterResource(R.drawable.edit_fill0),
+                                contentDescription = "Edit Key Details",
+                                tint = colorScheme.primary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+                } else {
+                    // Inline Edit Form
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
                         Text(
-                            text = key.description,
-                            style = typography.bodySmall,
-                            color = colorScheme.onSurfaceVariant
+                            text = "Edit Key Details",
+                            style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = colorScheme.onSurface
                         )
+                        OutlinedTextField(
+                            value = editedName,
+                            onValueChange = { editedName = it },
+                            label = { Text("Name") },
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = editedDesc,
+                            onValueChange = { editedDesc = it },
+                            label = { Text("Description") },
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(onClick = { isEditingKey = false }) {
+                                Text("Cancel")
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Button(
+                                onClick = {
+                                    val trimmedName = editedName.trim()
+                                    if (trimmedName.isNotEmpty()) {
+                                        keyViewModel.updateSavedKey(key.id, trimmedName, editedDesc.trim())
+                                        viewSavedKey = key.copy(name = trimmedName, description = editedDesc.trim())
+                                        isEditingKey = false
+                                        Toast.makeText(context, "Key details updated!", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("Save")
+                            }
+                        }
                     }
                 }
-            },
-            text = {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
+
+                Spacer(Modifier.height(20.dp))
+
+                // QR Code
+                if (qrBitmap != null) {
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = Color.White,
+                        modifier = Modifier.size(240.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(12.dp)) {
+                            Image(
+                                bitmap = qrBitmap.asImageBitmap(),
+                                contentDescription = "QR Code Key",
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                Text(
+                    text = key.token,
+                    style = typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
+                    color = colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Spacer(Modifier.height(14.dp))
+
+                OutlinedButton(
+                    onClick = {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(ClipData.newPlainText("Brik QR Token", key.token))
+                        Toast.makeText(context, "QR Token copied!", Toast.LENGTH_SHORT).show()
+                    },
+                    shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    if (qrBitmap != null) {
-                        Image(
-                            bitmap = qrBitmap.asImageBitmap(),
-                            contentDescription = "QR Code Key",
-                            modifier = Modifier
-                                .size(220.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(android.graphics.Color.WHITE.let { Color(it) })
-                                .padding(8.dp)
-                        )
-                    }
-
-                    Spacer(Modifier.height(12.dp))
-
-                    Text(
-                        text = key.token,
-                        style = typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
-                        color = colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
+                    Icon(
+                        painter = painterResource(R.drawable.content_copy_fill0),
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
                     )
-
-                    Spacer(Modifier.height(10.dp))
-
-                    OutlinedButton(
-                        onClick = {
-                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            clipboard.setPrimaryClip(ClipData.newPlainText("Brik QR Token", key.token))
-                            Toast.makeText(context, "QR Token copied!", Toast.LENGTH_SHORT).show()
-                        },
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Text("Copy Token Text")
-                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text("Copy Token Text")
                 }
-            },
-            confirmButton = {
-                Button(onClick = { viewSavedKey = null }) {
-                    Text("Done")
-                }
-            },
-            shape = RoundedCornerShape(24.dp),
-            containerColor = colorScheme.surfaceContainerHigh
-        )
+            }
+        }
     }
 
     // --- Delete Saved Key Dialog ---

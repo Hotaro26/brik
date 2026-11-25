@@ -92,6 +92,7 @@ import com.hotaro.brik.ui.theme.ThemePreferences
 import com.hotaro.brik.ui.theme.NavBarStyle
 import com.hotaro.brik.ui.viewmodel.SettingsViewModel
 import com.hotaro.brik.ui.viewmodel.ToolsViewModel
+import com.hotaro.brik.util.AppIconManager
 import com.hotaro.brik.util.QrUtils
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -140,6 +141,7 @@ fun SettingsScreen(
     var showThemeSheet by remember { mutableStateOf(false) }
     var showPaletteSheet by remember { mutableStateOf(false) }
     var showNavBarSheet by remember { mutableStateOf(false) }
+    var showIconSheet by remember { mutableStateOf(false) }
     var showSetUninstallKeyDialog by remember { mutableStateOf(false) }
     var showVerifyUninstallKeyDialog by remember { mutableStateOf(false) }
     var showBridgeSetupSheet by remember { mutableStateOf(false) }
@@ -415,13 +417,16 @@ fun SettingsScreen(
             )
         }
 
-        // --- SECTION: CUSTOMISATION ---
+        // --- SECTION: APPEARANCE ---
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            TomatoSectionHeader(title = "CUSTOMISATION")
+            TomatoSectionHeader(title = "APPEARANCE")
 
             val currentThemeMode by ThemePreferences.themeMode.collectAsState()
             val currentPalette by ThemePreferences.colorPalette.collectAsState()
+            val currentAppIcon by ThemePreferences.appIcon.collectAsState()
             val currentNavBarStyle by ThemePreferences.navBarStyle.collectAsState()
+
+            val currentIconOption = AppIconManager.icons.find { it.id == currentAppIcon } ?: AppIconManager.icons.first()
 
             val themeSubtitle = when (currentThemeMode) {
                 1 -> "Light"
@@ -464,7 +469,7 @@ fun SettingsScreen(
                         tint = colorScheme.onSurfaceVariant
                     )
                 },
-                shape = segmentedItemShape(0, 3),
+                shape = segmentedItemShape(0, 4),
                 onClick = { showThemeSheet = true }
             )
 
@@ -483,11 +488,30 @@ fun SettingsScreen(
                         tint = colorScheme.onSurfaceVariant
                     )
                 },
-                shape = segmentedItemShape(1, 3),
+                shape = segmentedItemShape(1, 4),
                 onClick = { showPaletteSheet = true }
             )
 
-            // 3. Navbar
+            // 3. Icons
+            TomatoSettingsItem(
+                title = "Icons",
+                subtitle = currentIconOption.name,
+                leadingIcon = R.drawable.apps_fill0,
+                iconContainerColor = colorScheme.secondaryContainer,
+                iconTint = colorScheme.onSecondaryContainer,
+                trailingContent = {
+                    Icon(
+                        painter = painterResource(R.drawable.arrow_forward_big),
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = colorScheme.onSurfaceVariant
+                    )
+                },
+                shape = segmentedItemShape(2, 4),
+                onClick = { showIconSheet = true }
+            )
+
+            // 4. Navbar
             TomatoSettingsItem(
                 title = "Navbar",
                 subtitle = navBarSubtitle,
@@ -502,7 +526,7 @@ fun SettingsScreen(
                         tint = colorScheme.onSurfaceVariant
                     )
                 },
-                shape = segmentedItemShape(2, 3),
+                shape = segmentedItemShape(3, 4),
                 onClick = { showNavBarSheet = true }
             )
         }
@@ -1496,6 +1520,116 @@ fun SettingsScreen(
                                         color = if (isSelected) colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else colorScheme.onSurfaceVariant
                                     )
                                 }
+                                if (isSelected) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = colorScheme.primary,
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.check_fill0),
+                                                contentDescription = "Selected",
+                                                tint = colorScheme.onPrimary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // --- APP ICONS BOTTOM SHEET ---
+    if (showIconSheet) {
+        val iconSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { showIconSheet = false },
+            sheetState = iconSheetState,
+            containerColor = colorScheme.surfaceContainerHigh,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            val currentAppIcon by ThemePreferences.appIcon.collectAsState()
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 8.dp)
+                    .padding(bottom = 36.dp)
+            ) {
+                Text(
+                    text = "App Icon",
+                    style = typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = colorScheme.onSurface,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                Text(
+                    text = "Select your favorite launcher icon aesthetic",
+                    style = typography.bodySmall,
+                    color = colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    AppIconManager.icons.forEach { iconOption ->
+                        val isSelected = currentAppIcon == iconOption.id
+                        Surface(
+                            onClick = {
+                                AppIconManager.setAppIcon(context, iconOption)
+                                coroutineScope.launch {
+                                    iconSheetState.hide()
+                                    showIconSheet = false
+                                }
+                            },
+                            shape = RoundedCornerShape(16.dp),
+                            color = if (isSelected) colorScheme.primaryContainer else colorScheme.surfaceContainer,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Themed Brick Icon Preview Box
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color(iconOption.bgColor),
+                                    modifier = Modifier.size(46.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.ic_brik_monochrome),
+                                            contentDescription = null,
+                                            tint = Color(iconOption.primaryColor),
+                                            modifier = Modifier.size(30.dp)
+                                        )
+                                    }
+                                }
+
+                                Spacer(Modifier.width(14.dp))
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = iconOption.name,
+                                        style = typography.titleMedium,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                        color = if (isSelected) colorScheme.onPrimaryContainer else colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = iconOption.subtitle,
+                                        style = typography.bodySmall,
+                                        color = if (isSelected) colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else colorScheme.onSurfaceVariant
+                                    )
+                                }
+
                                 if (isSelected) {
                                     Surface(
                                         shape = CircleShape,
