@@ -3,7 +3,6 @@ package com.hotaro.brik.ui.screen
 import android.view.HapticFeedbackConstants
 import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,6 +37,9 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -46,23 +48,35 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hotaro.brik.R
+import com.hotaro.brik.ui.component.SetEmergencyKeyDialog
 import com.hotaro.brik.ui.component.TomatoSectionHeader
+import com.hotaro.brik.ui.component.VerifyEmergencyKeyDialog
+import com.hotaro.brik.ui.viewmodel.KeyViewModel
 import com.hotaro.brik.util.EmergencyManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EmergencyModeWindow(
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    keyViewModel: KeyViewModel = viewModel()
 ) {
     val context = LocalContext.current
     val view = LocalView.current
     val isDark = colorScheme.surface.luminance() < 0.5f
     val appBackground = if (isDark) Color.Black else colorScheme.surface
+
     val isEmergencyActive by EmergencyManager.isEmergencyModeActive.collectAsState()
+    val hasEmergencyKey by EmergencyManager.hasEmergencyKey.collectAsState()
+    val autoDeactivateOnLock by EmergencyManager.autoDeactivateOnScreenLock.collectAsState()
+    val savedKeys by keyViewModel.savedKeys.collectAsState()
+
+    var showSetKeyDialog by remember { mutableStateOf(false) }
+    var showVerifyKeyDialog by remember { mutableStateOf(false) }
+    var isChangingKey by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -171,9 +185,16 @@ fun EmergencyModeWindow(
                             checked = isEmergencyActive,
                             onCheckedChange = { active ->
                                 view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                                EmergencyManager.setEmergencyModeActive(context, active)
-                                val msg = if (active) "Emergency Mode activated" else "Emergency Mode deactivated"
-                                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                if (active) {
+                                    if (!hasEmergencyKey) {
+                                        showSetKeyDialog = true
+                                    } else {
+                                        showVerifyKeyDialog = true
+                                    }
+                                } else {
+                                    EmergencyManager.setEmergencyModeActive(context, false)
+                                    Toast.makeText(context, "Emergency Mode deactivated", Toast.LENGTH_SHORT).show()
+                                }
                             },
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor = colorScheme.onError,
@@ -181,6 +202,147 @@ fun EmergencyModeWindow(
                             )
                         )
                     }
+                }
+            }
+
+            // --- Section: Security Key ---
+            TomatoSectionHeader(title = "SECURITY KEY")
+            ElevatedCard(
+                shape = RoundedCornerShape(20.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(colorScheme.surfaceContainerHigh)
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = if (hasEmergencyKey) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                modifier = Modifier.size(38.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.password_fill0),
+                                        contentDescription = null,
+                                        tint = if (hasEmergencyKey) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = if (hasEmergencyKey) "Emergency Key Configured" else "No Emergency Key Set",
+                                    style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = colorScheme.onSurface
+                                )
+                                Text(
+                                    text = if (hasEmergencyKey) "Required to activate emergency mode" else "Must configure a key before activating",
+                                    style = typography.bodySmall,
+                                    color = colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        Button(
+                            onClick = {
+                                if (!hasEmergencyKey) {
+                                    showSetKeyDialog = true
+                                } else {
+                                    isChangingKey = true
+                                    showVerifyKeyDialog = true
+                                }
+                            },
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text(if (hasEmergencyKey) "Change" else "Set Key", style = typography.labelSmall)
+                        }
+                    }
+                }
+            }
+
+            // --- Section: Self-Deactivation on Screen Lock ---
+            TomatoSectionHeader(title = "SELF-DEACTIVATION")
+            ElevatedCard(
+                shape = RoundedCornerShape(20.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(colorScheme.surfaceContainerHigh)
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = colorScheme.secondaryContainer,
+                                modifier = Modifier.size(38.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.screen_lock_portrait_fill0),
+                                        contentDescription = null,
+                                        tint = colorScheme.onSecondaryContainer,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "Deactivate on Screen Lock",
+                                    style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Disable emergency mode when screen locks",
+                                    style = typography.bodySmall,
+                                    color = colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        Switch(
+                            checked = autoDeactivateOnLock,
+                            onCheckedChange = { enabled ->
+                                view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                EmergencyManager.setAutoDeactivateOnScreenLock(context, enabled)
+                                Toast.makeText(
+                                    context,
+                                    if (enabled) "Self-deactivation enabled" else "Self-deactivation disabled",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        )
+                    }
+
+                    Text(
+                        text = "When enabled, Emergency Mode automatically turns off whenever you lock your phone or the screen turns off. Entering your emergency key will be required again on the next activation.",
+                        style = typography.bodySmall,
+                        color = colorScheme.onSurfaceVariant
+                    )
                 }
             }
 
@@ -221,7 +383,7 @@ fun EmergencyModeWindow(
                     }
 
                     Text(
-                        text = "In the Keys & Analytics window, pull down the page 3 times within 5 seconds to instantly trigger Emergency Mode. This gesture works even during strict lockdowns.",
+                        text = "In the Keys & Analytics window, pull down the page 3 times within 5 seconds to instantly trigger Emergency Mode. You will be prompted to verify your emergency key.",
                         style = typography.bodyMedium,
                         color = colorScheme.onSurfaceVariant
                     )
@@ -282,8 +444,11 @@ fun EmergencyModeWindow(
                 OutlinedButton(
                     onClick = {
                         view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                        EmergencyManager.setEmergencyModeActive(context, true)
-                        Toast.makeText(context, "Emergency Mode activated", Toast.LENGTH_SHORT).show()
+                        if (!hasEmergencyKey) {
+                            showSetKeyDialog = true
+                        } else {
+                            showVerifyKeyDialog = true
+                        }
                     },
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -296,6 +461,36 @@ fun EmergencyModeWindow(
                 }
             }
         }
+    }
+
+    if (showSetKeyDialog) {
+        SetEmergencyKeyDialog(
+            savedKeys = savedKeys,
+            onDismiss = {
+                showSetKeyDialog = false
+                isChangingKey = false
+            },
+            onKeySet = {
+                showSetKeyDialog = false
+                isChangingKey = false
+            }
+        )
+    }
+
+    if (showVerifyKeyDialog) {
+        VerifyEmergencyKeyDialog(
+            onDismiss = {
+                showVerifyKeyDialog = false
+                isChangingKey = false
+            },
+            onVerified = {
+                showVerifyKeyDialog = false
+                if (isChangingKey) {
+                    isChangingKey = false
+                    showSetKeyDialog = true
+                }
+            }
+        )
     }
 }
 

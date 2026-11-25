@@ -76,6 +76,8 @@ import com.hotaro.brik.data.model.SavedKey
 import com.hotaro.brik.data.model.KeyType
 import com.hotaro.brik.ui.component.QrScannerView
 import com.hotaro.brik.ui.component.RoundedPullRefreshPage
+import com.hotaro.brik.ui.component.SetEmergencyKeyDialog
+import com.hotaro.brik.ui.component.VerifyEmergencyKeyDialog
 import com.hotaro.brik.ui.viewmodel.KeyViewModel
 import com.hotaro.brik.util.EmergencyManager
 import com.hotaro.brik.util.QrUtils
@@ -105,6 +107,8 @@ fun KeysWindow(
 
     val isEmergencyActive by EmergencyManager.isEmergencyModeActive.collectAsState()
     val pullTimestamps = remember { mutableStateListOf<Long>() }
+    var showSetEmergencyKeyDialog by remember { mutableStateOf(false) }
+    var showVerifyEmergencyKeyDialog by remember { mutableStateOf(false) }
 
     var qrOptionMode by remember { mutableStateOf(0) } // 0: Random, 1: Scan External
     var randomQrKey by remember { mutableStateOf(UUID.randomUUID().toString()) }
@@ -123,8 +127,13 @@ fun KeysWindow(
 
                 if (pullTimestamps.size >= 3) {
                     pullTimestamps.clear()
-                    EmergencyManager.setEmergencyModeActive(context, true)
-                    Toast.makeText(context, "Emergency Mode activated!", Toast.LENGTH_SHORT).show()
+                    if (isEmergencyActive) {
+                        Toast.makeText(context, "Emergency Mode is already active", Toast.LENGTH_SHORT).show()
+                    } else if (!EmergencyManager.hasKey(context)) {
+                        showSetEmergencyKeyDialog = true
+                    } else {
+                        showVerifyEmergencyKeyDialog = true
+                    }
                 }
 
                 kotlinx.coroutines.delay(650)
@@ -1464,6 +1473,21 @@ fun KeysWindow(
             },
             shape = RoundedCornerShape(24.dp),
             containerColor = colorScheme.surfaceContainerHigh
+        )
+    }
+
+    if (showSetEmergencyKeyDialog) {
+        SetEmergencyKeyDialog(
+            savedKeys = savedKeys,
+            onDismiss = { showSetEmergencyKeyDialog = false },
+            onKeySet = { showSetEmergencyKeyDialog = false }
+        )
+    }
+
+    if (showVerifyEmergencyKeyDialog) {
+        VerifyEmergencyKeyDialog(
+            onDismiss = { showVerifyEmergencyKeyDialog = false },
+            onVerified = { showVerifyEmergencyKeyDialog = false }
         )
     }
 }
