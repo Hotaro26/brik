@@ -1,0 +1,10 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="960"
+    android:viewportHeight="960">
+  <!-- Masonry Brick pattern -->
+  <path
+      android:fillColor="@android:color/white"
+      android:pathData="M160,840Q127,840 103.5,816.5Q80,793 80,760V200Q80,167 103.5,143.5Q127,120 160,120H800Q833,120 856.5,143.5Q880,167 880,200V760Q880,793 856.5,816.5Q833,840 800,840H160ZM160,320H440V200H160V320ZM520,320H800V200H520V320ZM160,520H280V400H160V520ZM360,520H600V400H360V520ZM680,520H800V400H680V520ZM160,760H440V600H160V760ZM520,760H800V600H520V760Z"/>
+</vector>
