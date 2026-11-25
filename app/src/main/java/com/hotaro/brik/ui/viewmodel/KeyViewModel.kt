@@ -8,6 +8,7 @@ import com.hotaro.brik.data.model.AppBag
 import com.hotaro.brik.data.model.BagLock
 import com.hotaro.brik.data.model.KeyType
 import com.hotaro.brik.data.model.LockStats
+import com.hotaro.brik.data.model.SavedKey
 import com.hotaro.brik.data.repository.KeyRepository
 import com.hotaro.brik.policy.PolicyBridgeManager
 import kotlinx.coroutines.Dispatchers
@@ -20,6 +21,15 @@ class KeyViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = KeyRepository(application)
     val activeLocks: StateFlow<List<BagLock>> = repository.activeLocks
     val stats: StateFlow<LockStats> = repository.stats
+    val savedKeys: StateFlow<List<SavedKey>> = repository.savedKeys
+
+    fun saveKey(name: String, description: String, token: String): SavedKey {
+        return repository.saveKey(name, description, token)
+    }
+
+    fun deleteSavedKey(id: String) {
+        repository.deleteSavedKey(id)
+    }
 
     fun isBagLocked(bagId: String): Boolean {
         return repository.isBagLocked(bagId)

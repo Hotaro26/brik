@@ -26,3 +26,12 @@ data class LockStats(
     val totalUnlocks: Int = 0,
     val lastUnlockedAt: Long? = null
 )
+
+@Serializable
+data class SavedKey(
+    val id: String = "",
+    val name: String,
+    val description: String = "",
+    val token: String,
+    val createdAt: Long = 0L
+)

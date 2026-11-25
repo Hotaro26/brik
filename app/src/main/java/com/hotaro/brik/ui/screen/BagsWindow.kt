@@ -61,6 +61,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hotaro.brik.R
 import com.hotaro.brik.data.model.AppBag
 import com.hotaro.brik.data.model.KeyType
+import com.hotaro.brik.data.model.SavedKey
 import com.hotaro.brik.ui.component.QrScannerView
 import com.hotaro.brik.ui.component.RoundedPullRefreshPage
 import com.hotaro.brik.ui.viewmodel.KeyViewModel
@@ -209,14 +210,21 @@ fun BagsWindow(
     // --- Lock Bag Dialog ---
     if (bagToLock != null) {
         val bag = bagToLock!!
+        val savedKeys by keyViewModel.savedKeys.collectAsState()
         var selectedKeyType by remember { mutableStateOf(KeyType.PASSWORD) }
         var password by remember { mutableStateOf("") }
-        var qrMode by remember { mutableStateOf(0) } // 0 = Random QR, 1 = Scan External QR
+        var qrMode by remember { mutableStateOf(0) } // 0 = Random QR, 1 = Scan External QR, 2 = Saved Key
         val generatedQrToken = remember { UUID.randomUUID().toString() }
         var scannedQrToken by remember { mutableStateOf<String?>(null) }
+        var selectedSavedKey by remember { mutableStateOf<SavedKey?>(null) }
         var showScannerDialog by remember { mutableStateOf(false) }
 
-        val activeQrToken = if (qrMode == 0) generatedQrToken else scannedQrToken
+        // Auto-select first saved key if mode is switched to Saved Key and none selected
+        if (qrMode == 2 && selectedSavedKey == null && savedKeys.isNotEmpty()) {
+            selectedSavedKey = savedKeys.first()
+        }
+
+        val activeQrToken = if (qrMode == 0) generatedQrToken else if (qrMode == 1) scannedQrToken else selectedSavedKey?.token
         val qrBitmap = remember(activeQrToken) {
             if (activeQrToken != null) {
                 try {
@@ -358,6 +366,21 @@ fun BagsWindow(
                                     )
                                 }
                             }
+
+                            Surface(
+                                onClick = { qrMode = 2 },
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (qrMode == 2) colorScheme.primaryContainer else Color.Transparent,
+                                modifier = Modifier.weight(1f).height(38.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = "Saved Key",
+                                        style = typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                                        color = if (qrMode == 2) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
                         }
 
                         Spacer(Modifier.height(14.dp))
@@ -396,7 +419,7 @@ fun BagsWindow(
                                     Text("Copy Token Text", style = typography.labelSmall)
                                 }
                             }
-                        } else {
+                        } else if (qrMode == 1) {
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier.fillMaxWidth()
@@ -498,6 +521,102 @@ fun BagsWindow(
                                     }
                                 }
                             }
+                        } else {
+                            // qrMode == 2: Saved Key
+                            if (savedKeys.isEmpty()) {
+                                Surface(
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = colorScheme.surfaceContainerLowest,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(16.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Text(
+                                            text = "No Saved Keys",
+                                            style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                            color = colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = "Go to Keys & Analytics and tap '+' to scan and save your physical keys first.",
+                                            style = typography.bodySmall,
+                                            color = colorScheme.onSurfaceVariant,
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.padding(top = 4.dp)
+                                        )
+                                    }
+                                }
+                            } else {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        text = "Select a saved key for quick locking:",
+                                        style = typography.labelSmall,
+                                        color = colorScheme.onSurfaceVariant
+                                    )
+
+                                    LazyColumn(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(150.dp),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        items(savedKeys, key = { it.id }) { key ->
+                                            val isSelected = selectedSavedKey?.id == key.id
+                                            Surface(
+                                                onClick = { selectedSavedKey = key },
+                                                shape = RoundedCornerShape(10.dp),
+                                                color = if (isSelected) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Icon(
+                                                        painter = painterResource(R.drawable.qr_code_fill0),
+                                                        contentDescription = null,
+                                                        tint = if (isSelected) colorScheme.onPrimaryContainer else colorScheme.primary,
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                    Spacer(Modifier.width(10.dp))
+                                                    Column(modifier = Modifier.weight(1f)) {
+                                                        Text(
+                                                            text = key.name,
+                                                            style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                                            color = if (isSelected) colorScheme.onPrimaryContainer else colorScheme.onSurface,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                        if (key.description.isNotBlank()) {
+                                                            Text(
+                                                                text = key.description,
+                                                                style = typography.bodySmall.copy(fontSize = 11.sp),
+                                                                color = if (isSelected) colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else colorScheme.onSurfaceVariant,
+                                                                maxLines = 1,
+                                                                overflow = TextOverflow.Ellipsis
+                                                            )
+                                                        }
+                                                    }
+                                                    if (isSelected) {
+                                                        Icon(
+                                                            painter = painterResource(R.drawable.check_fill0),
+                                                            contentDescription = "Selected",
+                                                            tint = colorScheme.onPrimaryContainer,
+                                                            modifier = Modifier.size(18.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -506,7 +625,7 @@ fun BagsWindow(
                 val isFormValid = if (selectedKeyType == KeyType.PASSWORD) {
                     password.isNotBlank()
                 } else {
-                    if (qrMode == 0) true else scannedQrToken != null
+                    if (qrMode == 0) true else if (qrMode == 1) scannedQrToken != null else selectedSavedKey != null
                 }
 
                 Button(
@@ -514,7 +633,7 @@ fun BagsWindow(
                         val secret = if (selectedKeyType == KeyType.PASSWORD) {
                             password
                         } else {
-                            if (qrMode == 0) generatedQrToken else scannedQrToken!!
+                            if (qrMode == 0) generatedQrToken else if (qrMode == 1) scannedQrToken!! else selectedSavedKey!!.token
                         }
                         keyViewModel.lockBag(context, bag, selectedKeyType, secret) { success, err ->
                             if (success) {

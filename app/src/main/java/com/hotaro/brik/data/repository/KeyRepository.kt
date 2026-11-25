@@ -4,6 +4,7 @@ import android.content.Context
 import com.hotaro.brik.data.model.BagLock
 import com.hotaro.brik.data.model.KeyType
 import com.hotaro.brik.data.model.LockStats
+import com.hotaro.brik.data.model.SavedKey
 import com.hotaro.brik.util.QrUtils
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,6 +20,9 @@ class KeyRepository(context: Context) {
     private val _activeLocks = MutableStateFlow<List<BagLock>>(emptyList())
     val activeLocks: StateFlow<List<BagLock>> = _activeLocks.asStateFlow()
 
+    private val _savedKeys = MutableStateFlow<List<SavedKey>>(emptyList())
+    val savedKeys: StateFlow<List<SavedKey>> = _savedKeys.asStateFlow()
+
     private val _stats = MutableStateFlow(LockStats())
     val stats: StateFlow<LockStats> = _stats.asStateFlow()
 
@@ -31,6 +35,15 @@ class KeyRepository(context: Context) {
         if (!serializedLocks.isNullOrBlank()) {
             try {
                 _activeLocks.value = json.decodeFromString(serializedLocks)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        val serializedSavedKeys = prefs.getString("saved_keys", null)
+        if (!serializedSavedKeys.isNullOrBlank()) {
+            try {
+                _savedKeys.value = json.decodeFromString(serializedSavedKeys)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -158,6 +171,29 @@ class KeyRepository(context: Context) {
             return true
         }
         return false
+    }
+
+    fun saveKey(name: String, description: String, token: String): SavedKey {
+        val key = SavedKey(
+            id = UUID.randomUUID().toString(),
+            name = name.trim(),
+            description = description.trim(),
+            token = token.trim(),
+            createdAt = System.currentTimeMillis()
+        )
+        val updated = _savedKeys.value + key
+        persistSavedKeys(updated)
+        return key
+    }
+
+    fun deleteSavedKey(id: String) {
+        val updated = _savedKeys.value.filterNot { it.id == id }
+        persistSavedKeys(updated)
+    }
+
+    private fun persistSavedKeys(keys: List<SavedKey>) {
+        _savedKeys.value = keys
+        prefs.edit().putString("saved_keys", json.encodeToString(keys)).apply()
     }
 
     private fun persistLocks(list: List<BagLock>) {
