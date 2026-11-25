@@ -304,7 +304,7 @@ fun SettingsScreen(
                                 )
                             }
                         },
-                        shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 22.dp, bottomEnd = 22.dp),
+                        shape = RoundedCornerShape(4.dp),
                         onClick = {
                             val existing = keyViewModel.getDpmUninstallLock()
                             if (existing == null) {

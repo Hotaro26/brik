@@ -229,7 +229,7 @@ fun AppManagerWindow(
                         )
                     )
 
-                    // Manage Icon Pill (Text hidden, proper tune/filter icon with active indicator)
+                    // Visibility Toggle Pill
                     Surface(
                         onClick = { showManageDialog = true },
                         shape = CircleShape,
@@ -240,18 +240,20 @@ fun AppManagerWindow(
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
-                                painter = painterResource(R.drawable.tune_fill0),
+                                painter = painterResource(
+                                    if (showSystemApps) R.drawable.visibility_fill0 else R.drawable.visibility_off_fill0
+                                ),
                                 contentDescription = "Manage app visibility",
-                                modifier = Modifier.size(22.dp)
+                                modifier = Modifier.size(24.dp)
                             )
                             if (showSystemApps) {
                                 Surface(
                                     shape = CircleShape,
                                     color = colorScheme.primary,
                                     modifier = Modifier
-                                        .size(8.dp)
                                         .align(Alignment.TopEnd)
                                         .padding(top = 10.dp, end = 10.dp)
+                                        .size(8.dp)
                                 ) {}
                             }
                         }
