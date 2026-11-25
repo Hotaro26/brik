@@ -100,6 +100,8 @@ fun ToolsScreen(
     onNavigateToBags: () -> Unit = {},
     onNavigateToRoutines: () -> Unit = {},
     onNavigateToModes: () -> Unit = {},
+    onNavigateToZen: () -> Unit = {},
+    onNavigateToGrayscale: () -> Unit = {},
     viewModel: ToolsViewModel = viewModel(),
     keyViewModel: KeyViewModel = viewModel()
 ) {
@@ -225,7 +227,7 @@ fun ToolsScreen(
                             tint = colorScheme.onSurfaceVariant
                         )
                     },
-                    shape = segmentedItemShape(0, 2),
+                    shape = segmentedItemShape(0, 4),
                     onClick = onNavigateToRoutines
                 )
 
@@ -244,8 +246,46 @@ fun ToolsScreen(
                             tint = colorScheme.onSurfaceVariant
                         )
                     },
-                    shape = segmentedItemShape(1, 2),
+                    shape = segmentedItemShape(1, 4),
                     onClick = onNavigateToModes
+                )
+
+                // 3. Zen
+                TomatoSettingsItem(
+                    title = "Zen",
+                    subtitle = "Mindfulness, deep detox & calm sessions",
+                    leadingIcon = R.drawable.self_improvement_fill0,
+                    iconContainerColor = colorScheme.secondaryContainer,
+                    iconTint = colorScheme.onSecondaryContainer,
+                    trailingContent = {
+                        Icon(
+                            painter = painterResource(R.drawable.arrow_forward_big),
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = colorScheme.onSurfaceVariant
+                        )
+                    },
+                    shape = segmentedItemShape(2, 4),
+                    onClick = onNavigateToZen
+                )
+
+                // 4. Grayscale
+                TomatoSettingsItem(
+                    title = "Grayscale",
+                    subtitle = "Monochrome screen filter & wind down display",
+                    leadingIcon = R.drawable.contrast_fill0,
+                    iconContainerColor = colorScheme.tertiaryContainer,
+                    iconTint = colorScheme.onTertiaryContainer,
+                    trailingContent = {
+                        Icon(
+                            painter = painterResource(R.drawable.arrow_forward_big),
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = colorScheme.onSurfaceVariant
+                        )
+                    },
+                    shape = segmentedItemShape(3, 4),
+                    onClick = onNavigateToGrayscale
                 )
             }
 

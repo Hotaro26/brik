@@ -53,9 +53,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -121,6 +123,8 @@ fun RoutinesWindow(
     var sheetStartMinute by remember { mutableStateOf(0) }
     var sheetEndHour by remember { mutableStateOf(17) }
     var sheetEndMinute by remember { mutableStateOf(0) }
+    var showSheetStartTimePicker by remember { mutableStateOf(false) }
+    var showSheetEndTimePicker by remember { mutableStateOf(false) }
 
     // Full Detail Configuration Window state with predictive gesture
     var configuringRoutine by remember { mutableStateOf<AutomatedRoutine?>(null) }
@@ -740,6 +744,25 @@ fun RoutinesWindow(
                             }
                         },
                         label = { Text("Start (HH:MM)") },
+                        trailingIcon = {
+                            Surface(
+                                shape = CircleShape,
+                                color = colorScheme.primaryContainer,
+                                modifier = Modifier
+                                    .padding(end = 4.dp)
+                                    .size(34.dp),
+                                onClick = { showSheetStartTimePicker = true }
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.schedule_fill0),
+                                        contentDescription = "Pick start time",
+                                        tint = colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        },
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.weight(1f)
@@ -755,9 +778,54 @@ fun RoutinesWindow(
                             }
                         },
                         label = { Text("End (HH:MM)") },
+                        trailingIcon = {
+                            Surface(
+                                shape = CircleShape,
+                                color = colorScheme.primaryContainer,
+                                modifier = Modifier
+                                    .padding(end = 4.dp)
+                                    .size(34.dp),
+                                onClick = { showSheetEndTimePicker = true }
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.schedule_fill0),
+                                        contentDescription = "Pick end time",
+                                        tint = colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        },
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.weight(1f)
+                    )
+                }
+
+                if (showSheetStartTimePicker) {
+                    BrikTimePickerDialog(
+                        title = "Select Start Time",
+                        initialHour = sheetStartHour,
+                        initialMinute = sheetStartMinute,
+                        onConfirm = { h, m ->
+                            sheetStartHour = h
+                            sheetStartMinute = m
+                        },
+                        onDismiss = { showSheetStartTimePicker = false }
+                    )
+                }
+
+                if (showSheetEndTimePicker) {
+                    BrikTimePickerDialog(
+                        title = "Select End Time",
+                        initialHour = sheetEndHour,
+                        initialMinute = sheetEndMinute,
+                        onConfirm = { h, m ->
+                            sheetEndHour = h
+                            sheetEndMinute = m
+                        },
+                        onDismiss = { showSheetEndTimePicker = false }
                     )
                 }
 
@@ -985,6 +1053,54 @@ fun RoutinesWindow(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun BrikTimePickerDialog(
+    title: String,
+    initialHour: Int,
+    initialMinute: Int,
+    onConfirm: (hour: Int, minute: Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val timePickerState = rememberTimePickerState(
+        initialHour = initialHour,
+        initialMinute = initialMinute,
+        is24Hour = true
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            Button(
+                onClick = {
+                    onConfirm(timePickerState.hour, timePickerState.minute)
+                    onDismiss()
+                },
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Confirm", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+        title = {
+            Text(text = title, fontWeight = FontWeight.Bold)
+        },
+        text = {
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                TimePicker(state = timePickerState)
+            }
+        },
+        shape = RoundedCornerShape(24.dp)
+    )
+}
+
 /**
  * Dedicated Full Screen Window for Configuring a Routine (Advanced items: Password/Key, Target Bags, DNS)
  */
@@ -1005,6 +1121,8 @@ private fun RoutineDetailWindow(
     var startMinute by remember { mutableStateOf(routine.startMinute) }
     var endHour by remember { mutableStateOf(routine.endHour) }
     var endMinute by remember { mutableStateOf(routine.endMinute) }
+    var showDetailStartTimePicker by remember { mutableStateOf(false) }
+    var showDetailEndTimePicker by remember { mutableStateOf(false) }
 
     var selectedBags by remember { mutableStateOf(routine.targetBagIds.toSet()) }
     var selectedPackages by remember { mutableStateOf(routine.targetPackageNames.toSet()) }
@@ -1160,6 +1278,25 @@ private fun RoutineDetailWindow(
                                     }
                                 },
                                 label = { Text("Start (HH:MM)") },
+                                trailingIcon = {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = colorScheme.primaryContainer,
+                                        modifier = Modifier
+                                            .padding(end = 4.dp)
+                                            .size(34.dp),
+                                        onClick = { showDetailStartTimePicker = true }
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.schedule_fill0),
+                                                contentDescription = "Pick start time",
+                                                tint = colorScheme.onPrimaryContainer,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                },
                                 singleLine = true,
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier.weight(1f)
@@ -1175,9 +1312,54 @@ private fun RoutineDetailWindow(
                                     }
                                 },
                                 label = { Text("End (HH:MM)") },
+                                trailingIcon = {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = colorScheme.primaryContainer,
+                                        modifier = Modifier
+                                            .padding(end = 4.dp)
+                                            .size(34.dp),
+                                        onClick = { showDetailEndTimePicker = true }
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.schedule_fill0),
+                                                contentDescription = "Pick end time",
+                                                tint = colorScheme.onPrimaryContainer,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                },
                                 singleLine = true,
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        if (showDetailStartTimePicker) {
+                            BrikTimePickerDialog(
+                                title = "Select Start Time",
+                                initialHour = startHour,
+                                initialMinute = startMinute,
+                                onConfirm = { h, m ->
+                                    startHour = h
+                                    startMinute = m
+                                },
+                                onDismiss = { showDetailStartTimePicker = false }
+                            )
+                        }
+
+                        if (showDetailEndTimePicker) {
+                            BrikTimePickerDialog(
+                                title = "Select End Time",
+                                initialHour = endHour,
+                                initialMinute = endMinute,
+                                onConfirm = { h, m ->
+                                    endHour = h
+                                    endMinute = m
+                                },
+                                onDismiss = { showDetailEndTimePicker = false }
                             )
                         }
                     }

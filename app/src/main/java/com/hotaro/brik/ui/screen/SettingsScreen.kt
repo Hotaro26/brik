@@ -77,6 +77,8 @@ import com.hotaro.brik.data.model.KeyType
 import com.hotaro.brik.policy.BridgeType
 import com.hotaro.brik.ui.component.QrScannerView
 import com.hotaro.brik.ui.component.RoundedPullRefreshPage
+import androidx.compose.runtime.mutableIntStateOf
+import com.hotaro.brik.ui.component.BridgeSetupSheet
 import com.hotaro.brik.ui.component.TomatoSectionHeader
 import com.hotaro.brik.ui.component.TomatoSettingsItem
 import com.hotaro.brik.ui.component.segmentedItemShape
@@ -116,6 +118,8 @@ fun SettingsScreen(
     var showPaletteSheet by remember { mutableStateOf(false) }
     var showSetUninstallKeyDialog by remember { mutableStateOf(false) }
     var showVerifyUninstallKeyDialog by remember { mutableStateOf(false) }
+    var showBridgeSetupSheet by remember { mutableStateOf(false) }
+    var bridgeSetupInitialTab by remember { mutableIntStateOf(0) }
     var isRefreshing by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -212,12 +216,8 @@ fun SettingsScreen(
                 },
                 shape = segmentedItemShape(0, totalItems),
                 onClick = {
-                    if (!isDeviceOwner) {
-                        val dpmCmd = "adb shell dpm set-device-owner com.hotaro.brik/.admin.BrikAdminReceiver"
-                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        clipboard.setPrimaryClip(ClipData.newPlainText("ADB Command", dpmCmd))
-                        Toast.makeText(context, "Command copied to clipboard!", Toast.LENGTH_SHORT).show()
-                    }
+                    bridgeSetupInitialTab = 0
+                    showBridgeSetupSheet = true
                 }
             )
 
@@ -253,7 +253,11 @@ fun SettingsScreen(
                             }
                         }
                     },
-                    shape = segmentedItemShape(1, totalItems)
+                    shape = segmentedItemShape(1, totalItems),
+                    onClick = {
+                        bridgeSetupInitialTab = 2
+                        showBridgeSetupSheet = true
+                    }
                 )
 
                 // 3. Shizuku Bridge
@@ -286,7 +290,11 @@ fun SettingsScreen(
                             }
                         }
                     },
-                    shape = segmentedItemShape(2, totalItems)
+                    shape = segmentedItemShape(2, totalItems),
+                    onClick = {
+                        bridgeSetupInitialTab = 1
+                        showBridgeSetupSheet = true
+                    }
                 )
             }
 
@@ -1554,5 +1562,14 @@ fun SettingsScreen(
                 }
             }
         }
+    }
+
+    if (showBridgeSetupSheet) {
+        BridgeSetupSheet(
+            initialTab = bridgeSetupInitialTab,
+            bridgeStatus = bridgeStatus,
+            settingsViewModel = settingsViewModel,
+            onDismiss = { showBridgeSetupSheet = false }
+        )
     }
 }

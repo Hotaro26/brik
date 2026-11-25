@@ -69,16 +69,19 @@ import com.hotaro.brik.R
 import com.hotaro.brik.data.model.BagLock
 import com.hotaro.brik.data.model.KeyType
 import androidx.compose.runtime.rememberCoroutineScope
+import com.hotaro.brik.ui.component.BridgeSetupSheet
 import com.hotaro.brik.ui.component.QrScannerView
 import com.hotaro.brik.ui.component.RoundedPullRefreshPage
 import com.hotaro.brik.ui.viewmodel.KeyViewModel
+import com.hotaro.brik.ui.viewmodel.SettingsViewModel
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun KeyScreen(
     modifier: Modifier = Modifier,
-    keyViewModel: KeyViewModel = viewModel()
+    keyViewModel: KeyViewModel = viewModel(),
+    settingsViewModel: SettingsViewModel = viewModel()
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -91,6 +94,8 @@ fun KeyScreen(
     var isRefreshing by remember { mutableStateOf(false) }
 
     val activeLocks by keyViewModel.activeLocks.collectAsState()
+    val bridgeStatus by settingsViewModel.bridgeStatus.collectAsState()
+    var showBridgeSetupSheet by remember { mutableStateOf(false) }
 
     val scale by animateFloatAsState(
         targetValue = if (isUnlockPillVisible) 1.08f else 1f,
@@ -145,6 +150,59 @@ fun KeyScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
+                // Banner if no bridge is active
+                val isPrivileged = bridgeStatus.isDeviceOwner || bridgeStatus.isDhizukuGranted || bridgeStatus.isShizukuGranted
+                if (!isPrivileged) {
+                    Surface(
+                        onClick = { showBridgeSetupSheet = true },
+                        shape = RoundedCornerShape(16.dp),
+                        color = colorScheme.errorContainer.copy(alpha = 0.5f),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp)
+                            .padding(bottom = 24.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = colorScheme.errorContainer,
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.shield_fill0),
+                                        contentDescription = null,
+                                        tint = colorScheme.onErrorContainer,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Bridge Setup Needed",
+                                    style = typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                    color = colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Tap to set up using ADB, Shizuku, or Dhizuku",
+                                    style = typography.bodySmall,
+                                    color = colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Icon(
+                                painter = painterResource(R.drawable.arrow_forward_big),
+                                contentDescription = null,
+                                tint = colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+
                 // Tappable Key Icon Surface
             Surface(
                 shape = CircleShape,
@@ -487,6 +545,15 @@ fun KeyScreen(
             },
             shape = RoundedCornerShape(24.dp),
             containerColor = colorScheme.surfaceContainerHigh
+        )
+    }
+
+    if (showBridgeSetupSheet) {
+        BridgeSetupSheet(
+            initialTab = 0,
+            bridgeStatus = bridgeStatus,
+            settingsViewModel = settingsViewModel,
+            onDismiss = { showBridgeSetupSheet = false }
         )
     }
 }

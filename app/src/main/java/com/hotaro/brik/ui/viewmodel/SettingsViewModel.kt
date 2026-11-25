@@ -92,6 +92,38 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun setDeviceOwnerViaShizuku(onResult: (Boolean, String?) -> Unit) {
+        viewModelScope.launch {
+            val res = withContext(Dispatchers.IO) {
+                runCatching {
+                    val cmd = "dpm set-device-owner com.hotaro.brik/.admin.BrikAdminReceiver"
+                    val method = Shizuku::class.java.getDeclaredMethod(
+                        "newProcess",
+                        Array<String>::class.java,
+                        Array<String>::class.java,
+                        String::class.java
+                    )
+                    val process = method.invoke(null, arrayOf("sh", "-c", cmd), null, null) as Process
+                    val exit = process.waitFor()
+                    val output = process.inputStream.bufferedReader().readText()
+                    val error = process.errorStream.bufferedReader().readText()
+                    if (exit == 0) {
+                        true to (output.ifBlank { "Device Owner granted successfully!" })
+                    } else {
+                        false to (error.ifBlank { output.ifBlank { "Exit code $exit" } })
+                    }
+                }
+            }
+            refreshStatus()
+            if (res.isSuccess) {
+                val (success, msg) = res.getOrThrow()
+                onResult(success, msg)
+            } else {
+                onResult(false, res.exceptionOrNull()?.message)
+            }
+        }
+    }
+
     fun suspendPackages(packages: List<String>, suspend: Boolean, onResult: (Boolean, String?) -> Unit) {
         viewModelScope.launch {
             val res = withContext(Dispatchers.IO) {

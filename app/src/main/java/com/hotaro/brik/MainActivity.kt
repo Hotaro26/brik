@@ -56,6 +56,8 @@ import com.hotaro.brik.ui.screen.ModesWindow
 import com.hotaro.brik.ui.screen.RoutinesWindow
 import com.hotaro.brik.ui.screen.SettingsScreen
 import com.hotaro.brik.ui.screen.ToolsScreen
+import com.hotaro.brik.ui.screen.ZenWindow
+import com.hotaro.brik.ui.screen.GrayscaleWindow
 import com.hotaro.brik.ui.theme.ThemePreferences
 import com.hotaro.brik.ui.theme.BrikTheme
 import kotlinx.coroutines.flow.Flow
@@ -213,7 +215,9 @@ fun BrikMainScreen() {
                             onNavigateToAppManager = { onNavigateToSubScreen("app_manager") },
                             onNavigateToBags = { onNavigateToSubScreen("bags") },
                             onNavigateToRoutines = { onNavigateToSubScreen("routines") },
-                            onNavigateToModes = { onNavigateToSubScreen("modes") }
+                            onNavigateToModes = { onNavigateToSubScreen("modes") },
+                            onNavigateToZen = { onNavigateToSubScreen("zen") },
+                            onNavigateToGrayscale = { onNavigateToSubScreen("grayscale") }
                         )
                         2 -> SettingsScreen(onNavigateToKeys = { onNavigateToSubScreen("keys") })
                     }
@@ -254,6 +258,8 @@ fun BrikMainScreen() {
                     "bags" -> BagsWindow(onBack = onBackFromSubScreen)
                     "routines" -> RoutinesWindow(onBack = onBackFromSubScreen)
                     "modes" -> ModesWindow(onBack = onBackFromSubScreen)
+                    "zen" -> ZenWindow(onBack = onBackFromSubScreen)
+                    "grayscale" -> GrayscaleWindow(onBack = onBackFromSubScreen)
                 }
             }
         }
