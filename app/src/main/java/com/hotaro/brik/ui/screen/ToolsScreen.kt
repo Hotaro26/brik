@@ -206,10 +206,11 @@ fun ToolsScreen(
                 )
             }
 
-            // --- SECTION 2: ROUTINES ---
+            // --- SECTION 2: TIME BLOCK ---
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                TomatoSectionHeader(title = "ROUTINES")
+                TomatoSectionHeader(title = "TIME BLOCK")
 
+                // 1. Automated Routines
                 TomatoSettingsItem(
                     title = "Automated Routines",
                     subtitle = "Scheduled locks, intervals & smart triggers",
@@ -224,15 +225,11 @@ fun ToolsScreen(
                             tint = colorScheme.onSurfaceVariant
                         )
                     },
-                    shape = segmentedItemShape(0, 1),
+                    shape = segmentedItemShape(0, 2),
                     onClick = onNavigateToRoutines
                 )
-            }
 
-            // --- SECTION 3: MODES ---
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                TomatoSectionHeader(title = "MODES")
-
+                // 2. Focus Modes
                 TomatoSettingsItem(
                     title = "Focus Modes",
                     subtitle = "Deep work, study & sleep restriction profiles",
@@ -247,7 +244,7 @@ fun ToolsScreen(
                             tint = colorScheme.onSurfaceVariant
                         )
                     },
-                    shape = segmentedItemShape(0, 1),
+                    shape = segmentedItemShape(1, 2),
                     onClick = onNavigateToModes
                 )
             }

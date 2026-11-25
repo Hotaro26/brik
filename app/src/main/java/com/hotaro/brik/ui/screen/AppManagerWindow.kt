@@ -179,7 +179,7 @@ fun AppManagerWindow(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Search Bar
+                    // Cylindrical Pill Search Bar
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { viewModel.searchQuery.value = it },
@@ -210,7 +210,7 @@ fun AppManagerWindow(
                             }
                         },
                         singleLine = true,
-                        shape = RoundedCornerShape(20.dp),
+                        shape = CircleShape,
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedContainerColor = colorScheme.surfaceContainerHigh,
                             unfocusedContainerColor = colorScheme.surfaceContainerLow,
@@ -219,40 +219,33 @@ fun AppManagerWindow(
                         )
                     )
 
-                    // Manage Pill Button
-                    FilterChip(
-                        selected = showSystemApps,
+                    // Manage Icon Pill (Text hidden, proper tune/filter icon with active indicator)
+                    Surface(
                         onClick = { showManageDialog = true },
-                        label = {
-                            Text(
-                                text = "Manage",
-                                fontWeight = FontWeight.Bold,
-                                style = typography.labelMedium
-                            )
-                        },
-                        leadingIcon = {
+                        shape = CircleShape,
+                        color = if (showSystemApps) colorScheme.primaryContainer else colorScheme.surfaceContainerHigh,
+                        contentColor = if (showSystemApps) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                        tonalElevation = if (showSystemApps) 4.dp else 0.dp,
+                        modifier = Modifier.size(52.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 painter = painterResource(R.drawable.tune_fill0),
-                                contentDescription = "Manage apps",
-                                modifier = Modifier.size(16.dp)
+                                contentDescription = "Manage app visibility",
+                                modifier = Modifier.size(22.dp)
                             )
-                        },
-                        shape = RoundedCornerShape(16.dp),
-                        colors = FilterChipDefaults.filterChipColors(
-                            containerColor = colorScheme.surfaceContainerLow,
-                            selectedContainerColor = colorScheme.primaryContainer,
-                            labelColor = colorScheme.onSurface,
-                            selectedLabelColor = colorScheme.onPrimaryContainer,
-                            iconColor = colorScheme.onSurfaceVariant,
-                            selectedLeadingIconColor = colorScheme.onPrimaryContainer
-                        ),
-                        border = FilterChipDefaults.filterChipBorder(
-                            enabled = true,
-                            selected = showSystemApps,
-                            borderColor = colorScheme.outlineVariant.copy(alpha = 0.5f),
-                            selectedBorderColor = colorScheme.primary
-                        )
-                    )
+                            if (showSystemApps) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = colorScheme.primary,
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .align(Alignment.TopEnd)
+                                        .padding(top = 10.dp, end = 10.dp)
+                                ) {}
+                            }
+                        }
+                    }
                 }
 
                 Spacer(Modifier.height(14.dp))
