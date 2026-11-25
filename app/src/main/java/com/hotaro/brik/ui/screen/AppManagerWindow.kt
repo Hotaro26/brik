@@ -432,7 +432,7 @@ fun AppManagerWindow(
 
                             Switch(
                                 checked = showSystemApps,
-                                onCheckedChange = { viewModel.showSystemApps.value = it }
+                                onCheckedChange = { viewModel.setShowSystemApps(it) }
                             )
                         }
                     }

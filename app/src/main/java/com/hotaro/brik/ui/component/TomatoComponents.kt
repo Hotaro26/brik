@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -66,6 +67,7 @@ fun TomatoSettingsItem(
     leadingIcon: Int? = null,
     iconTint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
     iconContainerColor: Color = MaterialTheme.colorScheme.surfaceContainerLowest,
+    iconSize: Dp = 22.dp,
     trailingContent: @Composable (() -> Unit)? = null,
     shape: RoundedCornerShape = RoundedCornerShape(20.dp),
     containerColor: Color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -95,7 +97,7 @@ fun TomatoSettingsItem(
                             painter = painterResource(leadingIcon),
                             contentDescription = null,
                             tint = iconTint,
-                            modifier = Modifier.size(22.dp)
+                            modifier = Modifier.size(iconSize)
                         )
                     }
                 }

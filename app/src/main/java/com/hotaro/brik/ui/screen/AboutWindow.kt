@@ -39,6 +39,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -68,6 +69,21 @@ fun AboutWindow(
     val view = LocalView.current
     val isDark = colorScheme.surface.luminance() < 0.5f
     val appBackground = if (isDark) Color.Black else colorScheme.surface
+
+    val appVersion = remember(context) {
+        try {
+            val pInfo = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                context.packageManager.getPackageInfo(context.packageName, android.content.pm.PackageManager.PackageInfoFlags.of(0))
+            } else {
+                @Suppress("DEPRECATION")
+                context.packageManager.getPackageInfo(context.packageName, 0)
+            }
+            val raw = pInfo.versionName ?: "1.0.3"
+            if (raw.startsWith("v", ignoreCase = true)) raw else "v$raw"
+        } catch (e: Exception) {
+            "v1.0.3"
+        }
+    }
 
     val openUrl: (String) -> Unit = { url ->
         view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
@@ -151,16 +167,16 @@ fun AboutWindow(
                 ) {
                     // Monochrome Themed Icon Container
                     Surface(
-                        shape = RoundedCornerShape(24.dp),
+                        shape = RoundedCornerShape(28.dp),
                         color = colorScheme.primaryContainer,
-                        modifier = Modifier.size(84.dp)
+                        modifier = Modifier.size(96.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Image(
-                                painter = painterResource(R.drawable.ic_launcher_monochrome),
+                                painter = painterResource(R.drawable.ic_brik_monochrome),
                                 contentDescription = "Brik Monochrome Icon",
                                 colorFilter = ColorFilter.tint(colorScheme.primary),
-                                modifier = Modifier.size(54.dp)
+                                modifier = Modifier.size(68.dp)
                             )
                         }
                     }
@@ -180,8 +196,8 @@ fun AboutWindow(
                     Spacer(Modifier.height(4.dp))
 
                     Text(
-                        text = "Version 1.0.3 • Build 4 (Release)",
-                        style = typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                        text = appVersion,
+                        style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = colorScheme.primary
                     )
 

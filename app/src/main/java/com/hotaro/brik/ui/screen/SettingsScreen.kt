@@ -110,6 +110,21 @@ fun SettingsScreen(
     val activity = context as? Activity
     val coroutineScope = rememberCoroutineScope()
 
+    val appVersion = remember(context) {
+        try {
+            val pInfo = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                context.packageManager.getPackageInfo(context.packageName, android.content.pm.PackageManager.PackageInfoFlags.of(0))
+            } else {
+                @Suppress("DEPRECATION")
+                context.packageManager.getPackageInfo(context.packageName, 0)
+            }
+            val raw = pInfo.versionName ?: "1.0.3"
+            if (raw.startsWith("v", ignoreCase = true)) raw else "v$raw"
+        } catch (e: Exception) {
+            "v1.0.3"
+        }
+    }
+
     val bridgeStatus by settingsViewModel.bridgeStatus.collectAsState()
     val suspendedPackages by settingsViewModel.suspendedPackages.collectAsState()
     val hiddenPackages by settingsViewModel.hiddenPackages.collectAsState()
@@ -541,10 +556,11 @@ fun SettingsScreen(
 
             TomatoSettingsItem(
                 title = "About Brik",
-                subtitle = "v1.0.3 (Build 4) • App info, GitHub repo & privacy policy",
-                leadingIcon = R.drawable.ic_launcher_monochrome,
+                subtitle = "$appVersion • App info, GitHub repo & privacy policy",
+                leadingIcon = R.drawable.ic_brik_monochrome,
                 iconTint = colorScheme.primary,
                 iconContainerColor = colorScheme.primaryContainer,
+                iconSize = 28.dp,
                 trailingContent = {
                     Icon(
                         painter = painterResource(R.drawable.arrow_forward_big),

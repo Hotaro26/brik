@@ -117,6 +117,7 @@ fun ToolsScreen(
 
     val bags by viewModel.bags.collectAsState()
     val installedApps by viewModel.installedApps.collectAsState()
+    val showSystemApps by viewModel.showSystemApps.collectAsState()
     val activeLocks by keyViewModel.activeLocks.collectAsState()
 
     val dnsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -170,9 +171,10 @@ fun ToolsScreen(
                 TomatoSectionHeader(title = "APPLICATIONS & BAGS")
 
                 // 1. App Manager
+                val visibleAppsCount = if (showSystemApps) installedApps.size else installedApps.count { !it.isSystemApp }
                 TomatoSettingsItem(
                     title = "App Manager",
-                    subtitle = if (installedApps.isNotEmpty()) "${installedApps.size} apps available" else "Manage and inspect applications",
+                    subtitle = if (installedApps.isNotEmpty()) "$visibleAppsCount apps available" else "Manage and inspect applications",
                     leadingIcon = R.drawable.apps_fill0,
                     iconContainerColor = colorScheme.primaryContainer,
                     iconTint = colorScheme.primary,

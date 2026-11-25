@@ -1,6 +1,7 @@
 package com.hotaro.brik.ui.viewmodel
 
 import android.app.Application
+import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
@@ -31,7 +32,15 @@ class ToolsViewModel(application: Application) : AndroidViewModel(application) {
     val isLoadingApps: StateFlow<Boolean> = _isLoadingApps.asStateFlow()
 
     val searchQuery = MutableStateFlow("")
-    val showSystemApps = MutableStateFlow(false)
+    private val prefs = application.getSharedPreferences("brik_tools_preferences", Context.MODE_PRIVATE)
+    private val KEY_SHOW_SYSTEM_APPS = "pref_show_system_apps"
+
+    val showSystemApps = MutableStateFlow(prefs.getBoolean(KEY_SHOW_SYSTEM_APPS, false))
+
+    fun setShowSystemApps(show: Boolean) {
+        showSystemApps.value = show
+        prefs.edit().putBoolean(KEY_SHOW_SYSTEM_APPS, show).apply()
+    }
 
     private val _selectedPackages = MutableStateFlow<Set<String>>(emptySet())
     val selectedPackages: StateFlow<Set<String>> = _selectedPackages.asStateFlow()
