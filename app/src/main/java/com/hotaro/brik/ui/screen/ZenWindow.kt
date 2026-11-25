@@ -12,6 +12,11 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.graphics.graphicsLayer
+import com.hotaro.brik.ui.component.TomatoSectionHeader
+import com.hotaro.brik.ui.component.TomatoSettingsItem
+import com.hotaro.brik.ui.component.segmentedItemShape
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -218,6 +223,24 @@ private fun InactiveZenConfigScreen(
     var isInfiniteSelected by remember { mutableStateOf(false) }
     var showAppPickerSheet by remember { mutableStateOf(false) }
 
+    var isDurationExpanded by remember { mutableStateOf(false) }
+    val durationChevronRotation by animateFloatAsState(
+        targetValue = if (isDurationExpanded) 90f else 0f,
+        label = "durationChevron"
+    )
+
+    var isAllowedAppsExpanded by remember { mutableStateOf(false) }
+    val appsChevronRotation by animateFloatAsState(
+        targetValue = if (isAllowedAppsExpanded) 90f else 0f,
+        label = "appsChevron"
+    )
+
+    var isHoldDurationExpanded by remember { mutableStateOf(false) }
+    val holdChevronRotation by animateFloatAsState(
+        targetValue = if (isHoldDurationExpanded) 90f else 0f,
+        label = "holdChevron"
+    )
+
     val pm = context.packageManager
     val launcherApps = remember(context) { loadLauncherApps(pm, context.packageName) }
     val selectedAppInfos = remember(allowedPackages, launcherApps) {
@@ -283,272 +306,468 @@ private fun InactiveZenConfigScreen(
                         indication = null
                     ) { /* Absorb blank space clicks */ }
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp, vertical = 12.dp)
-                    .padding(bottom = 76.dp),
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .padding(bottom = 96.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-            // Hero Card
-            ElevatedCard(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.elevatedCardColors(
-                    containerColor = colorScheme.surfaceContainerHigh
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(20.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                // Hero Card
+                ElevatedCard(
+                    shape = RoundedCornerShape(22.dp),
+                    colors = CardDefaults.elevatedCardColors(
+                        containerColor = colorScheme.surfaceContainerHigh
+                    ),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = colorScheme.primaryContainer,
-                        modifier = Modifier.size(54.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                painter = painterResource(R.drawable.self_improvement_fill0),
-                                contentDescription = null,
-                                tint = colorScheme.primary,
-                                modifier = Modifier.size(28.dp)
-                            )
-                        }
-                    }
-                    Spacer(Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Focus Desktop",
-                            style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = colorScheme.onSurface
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = "Turn your phone into a distraction-free tool. Only your permitted apps and a clock will remain accessible.",
-                            style = typography.bodySmall,
-                            color = colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-
-            // Duration Mode Card
-            ElevatedCard(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.elevatedCardColors(
-                    containerColor = colorScheme.surfaceContainerHigh
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(20.dp)) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.padding(20.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                painter = painterResource(R.drawable.schedule_fill0),
-                                contentDescription = null,
-                                tint = colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(Modifier.width(10.dp))
-                            Text(
-                                text = "Session Duration",
-                                style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                color = colorScheme.onSurface
-                            )
-                        }
-
                         Surface(
                             shape = CircleShape,
-                            color = if (isInfiniteSelected) colorScheme.tertiaryContainer else colorScheme.primaryContainer
+                            color = colorScheme.primaryContainer,
+                            modifier = Modifier.size(50.dp)
                         ) {
-                            Text(
-                                text = if (isInfiniteSelected) "Infinite" else "${selectedDurationMinutes}m",
-                                style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = if (isInfiniteSelected) colorScheme.onTertiaryContainer else colorScheme.onPrimaryContainer,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                            )
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    painter = painterResource(R.drawable.self_improvement_fill0),
+                                    contentDescription = null,
+                                    tint = colorScheme.primary,
+                                    modifier = Modifier.size(26.dp)
+                                )
+                            }
                         }
-                    }
-
-                    Spacer(Modifier.height(14.dp))
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(colorScheme.surfaceContainerLowest)
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                        Spacer(Modifier.width(16.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Infinite Lockdown",
-                                style = typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                text = "Focus Desktop",
+                                style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                 color = colorScheme.onSurface
                             )
+                            Spacer(Modifier.height(4.dp))
                             Text(
-                                text = "Session runs without a timer; unlocked strictly with key",
+                                text = "Turn your phone into a distraction-free tool. Only permitted apps and a clock will remain accessible.",
                                 style = typography.bodySmall,
                                 color = colorScheme.onSurfaceVariant
                             )
                         }
-                        Switch(
-                            checked = isInfiniteSelected,
-                            onCheckedChange = { isInfiniteSelected = it },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = colorScheme.onPrimary,
-                                checkedTrackColor = colorScheme.primary
-                            )
-                        )
-                    }
-
-                    if (!isInfiniteSelected) {
-                        Spacer(Modifier.height(14.dp))
-                        Text(
-                            text = "Preset Durations",
-                            style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = colorScheme.onSurfaceVariant
-                        )
-                        Spacer(Modifier.height(8.dp))
-
-                        val presets = listOf(15, 30, 45, 60, 120, 240)
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            presets.forEach { minutes ->
-                                val isSelected = selectedDurationMinutes == minutes
-                                val label = if (minutes >= 60) "${minutes / 60}h" else "${minutes}m"
-                                FilterChip(
-                                    selected = isSelected,
-                                    onClick = { selectedDurationMinutes = minutes },
-                                    label = { Text(label, fontWeight = FontWeight.SemiBold) },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = colorScheme.primaryContainer,
-                                        selectedLabelColor = colorScheme.onPrimaryContainer
-                                    ),
-                                    shape = RoundedCornerShape(10.dp)
-                                )
-                            }
-                        }
-
-                        Spacer(Modifier.height(12.dp))
-                        Text(
-                            text = "Custom: ${selectedDurationMinutes} minutes",
-                            style = typography.bodySmall,
-                            color = colorScheme.onSurfaceVariant
-                        )
-                        Slider(
-                            value = selectedDurationMinutes.toFloat(),
-                            onValueChange = { selectedDurationMinutes = it.toInt() },
-                            valueRange = 5f..480f,
-                            steps = 94
-                        )
                     }
                 }
-            }
 
-            // Allowed Apps Card
-            ElevatedCard(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.elevatedCardColors(
-                    containerColor = colorScheme.surfaceContainerHigh
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                painter = painterResource(R.drawable.apps_fill0),
-                                contentDescription = null,
-                                tint = colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(Modifier.width(10.dp))
-                            Text(
-                                text = "Allowed Apps",
-                                style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                color = colorScheme.onSurface
-                            )
-                        }
+                // --- SECTION 1: SESSION & TIMER ---
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    TomatoSectionHeader(title = "SESSION & TIMER")
 
-                        TextButton(onClick = { showAppPickerSheet = true }) {
-                            Text("Manage (${allowedPackages.size}/10)", fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-
-                    Text(
-                        text = "Whitelisted apps will be directly launchable from the Zen desktop (maximum 10 apps).",
-                        style = typography.bodySmall,
-                        color = colorScheme.onSurfaceVariant
+                    // 1. Session Duration Item
+                    TomatoSettingsItem(
+                        title = "Session Duration",
+                        subtitle = if (isInfiniteSelected) "Infinite lockdown • Key required" else "${selectedDurationMinutes} minutes • Tap to adjust",
+                        leadingIcon = R.drawable.schedule_fill0,
+                        iconContainerColor = colorScheme.primaryContainer,
+                        iconTint = colorScheme.onPrimaryContainer,
+                        trailingContent = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = if (isInfiniteSelected) colorScheme.tertiaryContainer else colorScheme.primaryContainer
+                                ) {
+                                    Text(
+                                        text = if (isInfiniteSelected) "Infinite" else "${selectedDurationMinutes}m",
+                                        style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = if (isInfiniteSelected) colorScheme.onTertiaryContainer else colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                    )
+                                }
+                                Icon(
+                                    painter = painterResource(R.drawable.arrow_forward_big),
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .size(16.dp)
+                                        .graphicsLayer { rotationZ = durationChevronRotation },
+                                    tint = colorScheme.onSurfaceVariant
+                                )
+                            }
+                        },
+                        shape = if (isDurationExpanded) {
+                            RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+                        } else {
+                            segmentedItemShape(0, 2)
+                        },
+                        onClick = { isDurationExpanded = !isDurationExpanded }
                     )
 
-                    Spacer(Modifier.height(12.dp))
-
-                    if (selectedAppInfos.isEmpty()) {
+                    // Smooth expansion for Session Duration
+                    AnimatedVisibility(
+                        visible = isDurationExpanded,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
                         Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = colorScheme.surfaceContainerLowest,
+                            color = colorScheme.surfaceContainerHigh,
+                            shape = RoundedCornerShape(4.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(
-                                modifier = Modifier.padding(16.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 20.dp, vertical = 14.dp)
                             ) {
-                                Text(
-                                    text = "No apps selected. Defaults to Phone & SMS.",
-                                    style = typography.bodySmall,
-                                    color = colorScheme.onSurfaceVariant
-                                )
-                                Spacer(Modifier.height(8.dp))
-                                OutlinedButton(
-                                    onClick = {
-                                        val defaults = ZenManager.getDefaultEssentialPackages(context)
-                                        ZenManager.setAllowedPackages(context, defaults)
-                                    },
-                                    shape = CircleShape
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .background(colorScheme.surfaceContainerLowest)
+                                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text("Restore Phone & SMS")
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Infinite Lockdown",
+                                            style = typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                            color = colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = "Session runs indefinitely without a timer; unlocked strictly with key",
+                                            style = typography.bodySmall,
+                                            color = colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Switch(
+                                        checked = isInfiniteSelected,
+                                        onCheckedChange = { isInfiniteSelected = it },
+                                        colors = SwitchDefaults.colors(
+                                            checkedThumbColor = colorScheme.onPrimary,
+                                            checkedTrackColor = colorScheme.primary
+                                        )
+                                    )
+                                }
+
+                                if (!isInfiniteSelected) {
+                                    Spacer(Modifier.height(14.dp))
+                                    Text(
+                                        text = "Preset Durations",
+                                        style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(Modifier.height(8.dp))
+
+                                    val presets = listOf(15, 30, 45, 60, 120, 240)
+                                    FlowRow(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        presets.forEach { minutes ->
+                                            val isSelected = selectedDurationMinutes == minutes
+                                            val label = if (minutes >= 60) "${minutes / 60}h" else "${minutes}m"
+                                            FilterChip(
+                                                selected = isSelected,
+                                                onClick = { selectedDurationMinutes = minutes },
+                                                label = { Text(label, fontWeight = FontWeight.SemiBold) },
+                                                colors = FilterChipDefaults.filterChipColors(
+                                                    selectedContainerColor = colorScheme.primaryContainer,
+                                                    selectedLabelColor = colorScheme.onPrimaryContainer
+                                                ),
+                                                shape = RoundedCornerShape(10.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(Modifier.height(12.dp))
+                                    Text(
+                                        text = "Custom: ${selectedDurationMinutes} minutes",
+                                        style = typography.bodySmall,
+                                        color = colorScheme.onSurfaceVariant
+                                    )
+                                    Slider(
+                                        value = selectedDurationMinutes.toFloat(),
+                                        onValueChange = { selectedDurationMinutes = it.toInt() },
+                                        valueRange = 5f..480f,
+                                        steps = 94
+                                    )
                                 }
                             }
                         }
-                    } else {
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            selectedAppInfos.take(10).forEach { app ->
+                    }
+
+                    // 2. Allowed Apps Item
+                    TomatoSettingsItem(
+                        title = "Allowed Apps",
+                        subtitle = "${allowedPackages.size}/10 apps selected • Tap to expand",
+                        leadingIcon = R.drawable.apps_fill0,
+                        iconContainerColor = colorScheme.primaryContainer,
+                        iconTint = colorScheme.onPrimaryContainer,
+                        trailingContent = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
                                 Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = colorScheme.surfaceContainerLowest,
-                                    border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.3f))
+                                    shape = CircleShape,
+                                    color = colorScheme.primaryContainer
                                 ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                        verticalAlignment = Alignment.CenterVertically
+                                    Text(
+                                        text = "${allowedPackages.size}/10",
+                                        style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                    )
+                                }
+                                Icon(
+                                    painter = painterResource(R.drawable.arrow_forward_big),
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .size(16.dp)
+                                        .graphicsLayer { rotationZ = appsChevronRotation },
+                                    tint = colorScheme.onSurfaceVariant
+                                )
+                            }
+                        },
+                        shape = if (isAllowedAppsExpanded) {
+                            RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+                        } else {
+                            segmentedItemShape(1, 2)
+                        },
+                        onClick = { isAllowedAppsExpanded = !isAllowedAppsExpanded }
+                    )
+
+                    // Smooth expansion for Allowed Apps
+                    AnimatedVisibility(
+                        visible = isAllowedAppsExpanded,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        Surface(
+                            color = colorScheme.surfaceContainerHigh,
+                            shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 22.dp, bottomEnd = 22.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 20.dp, vertical = 14.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Whitelisted Apps (${allowedPackages.size}/10)",
+                                        style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = colorScheme.onSurface
+                                    )
+                                    TextButton(onClick = { showAppPickerSheet = true }) {
+                                        Text("Manage Apps", fontWeight = FontWeight.Bold)
+                                    }
+                                }
+
+                                Spacer(Modifier.height(8.dp))
+
+                                if (selectedAppInfos.isEmpty()) {
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = colorScheme.surfaceContainerLowest,
+                                        modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        if (app.icon != null) {
-                                            Image(
-                                                painter = rememberDrawablePainter(drawable = app.icon),
-                                                contentDescription = null,
-                                                modifier = Modifier
-                                                    .size(20.dp)
-                                                    .clip(RoundedCornerShape(4.dp))
+                                        Column(
+                                            modifier = Modifier.padding(14.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            Text(
+                                                text = "No apps selected. Defaults to Phone & SMS.",
+                                                style = typography.bodySmall,
+                                                color = colorScheme.onSurfaceVariant
                                             )
-                                            Spacer(Modifier.width(6.dp))
+                                            Spacer(Modifier.height(6.dp))
+                                            OutlinedButton(
+                                                onClick = {
+                                                    val defaults = ZenManager.getDefaultEssentialPackages(context)
+                                                    ZenManager.setAllowedPackages(context, defaults)
+                                                },
+                                                shape = CircleShape
+                                            ) {
+                                                Text("Restore Phone & SMS")
+                                            }
                                         }
-                                        Text(
-                                            text = app.label,
-                                            style = typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                                            color = colorScheme.onSurface
+                                    }
+                                } else {
+                                    FlowRow(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        selectedAppInfos.take(10).forEach { app ->
+                                            Surface(
+                                                shape = RoundedCornerShape(12.dp),
+                                                color = colorScheme.surfaceContainerLowest,
+                                                border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.3f))
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    if (app.icon != null) {
+                                                        Image(
+                                                            painter = rememberDrawablePainter(drawable = app.icon),
+                                                            contentDescription = null,
+                                                            modifier = Modifier
+                                                                .size(20.dp)
+                                                                .clip(RoundedCornerShape(4.dp))
+                                                        )
+                                                        Spacer(Modifier.width(6.dp))
+                                                    }
+                                                    Text(
+                                                        text = app.label,
+                                                        style = typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                                                        color = colorScheme.onSurface
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // --- SECTION 2: LOCKDOWN & SECURITY ---
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    TomatoSectionHeader(title = "LOCKDOWN & SECURITY")
+
+                    // 1. Kiosk Screen Pinning Item
+                    TomatoSettingsItem(
+                        title = "Kiosk Screen Pinning",
+                        subtitle = "Pins screen & blocks system navigation until unlocked",
+                        leadingIcon = R.drawable.screen_lock_portrait_fill0,
+                        iconContainerColor = colorScheme.secondaryContainer,
+                        iconTint = colorScheme.onSecondaryContainer,
+                        trailingContent = {
+                            Switch(
+                                checked = useKiosk,
+                                onCheckedChange = { ZenManager.setUseKiosk(context, it) },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = colorScheme.onPrimary,
+                                    checkedTrackColor = colorScheme.primary
+                                )
+                            )
+                        },
+                        shape = segmentedItemShape(0, 2)
+                    )
+
+                    // 2. Security Key Protection Item
+                    TomatoSettingsItem(
+                        title = if (hasKey) "Security Key Active" else "Security Key Required",
+                        subtitle = if (hasKey) "Guards early exit (${ZenManager.getKeyType(context).name})" else "Configure key to enable Zen Mode",
+                        leadingIcon = if (hasKey) R.drawable.check_fill0 else R.drawable.shield_fill0,
+                        iconContainerColor = if (hasKey) colorScheme.primaryContainer else colorScheme.errorContainer,
+                        iconTint = if (hasKey) colorScheme.onPrimaryContainer else colorScheme.onErrorContainer,
+                        trailingContent = {
+                            Button(
+                                onClick = onSetKeyRequested,
+                                shape = CircleShape,
+                                colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary)
+                            ) {
+                                Text(if (hasKey) "Change" else "Configure", style = typography.labelSmall)
+                            }
+                        },
+                        shape = segmentedItemShape(1, 2),
+                        onClick = onSetKeyRequested
+                    )
+                }
+
+                // --- SECTION 3: PREFERENCES & EXTRAS ---
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    TomatoSectionHeader(title = "PREFERENCES & EXTRAS")
+
+                    // Exit Button Hold Duration Item
+                    TomatoSettingsItem(
+                        title = "Exit Hold Duration",
+                        subtitle = "${holdDurationSeconds}s continuous press • Tap to adjust",
+                        leadingIcon = R.drawable.tune_fill0,
+                        iconContainerColor = colorScheme.tertiaryContainer,
+                        iconTint = colorScheme.onTertiaryContainer,
+                        trailingContent = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = colorScheme.primaryContainer
+                                ) {
+                                    Text(
+                                        text = "${holdDurationSeconds}s",
+                                        style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                    )
+                                }
+                                Icon(
+                                    painter = painterResource(R.drawable.arrow_forward_big),
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .size(16.dp)
+                                        .graphicsLayer { rotationZ = holdChevronRotation },
+                                    tint = colorScheme.onSurfaceVariant
+                                )
+                            }
+                        },
+                        shape = if (isHoldDurationExpanded) {
+                            RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+                        } else {
+                            segmentedItemShape(0, 1)
+                        },
+                        onClick = { isHoldDurationExpanded = !isHoldDurationExpanded }
+                    )
+
+                    // Smooth expansion for Hold Duration
+                    AnimatedVisibility(
+                        visible = isHoldDurationExpanded,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        Surface(
+                            color = colorScheme.surfaceContainerHigh,
+                            shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 22.dp, bottomEnd = 22.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 20.dp, vertical = 14.dp)
+                            ) {
+                                Text(
+                                    text = "Continuous press duration required to reveal remaining time & exit button on the Zen desktop. Hides after 2 seconds.",
+                                    style = typography.bodySmall,
+                                    color = colorScheme.onSurfaceVariant
+                                )
+                                Spacer(Modifier.height(12.dp))
+
+                                val holdPresets = listOf(1, 2, 3, 4, 5)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    holdPresets.forEach { seconds ->
+                                        val isSelected = holdDurationSeconds == seconds
+                                        FilterChip(
+                                            selected = isSelected,
+                                            onClick = { ZenManager.setHoldDurationSeconds(context, seconds) },
+                                            label = {
+                                                Text(
+                                                    text = "${seconds}s",
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                            },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = colorScheme.primaryContainer,
+                                                selectedLabelColor = colorScheme.onPrimaryContainer
+                                            ),
+                                            shape = RoundedCornerShape(10.dp),
+                                            modifier = Modifier.weight(1f)
                                         )
                                     }
                                 }
@@ -558,242 +777,36 @@ private fun InactiveZenConfigScreen(
                 }
             }
 
-            // Kiosk Mode Card
-            ElevatedCard(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.elevatedCardColors(
-                    containerColor = colorScheme.surfaceContainerHigh
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(20.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                painter = painterResource(R.drawable.screen_lock_portrait_fill0),
-                                contentDescription = null,
-                                tint = colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(Modifier.width(10.dp))
-                            Text(
-                                text = "Kiosk Screen Pinning",
-                                style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                color = colorScheme.onSurface
-                            )
-                        }
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = "Pins this screen and allowed apps using Device Owner. Prevents status bar swipe, notifications, and home gestures until unlocked.",
-                            style = typography.bodySmall,
-                            color = colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    Switch(
-                        checked = useKiosk,
-                        onCheckedChange = { ZenManager.setUseKiosk(context, it) },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = colorScheme.onPrimary,
-                            checkedTrackColor = colorScheme.primary
-                        )
-                    )
-                }
-            }
-
-            // Security Key Status Card
-            ElevatedCard(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.elevatedCardColors(
-                    containerColor = colorScheme.surfaceContainerHigh
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(20.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = if (hasKey) colorScheme.primaryContainer else colorScheme.errorContainer,
-                            modifier = Modifier.size(42.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    painter = painterResource(if (hasKey) R.drawable.check_fill0 else R.drawable.shield_fill0),
-                                    contentDescription = null,
-                                    tint = if (hasKey) colorScheme.primary else colorScheme.error,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                text = if (hasKey) "Security Key Active" else "Security Key Required",
-                                style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                color = colorScheme.onSurface
-                            )
-                            Text(
-                                text = if (hasKey) "Protects early session exit" else "Configure key to enable Zen Mode",
-                                style = typography.bodySmall,
-                                color = colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
-                    OutlinedButton(
-                        onClick = onSetKeyRequested,
-                        shape = CircleShape
-                    ) {
-                        Text(if (hasKey) "Change" else "Configure")
-                    }
-                }
-            }
-
-            // Extras Card: Hold to Reveal Customization
-            ElevatedCard(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.elevatedCardColors(
-                    containerColor = colorScheme.surfaceContainerHigh
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                painter = painterResource(R.drawable.tune_fill0),
-                                contentDescription = null,
-                                tint = colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(Modifier.width(10.dp))
-                            Text(
-                                text = "Extras",
-                                style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                color = colorScheme.onSurface
-                            )
-                        }
-
-                        Surface(
-                            shape = CircleShape,
-                            color = colorScheme.primaryContainer
-                        ) {
-                            Text(
-                                text = "${holdDurationSeconds}s Hold",
-                                style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = colorScheme.onPrimaryContainer,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                            )
-                        }
-                    }
-
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = "Continuous press duration required to reveal remaining time & exit button on the Zen desktop. Hides after 2 seconds.",
-                        style = typography.bodySmall,
-                        color = colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(Modifier.height(14.dp))
-
-                    val holdPresets = listOf(1, 2, 3, 4, 5)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        holdPresets.forEach { seconds ->
-                            val isSelected = holdDurationSeconds == seconds
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = { ZenManager.setHoldDurationSeconds(context, seconds) },
-                                label = {
-                                    Text(
-                                        text = "${seconds}s",
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = colorScheme.primaryContainer,
-                                    selectedLabelColor = colorScheme.onPrimaryContainer
-                                ),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(4.dp))
-
-            // Start Zen Button
-            Button(
+            // Floating Pill Button: Lotus icon + "Enter Zen" in soft-edged rectangle at bottom right
+            Surface(
                 onClick = { onStartZen(selectedDurationMinutes, isInfiniteSelected) },
                 shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary),
+                color = colorScheme.primary,
+                contentColor = colorScheme.onPrimary,
+                shadowElevation = 8.dp,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(54.dp)
+                    .align(Alignment.BottomEnd)
+                    .navigationBarsPadding()
+                    .padding(end = 20.dp, bottom = 20.dp)
             ) {
-                Icon(
-                    painter = painterResource(R.drawable.self_improvement_fill0),
-                    contentDescription = null,
-                    modifier = Modifier.size(22.dp)
-                )
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    text = "Enter Zen Mode",
-                    style = typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                )
-            }
-
-            Spacer(Modifier.height(16.dp))
-        }
-
-        // Floating Pill Button: Lotus man + "Enter Zen"
-        Surface(
-            onClick = { onStartZen(selectedDurationMinutes, isInfiniteSelected) },
-            shape = CircleShape,
-            color = colorScheme.primary,
-            contentColor = colorScheme.onPrimary,
-            shadowElevation = 8.dp,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(bottom = 16.dp)
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 22.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.self_improvement_fill0),
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = "Enter Zen",
-                    style = typography.titleSmall.copy(fontWeight = FontWeight.Bold)
-                )
+                Row(
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.self_improvement_fill0),
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "Enter Zen",
+                        style = typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                    )
+                }
             }
         }
     }
-}
 
     // Modal Bottom Sheet for Managing Allowed Apps
     if (showAppPickerSheet) {
