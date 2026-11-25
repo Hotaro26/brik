@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import com.hotaro.brik.data.repository.KeyRepository
+import com.hotaro.brik.data.repository.TimeBlockRepository
 import com.hotaro.brik.policy.PolicyBridgeManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -35,6 +36,7 @@ class PackageChangeReceiver : BroadcastReceiver() {
                         try {
                             PolicyBridgeManager.suspendPackages(appContext, listOf(packageName), true)
                             PolicyBridgeManager.setUninstallBlocked(appContext, listOf(packageName), true)
+                            TimeBlockRepository(appContext).syncActiveBlocks(appContext)
                         } catch (e: Throwable) {
                             e.printStackTrace()
                         } finally {
@@ -54,6 +56,7 @@ class PackageChangeReceiver : BroadcastReceiver() {
                             PolicyBridgeManager.suspendPackages(appContext, allLocked, true)
                             PolicyBridgeManager.setUninstallBlocked(appContext, allLocked, true)
                         }
+                        TimeBlockRepository(appContext).syncActiveBlocks(appContext)
                     } catch (e: Throwable) {
                         e.printStackTrace()
                     } finally {

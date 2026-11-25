@@ -100,6 +100,7 @@ fun BrikMainScreen() {
                 com.hotaro.brik.policy.PolicyBridgeManager.suspendPackages(context, lockedPackages, true)
                 com.hotaro.brik.policy.PolicyBridgeManager.setUninstallBlocked(context, lockedPackages, true)
             }
+            com.hotaro.brik.data.repository.TimeBlockRepository(context).syncActiveBlocks(context)
         }
     }
 
