@@ -58,11 +58,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -113,10 +115,10 @@ fun SettingsScreen(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Title & Active Bridge Banner
+        // --- Tomato-style Header & Active Bridge Banner ---
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -125,7 +127,11 @@ fun SettingsScreen(
             Column {
                 Text(
                     text = "Settings",
-                    style = typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                    style = typography.headlineMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 30.sp,
+                        letterSpacing = (-0.5).sp
+                    ),
                     color = colorScheme.onSurface
                 )
                 Text(
@@ -155,407 +161,231 @@ fun SettingsScreen(
         }
 
         // --- SECTION 1: PRIVILEGED BRIDGES ---
-        Text(
-            text = "Privileged Bridges",
-            style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-            color = colorScheme.primary
-        )
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            TomatoSectionHeader(title = "PRIVILEGED BRIDGES")
 
-        // Device Owner Card
-        ElevatedCard(
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.elevatedCardColors(
-                containerColor = colorScheme.surfaceContainerHigh
-            ),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(18.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+            val totalBridges = if (bridgeStatus.isDeviceOwner) 1 else 3
+
+            // 1. Device Owner (DPM)
+            TomatoSettingsItem(
+                title = "Device Owner (DPM)",
+                subtitle = if (bridgeStatus.isDeviceOwner) "Active & Full Control" else "Not Provisioned (Tap to copy ADB command)",
+                leadingIcon = R.drawable.shield_fill0,
+                iconContainerColor = if (bridgeStatus.isDeviceOwner) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                iconTint = if (bridgeStatus.isDeviceOwner) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                trailingContent = {
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (bridgeStatus.isDeviceOwner) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
-                        modifier = Modifier.size(44.dp)
+                        shape = CircleShape,
+                        color = if (bridgeStatus.isDeviceOwner) colorScheme.primaryContainer else colorScheme.errorContainer
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                painter = painterResource(R.drawable.shield_fill0),
-                                contentDescription = null,
-                                tint = if (bridgeStatus.isDeviceOwner) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
+                        Text(
+                            text = if (bridgeStatus.isDeviceOwner) "Active" else "Not Set",
+                            style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = if (bridgeStatus.isDeviceOwner) colorScheme.onPrimaryContainer else colorScheme.onErrorContainer,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
                     }
-                    Spacer(Modifier.width(14.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            text = "Device Owner (DPM)",
-                            style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                            color = colorScheme.onSurface
-                        )
-                        Text(
-                            text = if (bridgeStatus.isDeviceOwner) "Active & Full Control" else "Not Provisioned",
-                            style = typography.bodySmall,
-                            color = if (bridgeStatus.isDeviceOwner) colorScheme.primary else colorScheme.error
-                        )
+                },
+                shape = segmentedItemShape(0, totalBridges),
+                onClick = {
+                    if (!bridgeStatus.isDeviceOwner) {
+                        val dpmCmd = "adb shell dpm set-device-owner com.hotaro.brik/.admin.BrikAdminReceiver"
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(ClipData.newPlainText("ADB Command", dpmCmd))
+                        Toast.makeText(context, "Command copied to clipboard!", Toast.LENGTH_SHORT).show()
                     }
                 }
+            )
 
-                if (bridgeStatus.isDeviceOwner) {
-                    Spacer(Modifier.height(14.dp))
-                    Button(
-                        onClick = {
-                            val existing = keyViewModel.getDpmUninstallLock()
-                            if (existing == null) {
-                                showSetUninstallKeyDialog = true
-                            } else {
-                                showVerifyUninstallKeyDialog = true
+            // If DPM is not active, display Dhizuku and Shizuku
+            if (!bridgeStatus.isDeviceOwner) {
+                // 2. Dhizuku Bridge
+                TomatoSettingsItem(
+                    title = "Dhizuku Bridge",
+                    subtitle = if (bridgeStatus.isDhizukuGranted) "Granted & Operational" else if (bridgeStatus.isDhizukuInstalled) "Permission Needed" else "Not Installed",
+                    leadingIcon = R.drawable.key_fill0,
+                    iconContainerColor = if (bridgeStatus.isDhizukuGranted) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                    iconTint = if (bridgeStatus.isDhizukuGranted) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                    trailingContent = {
+                        if (!bridgeStatus.isDhizukuGranted && bridgeStatus.isDhizukuInstalled) {
+                            FilledTonalButton(
+                                onClick = { settingsViewModel.requestDhizukuPermission() },
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                            ) {
+                                Text("Grant", style = typography.labelSmall)
                             }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = colorScheme.errorContainer),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Deactivate Device Owner (Allow Uninstall)", color = colorScheme.onErrorContainer)
-                    }
-                } else {
-                    Spacer(Modifier.height(12.dp))
-                    val dpmCmd = "adb shell dpm set-device-owner com.hotaro.brik/.admin.BrikAdminReceiver"
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = colorScheme.surfaceContainerLowest,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = dpmCmd,
-                                style = typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
-                                color = colorScheme.onSurfaceVariant,
-                                modifier = Modifier.weight(1f)
-                            )
-                            IconButton(onClick = {
-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                clipboard.setPrimaryClip(ClipData.newPlainText("ADB Command", dpmCmd))
-                                Toast.makeText(context, "Command copied!", Toast.LENGTH_SHORT).show()
-                            }) {
-                                Icon(
-                                    painter = painterResource(R.drawable.content_copy_fill0),
-                                    contentDescription = "Copy",
-                                    tint = colorScheme.primary,
-                                    modifier = Modifier.size(18.dp)
+                        } else {
+                            Surface(
+                                shape = CircleShape,
+                                color = if (bridgeStatus.isDhizukuGranted) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest
+                            ) {
+                                Text(
+                                    text = if (bridgeStatus.isDhizukuGranted) "Granted" else "Unavailable",
+                                    style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = if (bridgeStatus.isDhizukuGranted) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                                 )
                             }
                         }
-                    }
-                }
-            }
-        }
+                    },
+                    shape = segmentedItemShape(1, totalBridges)
+                )
 
-        if (!bridgeStatus.isDeviceOwner) {
-            // Dhizuku Card
-            ElevatedCard(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.elevatedCardColors(
-                    containerColor = colorScheme.surfaceContainerHigh
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(18.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (bridgeStatus.isDhizukuGranted) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
-                        modifier = Modifier.size(44.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                painter = painterResource(R.drawable.key_fill0),
-                                contentDescription = null,
-                                tint = if (bridgeStatus.isDhizukuGranted) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(24.dp)
-                            )
+                // 3. Shizuku Bridge
+                TomatoSettingsItem(
+                    title = "Shizuku Bridge",
+                    subtitle = if (bridgeStatus.isShizukuGranted) "Granted & Running" else if (bridgeStatus.isShizukuRunning) "Permission Needed" else "Service Stopped",
+                    leadingIcon = R.drawable.backpack_fill0,
+                    iconContainerColor = if (bridgeStatus.isShizukuGranted) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                    iconTint = if (bridgeStatus.isShizukuGranted) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                    trailingContent = {
+                        if (bridgeStatus.isShizukuRunning && !bridgeStatus.isShizukuGranted) {
+                            FilledTonalButton(
+                                onClick = { settingsViewModel.requestShizukuPermission() },
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                            ) {
+                                Text("Grant", style = typography.labelSmall)
+                            }
+                        } else {
+                            Surface(
+                                shape = CircleShape,
+                                color = if (bridgeStatus.isShizukuGranted) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest
+                            ) {
+                                Text(
+                                    text = if (bridgeStatus.isShizukuGranted) "Running" else "Stopped",
+                                    style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = if (bridgeStatus.isShizukuGranted) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                )
+                            }
                         }
-                    }
-                    Spacer(Modifier.width(14.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            text = "Dhizuku Bridge",
-                            style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                            color = colorScheme.onSurface
-                        )
-                        Text(
-                            text = if (bridgeStatus.isDhizukuGranted) "Granted & Operational" else if (bridgeStatus.isDhizukuInstalled) "Permission Needed" else "Not Installed",
-                            style = typography.bodySmall,
-                            color = if (bridgeStatus.isDhizukuGranted) colorScheme.primary else colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    if (!bridgeStatus.isDhizukuGranted && bridgeStatus.isDhizukuInstalled) {
-                        FilledTonalButton(onClick = { settingsViewModel.requestDhizukuPermission() }) {
-                            Text("Grant")
-                        }
-                    }
-                }
-            }
-
-            // Shizuku Card
-            ElevatedCard(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.elevatedCardColors(
-                    containerColor = colorScheme.surfaceContainerHigh
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(18.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (bridgeStatus.isShizukuGranted) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
-                        modifier = Modifier.size(44.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                painter = painterResource(R.drawable.backpack_fill0),
-                                contentDescription = null,
-                                tint = if (bridgeStatus.isShizukuGranted) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                    }
-                    Spacer(Modifier.width(14.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            text = "Shizuku Bridge",
-                            style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                            color = colorScheme.onSurface
-                        )
-                        Text(
-                            text = if (bridgeStatus.isShizukuGranted) "Granted & Running" else if (bridgeStatus.isShizukuRunning) "Permission Needed" else "Service Stopped",
-                            style = typography.bodySmall,
-                            color = if (bridgeStatus.isShizukuGranted) colorScheme.primary else colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    if (bridgeStatus.isShizukuRunning && !bridgeStatus.isShizukuGranted) {
-                        FilledTonalButton(onClick = { settingsViewModel.requestShizukuPermission() }) {
-                            Text("Grant")
-                        }
-                    }
-                }
-            }
-        }
-
-        // --- SECTION 2: KEYS & ANALYTICS ---
-        Text(
-            text = "Keys & Security",
-            style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-            color = colorScheme.primary
-        )
-
-        ElevatedCard(
-            onClick = onNavigateToKeys,
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.elevatedCardColors(
-                containerColor = colorScheme.surfaceContainerHigh
-            ),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(18.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = colorScheme.primaryContainer,
-                    modifier = Modifier.size(44.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            painter = painterResource(R.drawable.key_fill0),
-                            contentDescription = null,
-                            tint = colorScheme.onPrimaryContainer,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
-                Spacer(Modifier.width(14.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = "Keys & Lock Analytics",
-                        style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                        color = colorScheme.onSurface
-                    )
-                    Text(
-                        text = "${activeLocks.size} active bag keys • ${stats.totalLocks} sessions",
-                        style = typography.bodySmall,
-                        color = colorScheme.onSurfaceVariant
-                    )
-                }
-                Icon(
-                    painter = painterResource(R.drawable.arrow_back_fill0),
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                    tint = colorScheme.onSurfaceVariant
+                    },
+                    shape = segmentedItemShape(2, totalBridges)
                 )
             }
         }
 
-        // --- SECTION 3: NON-NEGOTIABLES ENFORCEMENT ---
-        Text(
-            text = "Policy Enforcement (Core)",
-            style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-            color = colorScheme.primary
-        )
+        // --- SECTION 2: KEYS & SECURITY ---
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            TomatoSectionHeader(title = "KEYS & SECURITY")
 
-        // 1. App Blocking (Suspension)
-        ElevatedCard(
-            onClick = { showBlockSheet = true },
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.elevatedCardColors(
-                containerColor = colorScheme.surfaceContainerHigh
-            ),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(18.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = colorScheme.errorContainer,
-                    modifier = Modifier.size(44.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            painter = painterResource(R.drawable.block_fill0),
-                            contentDescription = null,
-                            tint = colorScheme.onErrorContainer,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
-                Spacer(Modifier.width(14.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = "App Blocking (Suspension)",
-                        style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                        color = colorScheme.onSurface
+            TomatoSettingsItem(
+                title = "Keys & Lock Analytics",
+                subtitle = "${activeLocks.size} active bag keys • ${stats.totalLocks} sessions",
+                leadingIcon = R.drawable.key_fill0,
+                iconContainerColor = colorScheme.primaryContainer,
+                iconTint = colorScheme.onPrimaryContainer,
+                trailingContent = {
+                    Icon(
+                        painter = painterResource(R.drawable.arrow_forward_big),
+                        contentDescription = "Open Keys",
+                        modifier = Modifier.size(18.dp),
+                        tint = colorScheme.onSurfaceVariant
                     )
-                    Text(
-                        text = if (suspendedPackages.isNotEmpty()) "${suspendedPackages.size} packages suspended" else "Suspend distracting apps or entire bags",
-                        style = typography.bodySmall,
-                        color = colorScheme.onSurfaceVariant
-                    )
-                }
-            }
+                },
+                shape = segmentedItemShape(0, 1),
+                onClick = onNavigateToKeys
+            )
         }
 
-        // 2. App Hiding
-        ElevatedCard(
-            onClick = { showHideSheet = true },
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.elevatedCardColors(
-                containerColor = colorScheme.surfaceContainerHigh
-            ),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(18.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = colorScheme.tertiaryContainer,
-                    modifier = Modifier.size(44.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            painter = painterResource(R.drawable.visibility_off_fill0),
-                            contentDescription = null,
-                            tint = colorScheme.onTertiaryContainer,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
-                Spacer(Modifier.width(14.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = "App Hiding",
-                        style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                        color = colorScheme.onSurface
+        // --- SECTION 3: POLICY ENFORCEMENT ---
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            TomatoSectionHeader(title = "POLICY ENFORCEMENT")
+
+            // 1. App Blocking
+            TomatoSettingsItem(
+                title = "App Blocking (Suspension)",
+                subtitle = if (suspendedPackages.isNotEmpty()) "${suspendedPackages.size} packages currently suspended" else "Suspend distracting apps or entire bags",
+                leadingIcon = R.drawable.block_fill0,
+                iconContainerColor = colorScheme.errorContainer,
+                iconTint = colorScheme.onErrorContainer,
+                trailingContent = {
+                    Icon(
+                        painter = painterResource(R.drawable.arrow_forward_big),
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = colorScheme.onSurfaceVariant
                     )
-                    Text(
-                        text = if (hiddenPackages.isNotEmpty()) "${hiddenPackages.size} apps hidden" else "Completely hide packages from system launcher",
-                        style = typography.bodySmall,
-                        color = colorScheme.onSurfaceVariant
+                },
+                shape = segmentedItemShape(0, 3),
+                onClick = { showBlockSheet = true }
+            )
+
+            // 2. App Hiding
+            TomatoSettingsItem(
+                title = "App Hiding (Invisible)",
+                subtitle = if (hiddenPackages.isNotEmpty()) "${hiddenPackages.size} apps hidden from launcher" else "Completely hide packages from system launcher",
+                leadingIcon = R.drawable.visibility_off_fill0,
+                iconContainerColor = colorScheme.secondaryContainer,
+                iconTint = colorScheme.onSecondaryContainer,
+                trailingContent = {
+                    Icon(
+                        painter = painterResource(R.drawable.arrow_forward_big),
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = colorScheme.onSurfaceVariant
                     )
-                }
-            }
+                },
+                shape = segmentedItemShape(1, 3),
+                onClick = { showHideSheet = true }
+            )
+
+            // 3. Lock / Kiosk Mode
+            TomatoSettingsItem(
+                title = "Lock / Kiosk Mode",
+                subtitle = if (isKioskActive) "Kiosk Active (App is pinned)" else "Pin app into single-task kiosk mode",
+                leadingIcon = R.drawable.screen_lock_portrait_fill0,
+                iconContainerColor = colorScheme.tertiaryContainer,
+                iconTint = colorScheme.onTertiaryContainer,
+                trailingContent = {
+                    Icon(
+                        painter = painterResource(R.drawable.arrow_forward_big),
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = colorScheme.onSurfaceVariant
+                    )
+                },
+                shape = segmentedItemShape(2, 3),
+                onClick = { showKioskSheet = true }
+            )
         }
 
-        // 3. Lock / Kiosk Mode
-        ElevatedCard(
-            onClick = { showKioskSheet = true },
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.elevatedCardColors(
-                containerColor = colorScheme.surfaceContainerHigh
-            ),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(18.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = colorScheme.secondaryContainer,
-                    modifier = Modifier.size(44.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            painter = painterResource(R.drawable.screen_lock_portrait_fill0),
-                            contentDescription = null,
-                            tint = colorScheme.onSecondaryContainer,
-                            modifier = Modifier.size(24.dp)
-                        )
+        // --- SECTION 4: ADMINISTRATION ---
+        if (bridgeStatus.isDeviceOwner) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                TomatoSectionHeader(title = "ADMINISTRATION")
+
+                TomatoSettingsItem(
+                    title = "Deactivate Device Owner",
+                    subtitle = "Requires security key verification to allow uninstalling Brik",
+                    leadingIcon = R.drawable.delete_fill0,
+                    iconContainerColor = colorScheme.errorContainer,
+                    iconTint = colorScheme.onErrorContainer,
+                    trailingContent = {
+                        Surface(
+                            shape = CircleShape,
+                            color = colorScheme.errorContainer
+                        ) {
+                            Text(
+                                text = "Revoke",
+                                style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = colorScheme.onErrorContainer,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            )
+                        }
+                    },
+                    shape = segmentedItemShape(0, 1),
+                    onClick = {
+                        val existing = keyViewModel.getDpmUninstallLock()
+                        if (existing == null) {
+                            showSetUninstallKeyDialog = true
+                        } else {
+                            showVerifyUninstallKeyDialog = true
+                        }
                     }
-                }
-                Spacer(Modifier.width(14.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = "Lock / Kiosk Mode",
-                        style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                        color = colorScheme.onSurface
-                    )
-                    Text(
-                        text = if (isKioskActive) "Kiosk Active" else "Pin app into single-task kiosk mode",
-                        style = typography.bodySmall,
-                        color = if (isKioskActive) colorScheme.primary else colorScheme.onSurfaceVariant
-                    )
-                }
+                )
             }
         }
 
@@ -1253,6 +1083,110 @@ fun SettingsScreen(
                 }
 
                 Spacer(Modifier.height(24.dp))
+            }
+        }
+    }
+}
+
+fun segmentedItemShape(index: Int, total: Int): RoundedCornerShape {
+    val cornerLarge = 22.dp
+    val cornerSmall = 4.dp
+    return when {
+        total <= 1 -> RoundedCornerShape(cornerLarge)
+        index == 0 -> RoundedCornerShape(
+            topStart = cornerLarge,
+            topEnd = cornerLarge,
+            bottomStart = cornerSmall,
+            bottomEnd = cornerSmall
+        )
+        index == total - 1 -> RoundedCornerShape(
+            topStart = cornerSmall,
+            topEnd = cornerSmall,
+            bottomStart = cornerLarge,
+            bottomEnd = cornerLarge
+        )
+        else -> RoundedCornerShape(cornerSmall)
+    }
+}
+
+@Composable
+fun TomatoSectionHeader(title: String, modifier: Modifier = Modifier) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.labelMedium.copy(
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.2.sp
+        ),
+        color = MaterialTheme.colorScheme.primary,
+        modifier = modifier.padding(start = 6.dp, bottom = 4.dp)
+    )
+}
+
+@Composable
+fun TomatoSettingsItem(
+    title: String,
+    modifier: Modifier = Modifier,
+    subtitle: String? = null,
+    leadingIcon: Int? = null,
+    iconTint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    iconContainerColor: Color = MaterialTheme.colorScheme.surfaceContainerLowest,
+    trailingContent: @Composable (() -> Unit)? = null,
+    shape: RoundedCornerShape = RoundedCornerShape(20.dp),
+    containerColor: Color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    onClick: (() -> Unit)? = null
+) {
+    Surface(
+        onClick = onClick ?: {},
+        enabled = onClick != null,
+        shape = shape,
+        color = containerColor,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (leadingIcon != null) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = iconContainerColor,
+                    modifier = Modifier.size(42.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            painter = painterResource(leadingIcon),
+                            contentDescription = null,
+                            tint = iconTint,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+                Spacer(Modifier.width(14.dp))
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                if (subtitle != null) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            if (trailingContent != null) {
+                Spacer(Modifier.width(12.dp))
+                trailingContent()
             }
         }
     }
