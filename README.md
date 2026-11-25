@@ -149,3 +149,13 @@ If you already use Dhizuku to manage device owner permissions:
 ## License
 
 This project is licensed under the Apache License 2.0. See the LICENSE file for details.
+
+## Star History
+
+<a href="https://www.star-history.com/?repos=hotaro26%2Fbrik&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=hotaro26/brik&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=hotaro26/brik&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=hotaro26/brik&type=date&legend=top-left" />
+ </picture>
+</a>
