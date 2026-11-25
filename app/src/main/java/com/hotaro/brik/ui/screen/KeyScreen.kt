@@ -129,17 +129,19 @@ fun KeyScreen(
         BoxWithConstraints(
             modifier = modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(innerPadding)
                 .padding(bottom = 96.dp)
         ) {
+            val contentMinHeight = maxHeight
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = maxHeight),
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState()),
                 contentAlignment = Alignment.Center
             ) {
                 Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = contentMinHeight),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {

@@ -59,7 +59,7 @@ fun RoundedPullRefreshPage(
     } else if (isDark) {
         Color.Black
     } else {
-        MaterialTheme.colorScheme.surfaceContainerHigh
+        MaterialTheme.colorScheme.secondaryContainer
     }
 
     val actualPageColor = if (pageColor != Color.Unspecified) {

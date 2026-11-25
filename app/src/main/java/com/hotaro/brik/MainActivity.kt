@@ -41,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -145,10 +146,13 @@ fun BrikMainScreen() {
         )
     )
 
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val appBackground = if (isDark) Color.Black else MaterialTheme.colorScheme.secondaryContainer
+
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(appBackground)
     ) {
         val screenWidthPx = constraints.maxWidth.toFloat()
         val p = animatedBackProgress.value
@@ -169,7 +173,7 @@ fun BrikMainScreen() {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
+                .background(appBackground)
                 .graphicsLayer {
                     translationX = mainOffsetX
                     alpha = mainAlpha
