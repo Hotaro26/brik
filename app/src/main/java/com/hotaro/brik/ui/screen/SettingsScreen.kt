@@ -476,10 +476,10 @@ fun SettingsScreen(
                 else -> "Dynamic (Material You)"
             }
 
-            val navBarSubtitle = if (currentNavBarStyle == NavBarStyle.FLOATING) {
-                "Floating (Default)"
-            } else {
-                "Classic Sticky"
+            val navBarSubtitle = when (currentNavBarStyle) {
+                NavBarStyle.FLOATING -> "Floating (Default)"
+                NavBarStyle.GLASS -> "Glass Navigation"
+                NavBarStyle.CLASSIC -> "Classic Sticky"
             }
 
             // 1. Theme Mode
@@ -1511,6 +1511,7 @@ fun SettingsScreen(
 
                 val navBarOptions = listOf(
                     Triple("Floating Navbar", NavBarStyle.FLOATING, "Modern floating pill navigation bar (Default)"),
+                    Triple("Glass Navigation", NavBarStyle.GLASS, "Liquid glass floating navigation bar"),
                     Triple("Classic Sticky Navbar", NavBarStyle.CLASSIC, "Traditional bottom docked navigation bar")
                 )
 

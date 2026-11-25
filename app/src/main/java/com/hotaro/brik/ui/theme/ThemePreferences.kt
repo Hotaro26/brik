@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.asStateFlow
 
 enum class NavBarStyle {
     FLOATING,
+    GLASS,
     CLASSIC
 }
 

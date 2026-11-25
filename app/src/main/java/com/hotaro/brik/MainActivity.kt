@@ -38,6 +38,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -56,6 +57,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hotaro.brik.ui.component.BrikFloatingNavBar
 import com.hotaro.brik.ui.component.FloatingNavItem
+import com.hotaro.brik.ui.glass.BrikGlassNavBar
+import com.hotaro.brik.ui.glass.LocalAppBackdrop
+import com.hotaro.brik.ui.glass.isGlassAllowed
+import com.hotaro.brik.ui.glass.backdrop.backdrops.layerBackdrop
+import com.hotaro.brik.ui.glass.backdrop.backdrops.rememberLayerBackdrop
 import com.hotaro.brik.ui.theme.NavBarStyle
 import com.hotaro.brik.ui.screen.AppManagerWindow
 import com.hotaro.brik.ui.screen.BagsWindow
@@ -260,109 +266,130 @@ fun BrikMainScreen() {
     val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val appBackground = if (isDark) Color.Black else MaterialTheme.colorScheme.secondaryContainer
 
-    BoxWithConstraints(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(appBackground)
+    val appBackdrop = rememberLayerBackdrop()
+    val navBarStyle by ThemePreferences.navBarStyle.collectAsState()
+
+    CompositionLocalProvider(
+        LocalAppBackdrop provides appBackdrop
     ) {
-        val screenWidthPx = constraints.maxWidth.toFloat()
-        val p = animatedBackProgress.value
-        val isSubScreenVisible = currentSubScreen != null || isPredictiveBackActive || p > 0f
-
-        // Bottom layer: Main Scaffold (Tomato spec: shifts by -screenWidth/4 and dims to 0.75 when sub-screen is active)
-        val mainOffsetX = if (isSubScreenVisible) {
-            (-screenWidthPx / 4f) * (1f - p)
-        } else {
-            0f
-        }
-        val mainAlpha = if (isSubScreenVisible) {
-            0.75f + (p * 0.25f)
-        } else {
-            1f
-        }
-
-        Box(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
                 .background(appBackground)
-                .graphicsLayer {
-                    translationX = mainOffsetX
-                    alpha = mainAlpha
-                }
         ) {
+            val screenWidthPx = constraints.maxWidth.toFloat()
+            val p = animatedBackProgress.value
+            val isSubScreenVisible = currentSubScreen != null || isPredictiveBackActive || p > 0f
+
+            // Bottom layer: Main Scaffold (Tomato spec: shifts by -screenWidth/4 and dims to 0.75 when sub-screen is active)
+            val mainOffsetX = if (isSubScreenVisible) {
+                (-screenWidthPx / 4f) * (1f - p)
+            } else {
+                0f
+            }
+            val mainAlpha = if (isSubScreenVisible) {
+                0.75f + (p * 0.25f)
+            } else {
+                1f
+            }
+
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .statusBarsPadding()
-            ) {
-                Crossfade(
-                    targetState = selectedIndex,
-                    label = "tab_transition",
-                    modifier = Modifier.fillMaxSize()
-                ) { tab ->
-                    when (tab) {
-                        0 -> KeyScreen(
-                            onNavigateToZen = { onNavigateToSubScreen("zen") }
-                        )
-                        1 -> ToolsScreen(
-                            onNavigateToAppManager = { onNavigateToSubScreen("app_manager") },
-                            onNavigateToBags = { onNavigateToSubScreen("bags") },
-                            onNavigateToRoutines = { onNavigateToSubScreen("routines") },
-                            onNavigateToModes = { onNavigateToSubScreen("modes") },
-                            onNavigateToZen = { onNavigateToSubScreen("zen") },
-                            onNavigateToGrayscale = { onNavigateToSubScreen("grayscale") }
-                        )
-                        2 -> SettingsScreen(
-                            onNavigateToKeys = { onNavigateToSubScreen("keys") },
-                            onNavigateToAbout = { onNavigateToSubScreen("about") },
-                            onNavigateToEmergency = { onNavigateToSubScreen("emergency") }
-                        )
+                    .background(appBackground)
+                    .graphicsLayer {
+                        translationX = mainOffsetX
+                        alpha = mainAlpha
                     }
-                }
-
-                val navBarStyle by ThemePreferences.navBarStyle.collectAsState()
-
-                if (navBarStyle == NavBarStyle.FLOATING) {
-                    BrikFloatingNavBar(
-                        items = navItems,
-                        selectedIndex = selectedIndex,
-                        onItemSelected = { selectedIndex = it },
-                        modifier = Modifier.align(Alignment.BottomCenter)
-                    )
-                } else {
-                    NavigationBar(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .align(Alignment.BottomCenter),
-                        containerColor = if (isDark) Color.Black else MaterialTheme.colorScheme.surfaceContainer,
-                        tonalElevation = 4.dp
-                    ) {
-                        navItems.forEachIndexed { index, item ->
-                            val isSelected = selectedIndex == index
-                            NavigationBarItem(
-                                selected = isSelected,
-                                onClick = { selectedIndex = index },
-                                icon = {
-                                    Icon(
-                                        painter = if (isSelected) item.selectedIcon else item.unselectedIcon,
-                                        contentDescription = item.label,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                },
-                                label = {
-                                    Text(
-                                        text = item.label,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                    )
-                                },
-                                colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = MaterialTheme.colorScheme.primary,
-                                    selectedTextColor = MaterialTheme.colorScheme.primary,
-                                    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding()
+                        .then(
+                            if (navBarStyle == NavBarStyle.GLASS && isGlassAllowed()) {
+                                Modifier.layerBackdrop(appBackdrop)
+                            } else Modifier
+                        )
+                ) {
+                    Crossfade(
+                        targetState = selectedIndex,
+                        label = "tab_transition",
+                        modifier = Modifier.fillMaxSize()
+                    ) { tab ->
+                        when (tab) {
+                            0 -> KeyScreen(
+                                onNavigateToZen = { onNavigateToSubScreen("zen") }
                             )
+                            1 -> ToolsScreen(
+                                onNavigateToAppManager = { onNavigateToSubScreen("app_manager") },
+                                onNavigateToBags = { onNavigateToSubScreen("bags") },
+                                onNavigateToRoutines = { onNavigateToSubScreen("routines") },
+                                onNavigateToModes = { onNavigateToSubScreen("modes") },
+                                onNavigateToZen = { onNavigateToSubScreen("zen") },
+                                onNavigateToGrayscale = { onNavigateToSubScreen("grayscale") }
+                            )
+                            2 -> SettingsScreen(
+                                onNavigateToKeys = { onNavigateToSubScreen("keys") },
+                                onNavigateToAbout = { onNavigateToSubScreen("about") },
+                                onNavigateToEmergency = { onNavigateToSubScreen("emergency") }
+                            )
+                        }
+                    }
+
+                    when (navBarStyle) {
+                        NavBarStyle.FLOATING -> {
+                            BrikFloatingNavBar(
+                                items = navItems,
+                                selectedIndex = selectedIndex,
+                                onItemSelected = { selectedIndex = it },
+                                modifier = Modifier.align(Alignment.BottomCenter)
+                            )
+                        }
+                        NavBarStyle.GLASS -> {
+                            BrikGlassNavBar(
+                                items = navItems,
+                                selectedIndex = selectedIndex,
+                                onItemSelected = { selectedIndex = it },
+                                modifier = Modifier.align(Alignment.BottomCenter)
+                            )
+                        }
+                        NavBarStyle.CLASSIC -> {
+                            NavigationBar(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .align(Alignment.BottomCenter),
+                                containerColor = if (isDark) Color.Black else MaterialTheme.colorScheme.surfaceContainer,
+                                tonalElevation = 4.dp
+                            ) {
+                                navItems.forEachIndexed { index, item ->
+                                    val isSelected = selectedIndex == index
+                                    NavigationBarItem(
+                                        selected = isSelected,
+                                        onClick = { selectedIndex = index },
+                                        icon = {
+                                            Icon(
+                                                painter = if (isSelected) item.selectedIcon else item.unselectedIcon,
+                                                contentDescription = item.label,
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                        },
+                                        label = {
+                                            Text(
+                                                text = item.label,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                            )
+                                        },
+                                        colors = NavigationBarItemDefaults.colors(
+                                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -379,43 +406,43 @@ fun BrikMainScreen() {
                         ) { /* Absorb any touches */ }
                 )
             }
-        }
 
-        // Top layer: Sub-screen (KeysWindow, AppManagerWindow, BagsWindow, RoutinesWindow, ModesWindow) with predictive slide transition
-        if (isSubScreenVisible) {
-            val keyOffsetX = screenWidthPx * p
-            val keyScale = 1f - (p * 0.05f)
-            val keyCorners = (p * 24).dp
-            val keyAlpha = 1f - (p * 0.15f)
+            // Top layer: Sub-screen (KeysWindow, AppManagerWindow, BagsWindow, RoutinesWindow, ModesWindow) with predictive slide transition
+            if (isSubScreenVisible) {
+                val keyOffsetX = screenWidthPx * p
+                val keyScale = 1f - (p * 0.05f)
+                val keyCorners = (p * 24).dp
+                val keyAlpha = 1f - (p * 0.15f)
 
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        translationX = keyOffsetX
-                        scaleX = keyScale
-                        scaleY = keyScale
-                        alpha = keyAlpha
-                        clip = p > 0f
-                        shape = RoundedCornerShape(keyCorners)
-                        shadowElevation = if (p > 0f) 24.dp.toPx() else 0f
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            translationX = keyOffsetX
+                            scaleX = keyScale
+                            scaleY = keyScale
+                            alpha = keyAlpha
+                            clip = p > 0f
+                            shape = RoundedCornerShape(keyCorners)
+                            shadowElevation = if (p > 0f) 24.dp.toPx() else 0f
+                        }
+                        .background(appBackground)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { /* Absorb blank space clicks */ }
+                ) {
+                    when (currentSubScreen) {
+                        "keys" -> KeysWindow(onBack = onBackFromSubScreen)
+                        "app_manager" -> AppManagerWindow(onBack = onBackFromSubScreen)
+                        "bags" -> BagsWindow(onBack = onBackFromSubScreen)
+                        "routines" -> RoutinesWindow(onBack = onBackFromSubScreen)
+                        "modes" -> ModesWindow(onBack = onBackFromSubScreen)
+                        "zen" -> ZenWindow(onBack = { if (!isZenActive) onBackFromSubScreen() })
+                        "grayscale" -> GrayscaleWindow(onBack = onBackFromSubScreen)
+                        "about" -> AboutWindow(onBack = onBackFromSubScreen)
+                        "emergency" -> EmergencyModeWindow(onBack = onBackFromSubScreen)
                     }
-                    .background(appBackground)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { /* Absorb blank space clicks */ }
-            ) {
-                when (currentSubScreen) {
-                    "keys" -> KeysWindow(onBack = onBackFromSubScreen)
-                    "app_manager" -> AppManagerWindow(onBack = onBackFromSubScreen)
-                    "bags" -> BagsWindow(onBack = onBackFromSubScreen)
-                    "routines" -> RoutinesWindow(onBack = onBackFromSubScreen)
-                    "modes" -> ModesWindow(onBack = onBackFromSubScreen)
-                    "zen" -> ZenWindow(onBack = { if (!isZenActive) onBackFromSubScreen() })
-                    "grayscale" -> GrayscaleWindow(onBack = onBackFromSubScreen)
-                    "about" -> AboutWindow(onBack = onBackFromSubScreen)
-                    "emergency" -> EmergencyModeWindow(onBack = onBackFromSubScreen)
                 }
             }
         }
