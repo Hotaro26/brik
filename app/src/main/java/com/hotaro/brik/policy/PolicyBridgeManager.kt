@@ -255,6 +255,17 @@ object PolicyBridgeManager {
     }
 
     /**
+     * App Hiding: hide or unhide a list of packages.
+     */
+    fun setPackagesHidden(context: Context, packageNames: List<String>, hidden: Boolean): Result<Boolean> {
+        for (pkg in packageNames) {
+            val res = setApplicationHidden(context, pkg, hidden)
+            if (res.isFailure) return res
+        }
+        return Result.success(true)
+    }
+
+    /**
      * Check if package is hidden
      */
     fun isApplicationHidden(context: Context, packageName: String): Boolean {

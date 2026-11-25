@@ -75,6 +75,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.accompanist.drawablepainter.rememberDrawablePainter
 import com.hotaro.brik.R
 import com.hotaro.brik.data.model.AppBag
+import com.hotaro.brik.data.model.BagAction
 import com.hotaro.brik.data.model.KeyType
 import com.hotaro.brik.data.model.SavedKey
 import com.hotaro.brik.ui.component.QrScannerView
@@ -336,6 +337,94 @@ fun BagsWindow(
 
                 Spacer(Modifier.height(18.dp))
 
+                // Segmented Buttons for Activation Mode (Suspend vs Hide)
+                Text(
+                    text = "Activation Mode",
+                    style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(6.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(CircleShape)
+                        .background(colorScheme.surfaceContainerLowest)
+                        .padding(4.dp)
+                ) {
+                    val isSuspend = activeBag.actionType == BagAction.SUSPEND
+
+                    Surface(
+                        onClick = {
+                            if (activeBag.actionType != BagAction.SUSPEND) {
+                                val updated = activeBag.copy(actionType = BagAction.SUSPEND)
+                                viewModel.updateBag(updated)
+                                Toast.makeText(context, "Mode set to Suspend (apps greyed out)", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        shape = CircleShape,
+                        color = if (isSuspend) colorScheme.primaryContainer else Color.Transparent,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(38.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.block_fill0),
+                                contentDescription = null,
+                                tint = if (isSuspend) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = "Suspend",
+                                style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = if (isSuspend) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    Surface(
+                        onClick = {
+                            if (activeBag.actionType != BagAction.HIDE) {
+                                val updated = activeBag.copy(actionType = BagAction.HIDE)
+                                viewModel.updateBag(updated)
+                                Toast.makeText(context, "Mode set to Hide (apps hidden from launcher)", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        shape = CircleShape,
+                        color = if (!isSuspend) colorScheme.primaryContainer else Color.Transparent,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(38.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.visibility_off_fill0),
+                                contentDescription = null,
+                                tint = if (!isSuspend) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = "Hide",
+                                style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = if (!isSuspend) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+
                 Text(
                     text = "Apps in this Bag:",
                     style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
@@ -427,6 +516,7 @@ fun BagsWindow(
         val targetBag = editingBag!!
         var editedName by remember { mutableStateOf(targetBag.name) }
         var editedPackages by remember { mutableStateOf(targetBag.packageNames.toSet()) }
+        var editedActionType by remember { mutableStateOf(targetBag.actionType) }
         var appSearchQuery by remember { mutableStateOf("") }
         val editSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -471,7 +561,8 @@ fun BagsWindow(
                             if (editedName.isNotBlank()) {
                                 val updated = targetBag.copy(
                                     name = editedName.trim(),
-                                    packageNames = editedPackages
+                                    packageNames = editedPackages,
+                                    actionType = editedActionType
                                 )
                                 viewModel.updateBag(updated)
                                 if (selectedBagForSheet?.id == updated.id) {
@@ -499,6 +590,82 @@ fun BagsWindow(
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
+
+                Spacer(Modifier.height(14.dp))
+
+                // Segmented Buttons in Edit sheet
+                Text(
+                    text = "Activation Mode",
+                    style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(6.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(CircleShape)
+                        .background(colorScheme.surfaceContainerLowest)
+                        .padding(4.dp)
+                ) {
+                    val isSuspend = editedActionType == BagAction.SUSPEND
+
+                    Surface(
+                        onClick = { editedActionType = BagAction.SUSPEND },
+                        shape = CircleShape,
+                        color = if (isSuspend) colorScheme.primaryContainer else Color.Transparent,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(38.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.block_fill0),
+                                contentDescription = null,
+                                tint = if (isSuspend) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = "Suspend",
+                                style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = if (isSuspend) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    Surface(
+                        onClick = { editedActionType = BagAction.HIDE },
+                        shape = CircleShape,
+                        color = if (!isSuspend) colorScheme.primaryContainer else Color.Transparent,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(38.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.visibility_off_fill0),
+                                contentDescription = null,
+                                tint = if (!isSuspend) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = "Hide",
+                                style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = if (!isSuspend) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
 
                 Spacer(Modifier.height(14.dp))
 
@@ -1229,7 +1396,7 @@ private fun SwipeableBagItemCard(
                                 }
                             }
                             Text(
-                                text = "${bag.packageNames.size} apps bundled",
+                                text = "${bag.packageNames.size} apps bundled • ${if (bag.actionType == BagAction.HIDE) "Hide" else "Suspend"}",
                                 style = typography.bodySmall,
                                 color = colorScheme.onSurfaceVariant
                             )

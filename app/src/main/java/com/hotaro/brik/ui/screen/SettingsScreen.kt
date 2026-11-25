@@ -151,11 +151,6 @@ fun SettingsScreen(
                         ),
                         color = colorScheme.onSurface
                     )
-                    Text(
-                        text = "Privileged Bridges & Enforcement",
-                        style = typography.bodySmall,
-                        color = colorScheme.onSurfaceVariant
-                    )
                 }
 
                 Surface(
@@ -386,26 +381,7 @@ fun SettingsScreen(
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             TomatoSectionHeader(title = "POLICY ENFORCEMENT")
 
-            // 1. App Blocking
-            TomatoSettingsItem(
-                title = "App Blocking (Suspension)",
-                subtitle = if (suspendedPackages.isNotEmpty()) "${suspendedPackages.size} packages currently suspended" else "Suspend distracting apps or entire bags",
-                leadingIcon = R.drawable.block_fill0,
-                iconContainerColor = colorScheme.errorContainer,
-                iconTint = colorScheme.onErrorContainer,
-                trailingContent = {
-                    Icon(
-                        painter = painterResource(R.drawable.arrow_forward_big),
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                        tint = colorScheme.onSurfaceVariant
-                    )
-                },
-                shape = segmentedItemShape(0, 3),
-                onClick = { showBlockSheet = true }
-            )
-
-            // 2. App Hiding
+            // 1. App Hiding
             TomatoSettingsItem(
                 title = "App Hiding (Invisible)",
                 subtitle = if (hiddenPackages.isNotEmpty()) "${hiddenPackages.size} apps hidden from launcher" else "Completely hide packages from system launcher",
@@ -420,11 +396,11 @@ fun SettingsScreen(
                         tint = colorScheme.onSurfaceVariant
                     )
                 },
-                shape = segmentedItemShape(1, 3),
+                shape = segmentedItemShape(0, 2),
                 onClick = { showHideSheet = true }
             )
 
-            // 3. Lock / Kiosk Mode
+            // 2. Lock / Kiosk Mode
             TomatoSettingsItem(
                 title = "Lock / Kiosk Mode",
                 subtitle = if (isKioskActive) "Kiosk Active (App is pinned)" else "Pin app into single-task kiosk mode",
@@ -439,7 +415,7 @@ fun SettingsScreen(
                         tint = colorScheme.onSurfaceVariant
                     )
                 },
-                shape = segmentedItemShape(2, 3),
+                shape = segmentedItemShape(1, 2),
                 onClick = { showKioskSheet = true }
             )
         }

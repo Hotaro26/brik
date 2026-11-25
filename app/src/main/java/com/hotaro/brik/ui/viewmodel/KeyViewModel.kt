@@ -44,25 +44,30 @@ class KeyViewModel(application: Application) : AndroidViewModel(application) {
     ) {
         viewModelScope.launch {
             val pkgList = bag.packageNames.toList()
-            val suspendResult = withContext(Dispatchers.IO) {
-                val res = PolicyBridgeManager.suspendPackages(context, pkgList, true)
+            val actionResult = withContext(Dispatchers.IO) {
+                val res = if (bag.actionType == com.hotaro.brik.data.model.BagAction.HIDE) {
+                    PolicyBridgeManager.setPackagesHidden(context, pkgList, true)
+                } else {
+                    PolicyBridgeManager.suspendPackages(context, pkgList, true)
+                }
                 if (res.isSuccess) {
                     PolicyBridgeManager.setUninstallBlocked(context, pkgList, true)
                 }
                 res
             }
 
-            if (suspendResult.isSuccess) {
+            if (actionResult.isSuccess) {
                 repository.lockBag(
                     bagId = bag.id,
                     bagName = bag.name,
                     packages = bag.packageNames,
                     keyType = keyType,
-                    secret = secret
+                    secret = secret,
+                    actionType = bag.actionType
                 )
                 onResult(true, null)
             } else {
-                onResult(false, suspendResult.exceptionOrNull()?.message ?: "Failed to suspend apps")
+                onResult(false, actionResult.exceptionOrNull()?.message ?: "Failed to enforce bag policy")
             }
         }
     }
@@ -85,7 +90,11 @@ class KeyViewModel(application: Application) : AndroidViewModel(application) {
                     val packagesToRelease = lock.packageNames.filterNot { remainingLockedPackages.contains(it) }
 
                     if (packagesToRelease.isNotEmpty()) {
-                        PolicyBridgeManager.suspendPackages(context, packagesToRelease, false)
+                        if (lock.actionType == com.hotaro.brik.data.model.BagAction.HIDE) {
+                            PolicyBridgeManager.setPackagesHidden(context, packagesToRelease, false)
+                        } else {
+                            PolicyBridgeManager.suspendPackages(context, packagesToRelease, false)
+                        }
                         PolicyBridgeManager.setUninstallBlocked(context, packagesToRelease, false)
                     }
                 }

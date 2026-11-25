@@ -64,7 +64,8 @@ class KeyRepository(context: Context) {
         bagName: String,
         packages: Set<String>,
         keyType: KeyType,
-        secret: String
+        secret: String,
+        actionType: com.hotaro.brik.data.model.BagAction = com.hotaro.brik.data.model.BagAction.SUSPEND
     ): BagLock {
         val hash = QrUtils.sha256(secret)
         val lock = BagLock(
@@ -75,7 +76,8 @@ class KeyRepository(context: Context) {
             secretHash = hash,
             qrToken = if (keyType == KeyType.QR_CODE) secret else null,
             lockedAt = System.currentTimeMillis(),
-            packageNames = packages
+            packageNames = packages,
+            actionType = actionType
         )
 
         // Remove any existing lock for this bagId

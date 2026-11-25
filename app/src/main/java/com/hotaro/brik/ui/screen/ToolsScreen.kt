@@ -303,7 +303,7 @@ fun ToolsScreen(
                 TomatoSettingsItem(
                     title = "Stealth Mode (App Concealment)",
                     subtitle = if (isAppHidden) "Hidden • Dial *#*#$dialerCode#*#*" else "Visible • Dial code: *#*#$dialerCode#*#*",
-                    leadingIcon = if (isAppHidden) R.drawable.visibility_off_fill0 else R.drawable.call_fill0,
+                    leadingIcon = R.drawable.stealth_fill0,
                     iconContainerColor = if (isAppHidden) colorScheme.errorContainer else colorScheme.surfaceContainerLowest,
                     iconTint = if (isAppHidden) colorScheme.onErrorContainer else colorScheme.primary,
                     trailingContent = {
