@@ -48,14 +48,22 @@ class TimeBlockRepository(private val context: Context) {
         val serializedModes = prefs.getString("saved_focus_modes", null)
         if (!serializedModes.isNullOrBlank()) {
             try {
-                _focusModes.value = json.decodeFromString(serializedModes)
+                val list = json.decodeFromString<List<FocusMode>>(serializedModes)
+                // Filter out any uncustomized prebuilt templates
+                val customModes = list.filterNot {
+                    it.targetBagIds.isEmpty() && it.targetPackageNames.isEmpty() && it.keySecret.isNullOrBlank() && !it.isRunning &&
+                        (it.name == "Deep Work" || it.name == "Study" || it.name == "Sleeping" || it.name == "Family Time")
+                }
+                _focusModes.value = customModes
+                if (customModes.size != list.size) {
+                    persistFocusModes(customModes)
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
-                _focusModes.value = getDefaultFocusModes()
+                _focusModes.value = emptyList()
             }
         } else {
-            _focusModes.value = getDefaultFocusModes()
-            persistFocusModes(_focusModes.value)
+            _focusModes.value = emptyList()
         }
 
         // Load Routines
@@ -72,31 +80,6 @@ class TimeBlockRepository(private val context: Context) {
         }
 
         syncActiveBlocks(context)
-    }
-
-    private fun getDefaultFocusModes(): List<FocusMode> {
-        return listOf(
-            FocusMode(
-                name = "Deep Work",
-                iconName = "mode_fill0",
-                defaultDurationMinutes = 60
-            ),
-            FocusMode(
-                name = "Study",
-                iconName = "schedule_fill0",
-                defaultDurationMinutes = 45
-            ),
-            FocusMode(
-                name = "Sleeping",
-                iconName = "dark_mode_fill0",
-                defaultDurationMinutes = 480
-            ),
-            FocusMode(
-                name = "Family Time",
-                iconName = "backpack_fill0",
-                defaultDurationMinutes = 90
-            )
-        )
     }
 
     fun saveFocusMode(mode: FocusMode): FocusMode {
@@ -309,7 +292,7 @@ class TimeBlockRepository(private val context: Context) {
         // 6. Update Active Session State & Foreground Notification
         val currentActiveState: ActiveTimeBlockState? = when {
             activeFocusMode != null -> {
-                val mode = activeFocusMode!!
+                val mode = activeFocusMode
                 ActiveTimeBlockState(
                     type = TimeBlockType.FOCUS_MODE,
                     id = mode.id,
@@ -322,7 +305,7 @@ class TimeBlockRepository(private val context: Context) {
                 )
             }
             activeRoutine != null -> {
-                val routine = activeRoutine!!
+                val routine = activeRoutine
                 val endCalendar = Calendar.getInstance().apply {
                     set(Calendar.HOUR_OF_DAY, routine.endHour)
                     set(Calendar.MINUTE, routine.endMinute)
@@ -373,13 +356,13 @@ class TimeBlockRepository(private val context: Context) {
 
         // 1. Running Focus Mode end
         _focusModes.value.filter { it.isRunning && it.sessionEndsAt != null && it.sessionEndsAt > now }.forEach {
-            val end = it.sessionEndsAt!!
-            if (nearestTime == null || end < nearestTime!!) nearestTime = end
+            val end = it.sessionEndsAt ?: return@forEach
+            val currentMin = nearestTime
+            if (currentMin == null || end < currentMin) nearestTime = end
         }
 
         // 2. Routine start / end transitions within next 24-48 hours
         _routines.value.filter { it.isEnabled }.forEach { routine ->
-            val cal = Calendar.getInstance()
             for (dayOffset in 0..7) {
                 val checkCal = Calendar.getInstance().apply {
                     add(Calendar.DAY_OF_YEAR, dayOffset)
@@ -392,7 +375,8 @@ class TimeBlockRepository(private val context: Context) {
                         set(Calendar.SECOND, 0)
                         set(Calendar.MILLISECOND, 0)
                     }.timeInMillis
-                    if (start > now && (nearestTime == null || start < nearestTime!!)) {
+                    val currentMin1 = nearestTime
+                    if (start > now && (currentMin1 == null || start < currentMin1)) {
                         nearestTime = start
                     }
 
@@ -402,14 +386,16 @@ class TimeBlockRepository(private val context: Context) {
                         set(Calendar.SECOND, 0)
                         set(Calendar.MILLISECOND, 0)
                     }.timeInMillis
-                    if (end > now && (nearestTime == null || end < nearestTime!!)) {
+                    val currentMin2 = nearestTime
+                    if (end > now && (currentMin2 == null || end < currentMin2)) {
                         nearestTime = end
                     }
                 }
             }
         }
 
-        if (nearestTime != null) {
+        val targetAlarmTime = nearestTime
+        if (targetAlarmTime != null) {
             val intent = Intent(context, TimeBlockAlarmReceiver::class.java).apply {
                 action = TimeBlockAlarmReceiver.ACTION_TIME_BLOCK_TRIGGER
             }
@@ -422,12 +408,12 @@ class TimeBlockRepository(private val context: Context) {
 
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, nearestTime!!, pendingIntent)
+                    alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, targetAlarmTime, pendingIntent)
                 } else {
-                    alarmManager.setExact(AlarmManager.RTC_WAKEUP, nearestTime!!, pendingIntent)
+                    alarmManager.setExact(AlarmManager.RTC_WAKEUP, targetAlarmTime, pendingIntent)
                 }
             } catch (e: SecurityException) {
-                alarmManager.set(AlarmManager.RTC_WAKEUP, nearestTime!!, pendingIntent)
+                alarmManager.set(AlarmManager.RTC_WAKEUP, targetAlarmTime, pendingIntent)
             }
         }
     }

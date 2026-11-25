@@ -1,6 +1,8 @@
 package com.hotaro.brik.ui.screen
 
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,13 +34,16 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.MaterialTheme.typography
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -85,10 +90,90 @@ fun RoutinesWindow(
     val savedKeys by viewModel.savedKeys.collectAsState()
 
     var isRefreshing by remember { mutableStateOf(false) }
-    var showCreateEditDialog by remember { mutableStateOf<AutomatedRoutine?>(null) }
+
+    // Bottom Drawer Sheet state for minimal creation
+    var showCreateSheet by remember { mutableStateOf(false) }
+    var sheetRoutineName by remember { mutableStateOf("") }
+    var sheetDaysOfWeek by remember { mutableStateOf(setOf(2, 3, 4, 5, 6)) } // Mon-Fri
+    var sheetStartHour by remember { mutableStateOf(9) }
+    var sheetStartMinute by remember { mutableStateOf(0) }
+    var sheetEndHour by remember { mutableStateOf(17) }
+    var sheetEndMinute by remember { mutableStateOf(0) }
+
+    // Full Detail Configuration Window state
+    var configuringRoutine by remember { mutableStateOf<AutomatedRoutine?>(null) }
+    var showDiscardDialog by remember { mutableStateOf(false) }
+
+    // Toggle / Delete verification dialog states
     var routineToToggle by remember { mutableStateOf<AutomatedRoutine?>(null) }
     var routineToDelete by remember { mutableStateOf<AutomatedRoutine?>(null) }
 
+    // Handle back inside Detail Window
+    if (configuringRoutine != null) {
+        BackHandler {
+            showDiscardDialog = true
+        }
+
+        RoutineDetailWindow(
+            routine = configuringRoutine!!,
+            bags = bags,
+            savedKeys = savedKeys,
+            onBack = { showDiscardDialog = true },
+            onSave = { updated ->
+                if (updated.name.isBlank()) {
+                    Toast.makeText(context, "Please enter a routine name", Toast.LENGTH_SHORT).show()
+                } else if (updated.keySecret.isNullOrBlank()) {
+                    Toast.makeText(context, "A protection key is required", Toast.LENGTH_SHORT).show()
+                } else {
+                    viewModel.saveRoutine(updated)
+                    Toast.makeText(context, "Routine '${updated.name}' saved!", Toast.LENGTH_SHORT).show()
+                    configuringRoutine = null
+                }
+            }
+        )
+
+        if (showDiscardDialog) {
+            AlertDialog(
+                onDismissRequest = { showDiscardDialog = false },
+                title = { Text("Save or Discard?", fontWeight = FontWeight.Bold) },
+                text = { Text("You have unsaved routine configuration. Do you want to save your changes before exiting or discard?") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val r = configuringRoutine!!
+                            if (r.name.isNotBlank() && !r.keySecret.isNullOrBlank()) {
+                                viewModel.saveRoutine(r)
+                                Toast.makeText(context, "Saved '${r.name}'", Toast.LENGTH_SHORT).show()
+                            }
+                            showDiscardDialog = false
+                            configuringRoutine = null
+                        },
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Save")
+                    }
+                },
+                dismissButton = {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = {
+                            showDiscardDialog = false
+                            configuringRoutine = null
+                        }) {
+                            Text("Discard", color = colorScheme.error)
+                        }
+                        TextButton(onClick = { showDiscardDialog = false }) {
+                            Text("Cancel")
+                        }
+                    }
+                },
+                shape = RoundedCornerShape(24.dp),
+                containerColor = colorScheme.surfaceContainerHigh
+            )
+        }
+        return
+    }
+
+    // --- MAIN ROUTINES LIST SCREEN ---
     RoundedPullRefreshPage(
         isRefreshing = isRefreshing,
         onRefresh = {
@@ -102,13 +187,13 @@ fun RoutinesWindow(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = {
-                    showCreateEditDialog = AutomatedRoutine(
-                        name = "",
-                        startHour = 9,
-                        startMinute = 0,
-                        endHour = 17,
-                        endMinute = 0
-                    )
+                    sheetRoutineName = ""
+                    sheetDaysOfWeek = setOf(2, 3, 4, 5, 6)
+                    sheetStartHour = 9
+                    sheetStartMinute = 0
+                    sheetEndHour = 17
+                    sheetEndMinute = 0
+                    showCreateSheet = true
                 },
                 containerColor = colorScheme.primary,
                 contentColor = colorScheme.onPrimary,
@@ -116,7 +201,7 @@ fun RoutinesWindow(
             ) {
                 Icon(
                     painter = painterResource(R.drawable.add_fill0),
-                    contentDescription = "Create Routine"
+                    contentDescription = "New Routine"
                 )
             }
         },
@@ -255,7 +340,7 @@ fun RoutinesWindow(
                                 color = colorScheme.onSurface
                             )
                             Text(
-                                text = "Automate your daily focus. Block distracting apps on set days and times automatically.",
+                                text = "Automate your daily focus. Tap the plus icon below to set up a new schedule.",
                                 style = typography.bodySmall,
                                 color = colorScheme.onSurfaceVariant,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -263,13 +348,13 @@ fun RoutinesWindow(
                             )
                             Button(
                                 onClick = {
-                                    showCreateEditDialog = AutomatedRoutine(
-                                        name = "",
-                                        startHour = 9,
-                                        startMinute = 0,
-                                        endHour = 17,
-                                        endMinute = 0
-                                    )
+                                    sheetRoutineName = ""
+                                    sheetDaysOfWeek = setOf(2, 3, 4, 5, 6)
+                                    sheetStartHour = 9
+                                    sheetStartMinute = 0
+                                    sheetEndHour = 17
+                                    sheetEndMinute = 0
+                                    showCreateSheet = true
                                 },
                                 shape = RoundedCornerShape(10.dp)
                             ) {
@@ -280,7 +365,6 @@ fun RoutinesWindow(
                 }
             } else {
                 items(routines, key = { it.id }) { routine ->
-                    val dayNames = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
                     val timeStr = formatRoutineTime(routine.startHour, routine.startMinute, routine.endHour, routine.endMinute)
 
                     ElevatedCard(
@@ -288,7 +372,9 @@ fun RoutinesWindow(
                         colors = CardDefaults.elevatedCardColors(
                             containerColor = if (routine.isActiveNow) colorScheme.primaryContainer.copy(alpha = 0.4f) else colorScheme.surfaceContainerHigh
                         ),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { configuringRoutine = routine }
                     ) {
                         Column(
                             modifier = Modifier
@@ -402,10 +488,10 @@ fun RoutinesWindow(
                                 }
 
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    IconButton(onClick = { showCreateEditDialog = routine }) {
+                                    IconButton(onClick = { configuringRoutine = routine }) {
                                         Icon(
                                             painter = painterResource(R.drawable.tune_fill0),
-                                            contentDescription = "Edit",
+                                            contentDescription = "Configure",
                                             tint = colorScheme.onSurfaceVariant,
                                             modifier = Modifier.size(20.dp)
                                         )
@@ -424,6 +510,144 @@ fun RoutinesWindow(
                         }
                     }
                 }
+            }
+        }
+    }
+
+    // --- MINIMAL BOTTOM DRAWER SHEET FOR ROUTINE CREATION ---
+    if (showCreateSheet) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+        ModalBottomSheet(
+            onDismissRequest = { showCreateSheet = false },
+            sheetState = sheetState,
+            containerColor = colorScheme.surfaceContainerHigh,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 32.dp)
+            ) {
+                // Top header in bottom sheet: Title and Next pill
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "New Routine",
+                        style = typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        color = colorScheme.onSurface
+                    )
+
+                    Button(
+                        onClick = {
+                            val newRoutine = AutomatedRoutine(
+                                id = UUID.randomUUID().toString(),
+                                name = sheetRoutineName.trim(),
+                                daysOfWeek = sheetDaysOfWeek.toList().sorted(),
+                                startHour = sheetStartHour,
+                                startMinute = sheetStartMinute,
+                                endHour = sheetEndHour,
+                                endMinute = sheetEndMinute,
+                                keyType = KeyType.PASSWORD,
+                                keySecret = ""
+                            )
+                            showCreateSheet = false
+                            configuringRoutine = newRoutine
+                        },
+                        enabled = sheetRoutineName.isNotBlank() && sheetDaysOfWeek.isNotEmpty(),
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary)
+                    ) {
+                        Text("Next", fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Spacer(Modifier.height(18.dp))
+
+                OutlinedTextField(
+                    value = sheetRoutineName,
+                    onValueChange = { sheetRoutineName = it },
+                    label = { Text("Routine Name *") },
+                    placeholder = { Text("e.g., Work Hours, Sleep Routine") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(Modifier.height(16.dp))
+
+                Text("Active Days of Week:", style = typography.labelMedium, color = colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    val dayLabels = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+                    (1..7).forEach { dayNum ->
+                        val isSelected = sheetDaysOfWeek.contains(dayNum)
+                        Surface(
+                            onClick = {
+                                sheetDaysOfWeek = if (isSelected) sheetDaysOfWeek - dayNum else sheetDaysOfWeek + dayNum
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isSelected) colorScheme.primary else colorScheme.surfaceContainerLowest,
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = dayLabels[dayNum - 1].take(2),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSelected) colorScheme.onPrimary else colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                Text("Time Schedule (24-hour):", style = typography.labelMedium, color = colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = String.format(Locale.US, "%02d:%02d", sheetStartHour, sheetStartMinute),
+                        onValueChange = { input ->
+                            val parts = input.split(":")
+                            if (parts.size == 2) {
+                                parts[0].toIntOrNull()?.let { if (it in 0..23) sheetStartHour = it }
+                                parts[1].toIntOrNull()?.let { if (it in 0..59) sheetStartMinute = it }
+                            }
+                        },
+                        label = { Text("Start (HH:MM)") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    OutlinedTextField(
+                        value = String.format(Locale.US, "%02d:%02d", sheetEndHour, sheetEndMinute),
+                        onValueChange = { input ->
+                            val parts = input.split(":")
+                            if (parts.size == 2) {
+                                parts[0].toIntOrNull()?.let { if (it in 0..23) sheetEndHour = it }
+                                parts[1].toIntOrNull()?.let { if (it in 0..59) sheetEndMinute = it }
+                            }
+                        },
+                        label = { Text("End (HH:MM)") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "Summary: ${formatRoutineTime(sheetStartHour, sheetStartMinute, sheetEndHour, sheetEndMinute)}",
+                    style = typography.bodySmall,
+                    color = colorScheme.primary
+                )
             }
         }
     }
@@ -601,55 +825,135 @@ fun RoutinesWindow(
             containerColor = colorScheme.surfaceContainerHigh
         )
     }
+}
 
-    // --- Create / Edit Routine Dialog ---
-    if (showCreateEditDialog != null) {
-        val editing = showCreateEditDialog!!
-        var nameInput by remember { mutableStateOf(editing.name) }
-        var selectedDays by remember { mutableStateOf(editing.daysOfWeek.toSet()) }
-        var startHour by remember { mutableStateOf(editing.startHour) }
-        var startMinute by remember { mutableStateOf(editing.startMinute) }
-        var endHour by remember { mutableStateOf(editing.endHour) }
-        var endMinute by remember { mutableStateOf(editing.endMinute) }
+/**
+ * Dedicated Full Screen Window for Configuring a Routine (Advanced items: Password/Key, Target Bags, DNS)
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun RoutineDetailWindow(
+    routine: AutomatedRoutine,
+    bags: List<com.hotaro.brik.data.model.AppBag>,
+    savedKeys: List<com.hotaro.brik.data.model.SavedKey>,
+    onBack: () -> Unit,
+    onSave: (AutomatedRoutine) -> Unit
+) {
+    var nameInput by remember { mutableStateOf(routine.name) }
+    var selectedDays by remember { mutableStateOf(routine.daysOfWeek.toSet()) }
+    var startHour by remember { mutableStateOf(routine.startHour) }
+    var startMinute by remember { mutableStateOf(routine.startMinute) }
+    var endHour by remember { mutableStateOf(routine.endHour) }
+    var endMinute by remember { mutableStateOf(routine.endMinute) }
 
-        var selectedBags by remember { mutableStateOf(editing.targetBagIds.toSet()) }
-        var enableDns by remember { mutableStateOf(editing.enableDnsBlocking) }
-        var selectedDnsHost by remember { mutableStateOf(editing.dnsHost) }
+    var selectedBags by remember { mutableStateOf(routine.targetBagIds.toSet()) }
+    var enableDns by remember { mutableStateOf(routine.enableDnsBlocking) }
+    var selectedDnsHost by remember { mutableStateOf(routine.dnsHost) }
 
-        var selectedKeyType by remember { mutableStateOf(editing.keyType) }
-        var passwordSecret by remember { mutableStateOf(if (editing.keyType == KeyType.PASSWORD) editing.keySecret ?: "" else "") }
-        var qrSecret by remember { mutableStateOf(if (editing.keyType == KeyType.QR_CODE) editing.keySecret ?: "" else "") }
-        var selectedSavedKeyId by remember { mutableStateOf(editing.savedKeyId) }
+    var selectedKeyType by remember { mutableStateOf(routine.keyType) }
+    var passwordSecret by remember { mutableStateOf(if (routine.keyType == KeyType.PASSWORD) routine.keySecret ?: "" else "") }
+    var qrSecret by remember { mutableStateOf(if (routine.keyType == KeyType.QR_CODE) routine.keySecret ?: "" else "") }
+    var selectedSavedKeyId by remember { mutableStateOf(routine.savedKeyId) }
 
-        AlertDialog(
-            onDismissRequest = { showCreateEditDialog = null },
-            title = {
-                Text(
-                    text = if (editing.name.isBlank()) "Create Routine" else "Edit '${editing.name}'",
-                    fontWeight = FontWeight.Bold,
-                    color = colorScheme.onSurface
-                )
-            },
-            text = {
-                LazyColumn(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+    val currentSecret = if (selectedKeyType == KeyType.PASSWORD) passwordSecret.trim() else qrSecret.trim()
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = nameInput.ifBlank { "Configure Routine" },
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
+                navigationIcon = {
+                    Surface(
+                        shape = CircleShape,
+                        color = colorScheme.secondaryContainer,
+                        modifier = Modifier
+                            .padding(start = 12.dp)
+                            .size(40.dp),
+                        onClick = onBack
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                painter = painterResource(R.drawable.arrow_back_fill0),
+                                contentDescription = "Back",
+                                tint = colorScheme.onSecondaryContainer,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                },
+                actions = {
+                    Button(
+                        onClick = {
+                            val updated = routine.copy(
+                                name = nameInput.trim(),
+                                daysOfWeek = selectedDays.toList().sorted(),
+                                startHour = startHour,
+                                startMinute = startMinute,
+                                endHour = endHour,
+                                endMinute = endMinute,
+                                targetBagIds = selectedBags.toList(),
+                                enableDnsBlocking = enableDns,
+                                dnsHost = selectedDnsHost,
+                                keyType = selectedKeyType,
+                                keySecret = currentSecret,
+                                savedKeyId = selectedSavedKeyId
+                            )
+                            onSave(updated)
+                        },
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary),
+                        modifier = Modifier.padding(end = 12.dp)
+                    ) {
+                        Text("Save", fontWeight = FontWeight.Bold)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Transparent,
+                    scrolledContainerColor = Color.Transparent
+                ),
+                modifier = Modifier.statusBarsPadding()
+            )
+        },
+        containerColor = colorScheme.surface
+    ) { innerPadding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(horizontal = 20.dp),
+            contentPadding = PaddingValues(top = 12.dp, bottom = 48.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Schedule Info Card
+            item {
+                ElevatedCard(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.elevatedCardColors(containerColor = colorScheme.surfaceContainerHigh),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    item {
+                    Column(modifier = Modifier.padding(18.dp)) {
+                        Text("Schedule Details", style = typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = colorScheme.onSurface)
+                        Spacer(Modifier.height(10.dp))
+
                         OutlinedTextField(
                             value = nameInput,
                             onValueChange = { nameInput = it },
                             label = { Text("Routine Name *") },
-                            placeholder = { Text("e.g., Work Hours, Bedtime") },
                             singleLine = true,
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.fillMaxWidth()
                         )
-                    }
 
-                    // Days of Week Selection
-                    item {
-                        Text("Active Days of Week:", style = typography.labelMedium, color = colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(14.dp))
+
+                        Text("Active Days of Week:", style = typography.labelSmall, color = colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(6.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             val dayLabels = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
@@ -666,7 +970,7 @@ fun RoutinesWindow(
                                     Box(contentAlignment = Alignment.Center) {
                                         Text(
                                             text = dayLabels[dayNum - 1].take(2),
-                                            fontSize = 12.sp,
+                                            fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = if (isSelected) colorScheme.onPrimary else colorScheme.onSurface
                                         )
@@ -674,12 +978,9 @@ fun RoutinesWindow(
                                 }
                             }
                         }
-                    }
 
-                    // Time Schedule Inputs (Start & End)
-                    item {
-                        Text("Time Window:", style = typography.labelMedium, color = colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.height(6.dp))
+                        Spacer(Modifier.height(14.dp))
+
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             OutlinedTextField(
                                 value = String.format(Locale.US, "%02d:%02d", startHour, startMinute),
@@ -712,15 +1013,25 @@ fun RoutinesWindow(
                             )
                         }
                     }
+                }
+            }
 
-                    // Target Bags Selector
-                    item {
-                        Text("Target Bags to Block:", style = typography.labelMedium, color = colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.height(6.dp))
+            // Target Bags Card
+            item {
+                ElevatedCard(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.elevatedCardColors(containerColor = colorScheme.surfaceContainerHigh),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(18.dp)) {
+                        Text("Target Bags to Block", style = typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = colorScheme.onSurface)
+                        Text("All apps in selected bags will be suspended during this routine", style = typography.bodySmall, color = colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(12.dp))
+
                         if (bags.isEmpty()) {
                             Text("No bags found in Tools > Bags.", style = typography.bodySmall, color = colorScheme.outline)
                         } else {
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 bags.forEach { bag ->
                                     val isSelected = selectedBags.contains(bag.id)
                                     FilterChip(
@@ -728,15 +1039,26 @@ fun RoutinesWindow(
                                         onClick = {
                                             selectedBags = if (isSelected) selectedBags - bag.id else selectedBags + bag.id
                                         },
-                                        label = { Text(bag.name) }
+                                        label = { Text(bag.name) },
+                                        leadingIcon = if (isSelected) {
+                                            { Icon(painter = painterResource(R.drawable.check_fill0), contentDescription = null, Modifier.size(16.dp)) }
+                                        } else null
                                     )
                                 }
                             }
                         }
                     }
+                }
+            }
 
-                    // DNS Blocking Option
-                    item {
+            // Private DNS Blocking Card
+            item {
+                ElevatedCard(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.elevatedCardColors(containerColor = colorScheme.surfaceContainerHigh),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(18.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
@@ -744,51 +1066,83 @@ fun RoutinesWindow(
                         ) {
                             Column(Modifier.weight(1f)) {
                                 Text("Private DNS Blocking", style = typography.titleSmall.copy(fontWeight = FontWeight.Bold))
-                                Text("Filter domains during routine", style = typography.bodySmall, color = colorScheme.onSurfaceVariant)
+                                Text("Filter domains during routine schedule", style = typography.bodySmall, color = colorScheme.onSurfaceVariant)
                             }
                             Switch(checked = enableDns, onCheckedChange = { enableDns = it })
                         }
-                    }
 
-                    // Key Protection
-                    item {
-                        Text("Routine Protection Key *:", style = typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = colorScheme.primary)
-                        Text("Required to toggle or modify this routine", style = typography.bodySmall, color = colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.height(8.dp))
+                        if (enableDns) {
+                            Spacer(Modifier.height(12.dp))
+                            Text("Select DNS Resolver:", style = typography.labelSmall, color = colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.height(6.dp))
+                            DnsManager.PRESETS.take(4).forEach { preset ->
+                                val isSelected = selectedDnsHost == preset.host
+                                Surface(
+                                    onClick = { selectedDnsHost = preset.host },
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = if (isSelected) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+                                ) {
+                                    Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Column(Modifier.weight(1f)) {
+                                            Text(preset.name, style = typography.labelMedium.copy(fontWeight = FontWeight.Bold))
+                                            Text(preset.host, style = typography.bodySmall.copy(fontSize = 11.sp), color = colorScheme.outline)
+                                        }
+                                        if (isSelected) {
+                                            Icon(painter = painterResource(R.drawable.check_fill0), contentDescription = null, tint = colorScheme.onPrimaryContainer, modifier = Modifier.size(18.dp))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Key Protection Card
+            item {
+                ElevatedCard(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.elevatedCardColors(containerColor = colorScheme.surfaceContainerHigh),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(18.dp)) {
+                        Text("Routine Protection Key *", style = typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = colorScheme.primary)
+                        Text("Strict key required to toggle, modify, or delete this routine", style = typography.bodySmall, color = colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(14.dp))
 
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Surface(
                                 onClick = { selectedKeyType = KeyType.PASSWORD },
                                 shape = RoundedCornerShape(10.dp),
                                 color = if (selectedKeyType == KeyType.PASSWORD) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
-                                modifier = Modifier.weight(1f).height(38.dp)
+                                modifier = Modifier.weight(1f).height(40.dp)
                             ) {
-                                Box(contentAlignment = Alignment.Center) { Text("Password", style = typography.labelMedium) }
+                                Box(contentAlignment = Alignment.Center) { Text("Password", style = typography.labelMedium.copy(fontWeight = FontWeight.Bold)) }
                             }
                             Surface(
                                 onClick = { selectedKeyType = KeyType.QR_CODE },
                                 shape = RoundedCornerShape(10.dp),
                                 color = if (selectedKeyType == KeyType.QR_CODE) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
-                                modifier = Modifier.weight(1f).height(38.dp)
+                                modifier = Modifier.weight(1f).height(40.dp)
                             ) {
-                                Box(contentAlignment = Alignment.Center) { Text("QR Key", style = typography.labelMedium) }
+                                Box(contentAlignment = Alignment.Center) { Text("QR Key", style = typography.labelMedium.copy(fontWeight = FontWeight.Bold)) }
                             }
                         }
-                    }
 
-                    if (selectedKeyType == KeyType.PASSWORD) {
-                        item {
+                        Spacer(Modifier.height(14.dp))
+
+                        if (selectedKeyType == KeyType.PASSWORD) {
                             OutlinedTextField(
                                 value = passwordSecret,
                                 onValueChange = { passwordSecret = it },
-                                label = { Text("Password *") },
+                                label = { Text("Protection Password *") },
+                                placeholder = { Text("Enter secret password") },
                                 singleLine = true,
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier.fillMaxWidth()
                             )
-                        }
-                    } else {
-                        item {
+                        } else {
                             if (savedKeys.isNotEmpty()) {
                                 Text("Pick from Saved Keys:", style = typography.labelSmall, color = colorScheme.onSurfaceVariant)
                                 Spacer(Modifier.height(6.dp))
@@ -813,9 +1167,8 @@ fun RoutinesWindow(
                                         }
                                     }
                                 }
+                                Spacer(Modifier.height(10.dp))
                             }
-
-                            Spacer(Modifier.height(8.dp))
 
                             OutlinedTextField(
                                 value = qrSecret,
@@ -827,48 +1180,13 @@ fun RoutinesWindow(
                             )
 
                             TextButton(onClick = { qrSecret = UUID.randomUUID().toString() }) {
-                                Text("Generate Random Token")
+                                Text("Generate Random Key Token")
                             }
                         }
                     }
                 }
-            },
-            confirmButton = {
-                val finalSecret = if (selectedKeyType == KeyType.PASSWORD) passwordSecret.trim() else qrSecret.trim()
-                val isFormValid = nameInput.isNotBlank() && selectedDays.isNotEmpty() && finalSecret.isNotBlank()
-
-                Button(
-                    onClick = {
-                        val updated = editing.copy(
-                            name = nameInput.trim(),
-                            daysOfWeek = selectedDays.toList().sorted(),
-                            startHour = startHour,
-                            startMinute = startMinute,
-                            endHour = endHour,
-                            endMinute = endMinute,
-                            targetBagIds = selectedBags.toList(),
-                            enableDnsBlocking = enableDns,
-                            dnsHost = selectedDnsHost,
-                            keyType = selectedKeyType,
-                            keySecret = finalSecret,
-                            savedKeyId = selectedSavedKeyId
-                        )
-                        viewModel.saveRoutine(updated)
-                        Toast.makeText(context, "Saved routine '${nameInput.trim()}'", Toast.LENGTH_SHORT).show()
-                        showCreateEditDialog = null
-                    },
-                    enabled = isFormValid,
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text("Save Routine")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showCreateEditDialog = null }) { Text("Cancel") }
-            },
-            shape = RoundedCornerShape(24.dp),
-            containerColor = colorScheme.surfaceContainerHigh
-        )
+            }
+        }
     }
 }
 
