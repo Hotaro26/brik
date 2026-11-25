@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Monochrome Themed Rectangular Brick -->
+    <group>
+        <!-- Top Face with 3 Holes Cut Out via EvenOdd -->
+        <path
+            android:fillColor="#000000"
+            android:fillType="evenOdd"
+            android:pathData="M44,32.5 L76.5,50.5 L61,59 L28.5,41 Z M41.5,38.5 L46.5,41.5 L44,43 L39,40 Z M50.5,43.5 L55.5,46.5 L53,48 L48,45 Z M59.5,48.5 L64.5,51.5 L62,53 L57,50 Z" />
+
+        <!-- Front-Left Long Face -->
+        <path
+            android:fillColor="#000000"
+            android:pathData="M26,43.5 L59.5,62 L59.5,77 L26,58.5 Z" />
+
+        <!-- Front-Right Short End Face -->
+        <path
+            android:fillColor="#000000"
+            android:pathData="M63.5,62 L79,53.5 L79,67 L63.5,75.5 Z" />
+    </group>
+</vector>
