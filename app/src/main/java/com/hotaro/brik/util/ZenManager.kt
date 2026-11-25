@@ -85,9 +85,10 @@ object ZenManager {
     }
 
     fun setAllowedPackages(context: Context, packages: Set<String>) {
-        _allowedPackages.value = packages
+        val capped = packages.take(10).toSet()
+        _allowedPackages.value = capped
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putStringSet(KEY_ZEN_ALLOWED_PACKAGES, packages).apply()
+        prefs.edit().putStringSet(KEY_ZEN_ALLOWED_PACKAGES, capped).apply()
     }
 
     fun setUseKiosk(context: Context, useKiosk: Boolean) {

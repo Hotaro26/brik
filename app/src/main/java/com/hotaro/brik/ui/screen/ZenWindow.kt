@@ -476,12 +476,12 @@ private fun InactiveZenConfigScreen(
                         }
 
                         TextButton(onClick = { showAppPickerSheet = true }) {
-                            Text("Manage (${allowedPackages.size})", fontWeight = FontWeight.SemiBold)
+                            Text("Manage (${allowedPackages.size}/10)", fontWeight = FontWeight.SemiBold)
                         }
                     }
 
                     Text(
-                        text = "Whitelisted apps will be directly launchable from the Zen desktop.",
+                        text = "Whitelisted apps will be directly launchable from the Zen desktop (maximum 10 apps).",
                         style = typography.bodySmall,
                         color = colorScheme.onSurfaceVariant
                     )
@@ -520,7 +520,7 @@ private fun InactiveZenConfigScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            selectedAppInfos.take(8).forEach { app ->
+                            selectedAppInfos.take(10).forEach { app ->
                                 Surface(
                                     shape = RoundedCornerShape(12.dp),
                                     color = colorScheme.surfaceContainerLowest,
@@ -546,19 +546,6 @@ private fun InactiveZenConfigScreen(
                                             color = colorScheme.onSurface
                                         )
                                     }
-                                }
-                            }
-                            if (selectedAppInfos.size > 8) {
-                                Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = colorScheme.surfaceContainerLowest
-                                ) {
-                                    Text(
-                                        text = "+${selectedAppInfos.size - 8} more",
-                                        style = typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                                        color = colorScheme.primary,
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                                    )
                                 }
                             }
                         }
@@ -809,15 +796,15 @@ private fun InactiveZenConfigScreen(
                             color = colorScheme.onSurface
                         )
                         Text(
-                            text = "${tempAllowed.size} apps whitelisted",
+                            text = "${tempAllowed.size}/10 apps selected",
                             style = typography.bodySmall,
-                            color = colorScheme.onSurfaceVariant
+                            color = if (tempAllowed.size >= 10) colorScheme.primary else colorScheme.onSurfaceVariant
                         )
                     }
 
                     Button(
                         onClick = {
-                            ZenManager.setAllowedPackages(context, tempAllowed)
+                            ZenManager.setAllowedPackages(context, tempAllowed.take(10).toSet())
                             showAppPickerSheet = false
                         },
                         shape = CircleShape,
@@ -857,7 +844,7 @@ private fun InactiveZenConfigScreen(
                     OutlinedButton(
                         onClick = {
                             val essentials = ZenManager.getDefaultEssentialPackages(context)
-                            tempAllowed = essentials
+                            tempAllowed = essentials.take(10).toSet()
                         },
                         shape = CircleShape,
                         modifier = Modifier.weight(1f)
@@ -886,7 +873,15 @@ private fun InactiveZenConfigScreen(
                         val isSelected = tempAllowed.contains(app.packageName)
                         Surface(
                             onClick = {
-                                tempAllowed = if (isSelected) tempAllowed - app.packageName else tempAllowed + app.packageName
+                                if (isSelected) {
+                                    tempAllowed = tempAllowed - app.packageName
+                                } else {
+                                    if (tempAllowed.size >= 10) {
+                                        Toast.makeText(context, "Maximum 10 apps allowed", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        tempAllowed = tempAllowed + app.packageName
+                                    }
+                                }
                             },
                             shape = RoundedCornerShape(12.dp),
                             color = if (isSelected) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
@@ -1142,14 +1137,13 @@ private fun ActiveZenDesktop(
                         items(permittedApps, key = { it.packageName }) { app ->
                             Text(
                                 text = app.label,
-                                style = typography.titleMedium.copy(
-                                    fontWeight = FontWeight.Normal,
-                                    letterSpacing = 0.5.sp
-                                ),
-                                color = Color(0xFFE2E2E6),
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.Medium,
+                                letterSpacing = 0.5.sp,
+                                color = Color(0xFFE8E8EC),
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(12.dp))
+                                    .clip(RoundedCornerShape(14.dp))
                                     .clickable {
                                         val launchIntent = pm.getLaunchIntentForPackage(app.packageName)
                                         if (launchIntent != null) {
@@ -1158,7 +1152,7 @@ private fun ActiveZenDesktop(
                                             Toast.makeText(context, "Cannot launch app", Toast.LENGTH_SHORT).show()
                                         }
                                     }
-                                    .padding(horizontal = 24.dp, vertical = 8.dp)
+                                    .padding(horizontal = 24.dp, vertical = 10.dp)
                             )
                         }
                     }
