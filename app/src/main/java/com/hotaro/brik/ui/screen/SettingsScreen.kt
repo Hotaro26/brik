@@ -58,6 +58,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
@@ -67,10 +68,14 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.accompanist.drawablepainter.rememberDrawablePainter
 import com.hotaro.brik.R
+import com.hotaro.brik.data.model.KeyType
 import com.hotaro.brik.policy.BridgeType
+import com.hotaro.brik.ui.component.QrScannerView
 import com.hotaro.brik.ui.viewmodel.SettingsViewModel
 import com.hotaro.brik.ui.viewmodel.ToolsViewModel
+import com.hotaro.brik.util.QrUtils
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -97,7 +102,8 @@ fun SettingsScreen(
     var showBlockSheet by remember { mutableStateOf(false) }
     var showHideSheet by remember { mutableStateOf(false) }
     var showKioskSheet by remember { mutableStateOf(false) }
-    var showDeactivateDialog by remember { mutableStateOf(false) }
+    var showSetUninstallKeyDialog by remember { mutableStateOf(false) }
+    var showVerifyUninstallKeyDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         settingsViewModel.refreshStatus()
@@ -200,7 +206,14 @@ fun SettingsScreen(
                 if (bridgeStatus.isDeviceOwner) {
                     Spacer(Modifier.height(14.dp))
                     Button(
-                        onClick = { showDeactivateDialog = true },
+                        onClick = {
+                            val existing = keyViewModel.getDpmUninstallLock()
+                            if (existing == null) {
+                                showSetUninstallKeyDialog = true
+                            } else {
+                                showVerifyUninstallKeyDialog = true
+                            }
+                        },
                         colors = ButtonDefaults.buttonColors(containerColor = colorScheme.errorContainer),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth()
@@ -245,101 +258,103 @@ fun SettingsScreen(
             }
         }
 
-        // Dhizuku Card
-        ElevatedCard(
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.elevatedCardColors(
-                containerColor = colorScheme.surfaceContainerHigh
-            ),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(18.dp),
-                verticalAlignment = Alignment.CenterVertically
+        if (!bridgeStatus.isDeviceOwner) {
+            // Dhizuku Card
+            ElevatedCard(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.elevatedCardColors(
+                    containerColor = colorScheme.surfaceContainerHigh
+                ),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = if (bridgeStatus.isDhizukuGranted) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
-                    modifier = Modifier.size(44.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(18.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            painter = painterResource(R.drawable.key_fill0),
-                            contentDescription = null,
-                            tint = if (bridgeStatus.isDhizukuGranted) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(24.dp)
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (bridgeStatus.isDhizukuGranted) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                        modifier = Modifier.size(44.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                painter = painterResource(R.drawable.key_fill0),
+                                contentDescription = null,
+                                tint = if (bridgeStatus.isDhizukuGranted) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            text = "Dhizuku Bridge",
+                            style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = colorScheme.onSurface
+                        )
+                        Text(
+                            text = if (bridgeStatus.isDhizukuGranted) "Granted & Operational" else if (bridgeStatus.isDhizukuInstalled) "Permission Needed" else "Not Installed",
+                            style = typography.bodySmall,
+                            color = if (bridgeStatus.isDhizukuGranted) colorScheme.primary else colorScheme.onSurfaceVariant
                         )
                     }
-                }
-                Spacer(Modifier.width(14.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = "Dhizuku Bridge",
-                        style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                        color = colorScheme.onSurface
-                    )
-                    Text(
-                        text = if (bridgeStatus.isDhizukuGranted) "Granted & Operational" else if (bridgeStatus.isDhizukuInstalled) "Permission Needed" else "Not Installed",
-                        style = typography.bodySmall,
-                        color = if (bridgeStatus.isDhizukuGranted) colorScheme.primary else colorScheme.onSurfaceVariant
-                    )
-                }
 
-                if (!bridgeStatus.isDhizukuGranted && bridgeStatus.isDhizukuInstalled) {
-                    FilledTonalButton(onClick = { settingsViewModel.requestDhizukuPermission() }) {
-                        Text("Grant")
+                    if (!bridgeStatus.isDhizukuGranted && bridgeStatus.isDhizukuInstalled) {
+                        FilledTonalButton(onClick = { settingsViewModel.requestDhizukuPermission() }) {
+                            Text("Grant")
+                        }
                     }
                 }
             }
-        }
 
-        // Shizuku Card
-        ElevatedCard(
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.elevatedCardColors(
-                containerColor = colorScheme.surfaceContainerHigh
-            ),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(18.dp),
-                verticalAlignment = Alignment.CenterVertically
+            // Shizuku Card
+            ElevatedCard(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.elevatedCardColors(
+                    containerColor = colorScheme.surfaceContainerHigh
+                ),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = if (bridgeStatus.isShizukuGranted) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
-                    modifier = Modifier.size(44.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(18.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            painter = painterResource(R.drawable.backpack_fill0),
-                            contentDescription = null,
-                            tint = if (bridgeStatus.isShizukuGranted) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(24.dp)
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (bridgeStatus.isShizukuGranted) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                        modifier = Modifier.size(44.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                painter = painterResource(R.drawable.backpack_fill0),
+                                contentDescription = null,
+                                tint = if (bridgeStatus.isShizukuGranted) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            text = "Shizuku Bridge",
+                            style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = colorScheme.onSurface
+                        )
+                        Text(
+                            text = if (bridgeStatus.isShizukuGranted) "Granted & Running" else if (bridgeStatus.isShizukuRunning) "Permission Needed" else "Service Stopped",
+                            style = typography.bodySmall,
+                            color = if (bridgeStatus.isShizukuGranted) colorScheme.primary else colorScheme.onSurfaceVariant
                         )
                     }
-                }
-                Spacer(Modifier.width(14.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = "Shizuku Bridge",
-                        style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                        color = colorScheme.onSurface
-                    )
-                    Text(
-                        text = if (bridgeStatus.isShizukuGranted) "Granted & Running" else if (bridgeStatus.isShizukuRunning) "Permission Needed" else "Service Stopped",
-                        style = typography.bodySmall,
-                        color = if (bridgeStatus.isShizukuGranted) colorScheme.primary else colorScheme.onSurfaceVariant
-                    )
-                }
 
-                if (bridgeStatus.isShizukuRunning && !bridgeStatus.isShizukuGranted) {
-                    FilledTonalButton(onClick = { settingsViewModel.requestShizukuPermission() }) {
-                        Text("Grant")
+                    if (bridgeStatus.isShizukuRunning && !bridgeStatus.isShizukuGranted) {
+                        FilledTonalButton(onClick = { settingsViewModel.requestShizukuPermission() }) {
+                            Text("Grant")
+                        }
                     }
                 }
             }
@@ -547,44 +562,325 @@ fun SettingsScreen(
         Spacer(Modifier.height(130.dp))
     }
 
-    // --- Deactivate Device Owner Confirmation Dialog ---
-    if (showDeactivateDialog) {
+    // --- Step 1: Set Uninstall Key Dialog ---
+    if (showSetUninstallKeyDialog) {
+        var selectedKeyType by remember { mutableStateOf(KeyType.PASSWORD) }
+        var password by remember { mutableStateOf("") }
+        val generatedQrToken = remember { UUID.randomUUID().toString() }
+        val qrBitmap = remember(generatedQrToken) {
+            try {
+                QrUtils.encodeToBitmap(generatedQrToken, 320)
+            } catch (e: Exception) {
+                null
+            }
+        }
+
         AlertDialog(
-            onDismissRequest = { showDeactivateDialog = false },
+            onDismissRequest = { showSetUninstallKeyDialog = false },
             title = {
                 Text(
-                    text = "Deactivate Device Owner?",
+                    text = "Set Uninstall Security Key",
+                    fontWeight = FontWeight.Bold,
+                    color = colorScheme.onSurface
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "To revoke Device Owner and uninstall Brik, you must set either a Password or QR Code key. This key will be tracked in your Keys section.",
+                        style = typography.bodySmall,
+                        color = colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(Modifier.height(16.dp))
+
+                    // Key Type Toggle
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Surface(
+                            onClick = { selectedKeyType = KeyType.PASSWORD },
+                            shape = RoundedCornerShape(14.dp),
+                            color = if (selectedKeyType == KeyType.PASSWORD) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(52.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    painter = painterResource(R.drawable.password_fill0),
+                                    contentDescription = null,
+                                    tint = if (selectedKeyType == KeyType.PASSWORD) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = "Password",
+                                    style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = if (selectedKeyType == KeyType.PASSWORD) colorScheme.onPrimaryContainer else colorScheme.onSurface
+                                )
+                            }
+                        }
+
+                        Surface(
+                            onClick = { selectedKeyType = KeyType.QR_CODE },
+                            shape = RoundedCornerShape(14.dp),
+                            color = if (selectedKeyType == KeyType.QR_CODE) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(52.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    painter = painterResource(R.drawable.qr_code_fill0),
+                                    contentDescription = null,
+                                    tint = if (selectedKeyType == KeyType.QR_CODE) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = "QR Key",
+                                    style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = if (selectedKeyType == KeyType.QR_CODE) colorScheme.onPrimaryContainer else colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+
+                    if (selectedKeyType == KeyType.PASSWORD) {
+                        OutlinedTextField(
+                            value = password,
+                            onValueChange = { password = it },
+                            placeholder = { Text("Enter security password") },
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    } else {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            if (qrBitmap != null) {
+                                Image(
+                                    bitmap = qrBitmap.asImageBitmap(),
+                                    contentDescription = "Uninstall QR Key",
+                                    modifier = Modifier
+                                        .size(190.dp)
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(android.graphics.Color.WHITE.let { androidx.compose.ui.graphics.Color(it) })
+                                        .padding(8.dp)
+                                )
+                            }
+
+                            Spacer(Modifier.height(10.dp))
+
+                            Text(
+                                text = "Save or copy this QR token. You will need to scan or paste it to revoke Device Owner and uninstall Brik.",
+                                style = typography.bodySmall,
+                                color = colorScheme.onSurfaceVariant,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+
+                            Spacer(Modifier.height(8.dp))
+
+                            OutlinedButton(
+                                onClick = {
+                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                    clipboard.setPrimaryClip(ClipData.newPlainText("Brik QR Token", generatedQrToken))
+                                    Toast.makeText(context, "QR Token copied to clipboard!", Toast.LENGTH_SHORT).show()
+                                },
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Text("Copy Token Text", style = typography.labelSmall)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val secret = if (selectedKeyType == KeyType.PASSWORD) password.trim() else generatedQrToken
+                        keyViewModel.setDpmUninstallLock(selectedKeyType, secret)
+                        Toast.makeText(context, "Security key saved in Keys section!", Toast.LENGTH_SHORT).show()
+                        showSetUninstallKeyDialog = false
+                        showVerifyUninstallKeyDialog = true
+                    },
+                    enabled = selectedKeyType == KeyType.QR_CODE || password.isNotBlank(),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Save Key & Proceed")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSetUninstallKeyDialog = false }) {
+                    Text("Cancel")
+                }
+            },
+            shape = RoundedCornerShape(24.dp),
+            containerColor = colorScheme.surfaceContainerHigh
+        )
+    }
+
+    // --- Step 2: Verify Uninstall Key Dialog ---
+    if (showVerifyUninstallKeyDialog) {
+        val uninstallLock = keyViewModel.getDpmUninstallLock()
+        var inputSecret by remember { mutableStateOf("") }
+        var showCameraScanner by remember { mutableStateOf(false) }
+        var errorMessage by remember { mutableStateOf<String?>(null) }
+
+        AlertDialog(
+            onDismissRequest = {
+                showVerifyUninstallKeyDialog = false
+                showCameraScanner = false
+            },
+            title = {
+                Text(
+                    text = "Verify Key to Deactivate",
                     fontWeight = FontWeight.Bold,
                     color = colorScheme.error
                 )
             },
             text = {
-                Text(
-                    text = "This will release Device Owner management permissions. Once deactivated, you can immediately uninstall Brik like any standard application from your device.",
-                    style = typography.bodyMedium,
-                    color = colorScheme.onSurfaceVariant
-                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = if (uninstallLock?.keyType == KeyType.QR_CODE) {
+                            "Scan your QR code key or enter the token to revoke Device Owner and uninstall Brik."
+                        } else {
+                            "Enter the password you set to revoke Device Owner and uninstall Brik."
+                        },
+                        style = typography.bodySmall,
+                        color = colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(Modifier.height(16.dp))
+
+                    if (uninstallLock?.keyType == KeyType.QR_CODE) {
+                        if (showCameraScanner) {
+                            QrScannerView(
+                                onQrDetected = { scannedToken ->
+                                    keyViewModel.verifyAndDeactivateDeviceOwner(context, scannedToken) { ok, err ->
+                                        if (ok) {
+                                            settingsViewModel.refreshStatus()
+                                            Toast.makeText(context, "Device Owner deactivated! You can now uninstall Brik.", Toast.LENGTH_LONG).show()
+                                            showVerifyUninstallKeyDialog = false
+                                            showCameraScanner = false
+                                        } else {
+                                            errorMessage = err ?: "Invalid QR key"
+                                        }
+                                    }
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(220.dp)
+                            )
+                        } else {
+                            Button(
+                                onClick = { showCameraScanner = true },
+                                colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(
+                                    painter = painterResource(R.drawable.qr_code_fill0),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text("Scan with Camera")
+                            }
+
+                            Spacer(Modifier.height(12.dp))
+
+                            Text("— or paste token text —", style = typography.labelSmall, color = colorScheme.onSurfaceVariant)
+
+                            Spacer(Modifier.height(8.dp))
+
+                            OutlinedTextField(
+                                value = inputSecret,
+                                onValueChange = {
+                                    inputSecret = it
+                                    errorMessage = null
+                                },
+                                placeholder = { Text("Paste QR token") },
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    } else {
+                        OutlinedTextField(
+                            value = inputSecret,
+                            onValueChange = {
+                                inputSecret = it
+                                errorMessage = null
+                            },
+                            placeholder = { Text("Enter password") },
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    if (errorMessage != null) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = errorMessage!!,
+                            style = typography.bodySmall,
+                            color = colorScheme.error
+                        )
+                    }
+                }
             },
             confirmButton = {
-                Button(
-                    onClick = {
-                        settingsViewModel.clearDeviceOwner { ok, err ->
-                            if (ok) {
-                                Toast.makeText(context, "Device Owner deactivated! You can now uninstall Brik.", Toast.LENGTH_LONG).show()
-                                showDeactivateDialog = false
-                            } else {
-                                Toast.makeText(context, err ?: "Failed to clear Device Owner", Toast.LENGTH_SHORT).show()
+                if (!showCameraScanner) {
+                    Button(
+                        onClick = {
+                            keyViewModel.verifyAndDeactivateDeviceOwner(context, inputSecret.trim()) { ok, err ->
+                                if (ok) {
+                                    settingsViewModel.refreshStatus()
+                                    Toast.makeText(context, "Device Owner deactivated! You can now uninstall Brik.", Toast.LENGTH_LONG).show()
+                                    showVerifyUninstallKeyDialog = false
+                                } else {
+                                    errorMessage = err ?: "Incorrect password or key"
+                                }
                             }
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = colorScheme.error),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text("Deactivate")
+                        },
+                        enabled = inputSecret.isNotBlank(),
+                        colors = ButtonDefaults.buttonColors(containerColor = colorScheme.error),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Verify & Deactivate")
+                    }
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDeactivateDialog = false }) {
+                TextButton(onClick = {
+                    showVerifyUninstallKeyDialog = false
+                    showCameraScanner = false
+                }) {
                     Text("Cancel")
                 }
             },

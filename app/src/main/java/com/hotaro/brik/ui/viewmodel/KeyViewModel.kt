@@ -78,10 +78,42 @@ class KeyViewModel(application: Application) : AndroidViewModel(application) {
     ) {
         viewModelScope.launch {
             repository.removeLockDirectly(lock.id)
-            withContext(Dispatchers.IO) {
-                PolicyBridgeManager.suspendPackages(context, lock.packageNames.toList(), false)
+            if (lock.packageNames.isNotEmpty()) {
+                withContext(Dispatchers.IO) {
+                    PolicyBridgeManager.suspendPackages(context, lock.packageNames.toList(), false)
+                }
             }
             onResult(true, null)
+        }
+    }
+
+    fun setDpmUninstallLock(keyType: KeyType, secret: String): BagLock {
+        return repository.setDpmUninstallLock(keyType, secret)
+    }
+
+    fun getDpmUninstallLock(): BagLock? {
+        return repository.getDpmUninstallLock()
+    }
+
+    fun verifyAndDeactivateDeviceOwner(
+        context: Context,
+        inputSecret: String,
+        onResult: (Boolean, String?) -> Unit
+    ) {
+        viewModelScope.launch {
+            val valid = repository.verifyDpmUninstallKey(inputSecret)
+            if (valid) {
+                val clearRes = withContext(Dispatchers.IO) {
+                    PolicyBridgeManager.clearDeviceOwner(context)
+                }
+                if (clearRes.isSuccess) {
+                    onResult(true, null)
+                } else {
+                    onResult(false, clearRes.exceptionOrNull()?.message ?: "Failed to clear Device Owner")
+                }
+            } else {
+                onResult(false, "Incorrect password or invalid QR key")
+            }
         }
     }
 }

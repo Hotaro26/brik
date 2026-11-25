@@ -213,7 +213,7 @@ fun KeysWindow(
                                     )
                                     val dateStr = SimpleDateFormat("MMM dd, hh:mm a", Locale.getDefault()).format(Date(lock.lockedAt))
                                     Text(
-                                        text = "Locked $dateStr",
+                                        text = if (lock.isSystemKey) "System Protection Key • $dateStr" else "Locked $dateStr",
                                         style = typography.bodySmall,
                                         color = colorScheme.onSurfaceVariant
                                     )
@@ -221,12 +221,12 @@ fun KeysWindow(
 
                                 Surface(
                                     shape = CircleShape,
-                                    color = if (lock.keyType == KeyType.QR_CODE) colorScheme.tertiaryContainer else colorScheme.primaryContainer
+                                    color = if (lock.isSystemKey) colorScheme.errorContainer else if (lock.keyType == KeyType.QR_CODE) colorScheme.tertiaryContainer else colorScheme.primaryContainer
                                 ) {
                                     Text(
-                                        text = if (lock.keyType == KeyType.QR_CODE) "QR Key" else "Password Key",
+                                        text = if (lock.isSystemKey) "System Key" else if (lock.keyType == KeyType.QR_CODE) "QR Key" else "Password Key",
                                         style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                        color = if (lock.keyType == KeyType.QR_CODE) colorScheme.onTertiaryContainer else colorScheme.onPrimaryContainer,
+                                        color = if (lock.isSystemKey) colorScheme.onErrorContainer else if (lock.keyType == KeyType.QR_CODE) colorScheme.onTertiaryContainer else colorScheme.onPrimaryContainer,
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                                     )
                                 }
@@ -234,11 +234,19 @@ fun KeysWindow(
 
                             Spacer(Modifier.height(8.dp))
 
-                            Text(
-                                text = "${lock.packageNames.size} packages currently suspended",
-                                style = typography.bodySmall,
-                                color = colorScheme.error
-                            )
+                            if (lock.isSystemKey) {
+                                Text(
+                                    text = "Device Owner Uninstall Key (${if (lock.keyType == KeyType.QR_CODE) "QR Key" else "Password"}) • Required to revoke DPM",
+                                    style = typography.bodySmall,
+                                    color = colorScheme.primary
+                                )
+                            } else {
+                                Text(
+                                    text = "${lock.packageNames.size} packages currently suspended",
+                                    style = typography.bodySmall,
+                                    color = colorScheme.error
+                                )
+                            }
 
                             Spacer(Modifier.height(14.dp))
 
@@ -268,7 +276,7 @@ fun KeysWindow(
                                     colors = ButtonDefaults.buttonColors(containerColor = colorScheme.errorContainer),
                                     shape = RoundedCornerShape(12.dp)
                                 ) {
-                                    Text("Emergency Unlock", color = colorScheme.onErrorContainer)
+                                    Text(if (lock.isSystemKey) "Clear Key" else "Emergency Unlock", color = colorScheme.onErrorContainer)
                                 }
                             }
                         }
@@ -354,14 +362,18 @@ fun KeysWindow(
             onDismissRequest = { emergencyUnlockLock = null },
             title = {
                 Text(
-                    text = "Emergency Unlock?",
+                    text = if (lock.isSystemKey) "Clear Uninstall Key?" else "Emergency Unlock?",
                     fontWeight = FontWeight.Bold,
                     color = colorScheme.error
                 )
             },
             text = {
                 Text(
-                    text = "This will immediately unsuspend all ${lock.packageNames.size} apps in '${lock.bagName}' and remove the lock key.",
+                    text = if (lock.isSystemKey) {
+                        "This will remove the saved uninstall security key for Device Owner."
+                    } else {
+                        "This will immediately unsuspend all ${lock.packageNames.size} apps in '${lock.bagName}' and remove the lock key."
+                    },
                     style = typography.bodyMedium,
                     color = colorScheme.onSurfaceVariant
                 )
@@ -371,7 +383,7 @@ fun KeysWindow(
                     onClick = {
                         keyViewModel.emergencyUnlock(context, lock) { ok, err ->
                             if (ok) {
-                                Toast.makeText(context, "'${lock.bagName}' emergency unlocked!", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, if (lock.isSystemKey) "Uninstall key cleared!" else "'${lock.bagName}' emergency unlocked!", Toast.LENGTH_SHORT).show()
                                 emergencyUnlockLock = null
                             } else {
                                 Toast.makeText(context, err ?: "Failed to unlock", Toast.LENGTH_SHORT).show()
@@ -381,7 +393,7 @@ fun KeysWindow(
                     colors = ButtonDefaults.buttonColors(containerColor = colorScheme.error),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("Yes, Unlock Now")
+                    Text(if (lock.isSystemKey) "Yes, Clear Key" else "Yes, Unlock Now")
                 }
             },
             dismissButton = {

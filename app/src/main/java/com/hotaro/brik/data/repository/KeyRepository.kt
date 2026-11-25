@@ -115,6 +115,51 @@ class KeyRepository(context: Context) {
         return _activeLocks.value.find { it.bagId == bagId }
     }
 
+    fun setDpmUninstallLock(keyType: KeyType, secret: String): BagLock {
+        val hash = QrUtils.sha256(secret)
+        val lock = BagLock(
+            id = "dpm_uninstall_lock",
+            bagId = "dpm_uninstall",
+            bagName = "Device Owner Uninstall Key",
+            keyType = keyType,
+            secretHash = hash,
+            qrToken = if (keyType == KeyType.QR_CODE) secret else null,
+            lockedAt = System.currentTimeMillis(),
+            packageNames = emptySet(),
+            isSystemKey = true
+        )
+        val updated = _activeLocks.value.filterNot { it.id == "dpm_uninstall_lock" } + lock
+        persistLocks(updated)
+
+        val currentStats = _stats.value
+        val updatedStats = currentStats.copy(totalLocks = currentStats.totalLocks + 1)
+        persistStats(updatedStats)
+
+        return lock
+    }
+
+    fun getDpmUninstallLock(): BagLock? {
+        return _activeLocks.value.find { it.id == "dpm_uninstall_lock" }
+    }
+
+    fun verifyDpmUninstallKey(inputSecret: String): Boolean {
+        val lock = getDpmUninstallLock() ?: return true
+        val inputHash = QrUtils.sha256(inputSecret)
+        if (inputHash == lock.secretHash) {
+            val updated = _activeLocks.value.filterNot { it.id == "dpm_uninstall_lock" }
+            persistLocks(updated)
+
+            val currentStats = _stats.value
+            val updatedStats = currentStats.copy(
+                totalUnlocks = currentStats.totalUnlocks + 1,
+                lastUnlockedAt = System.currentTimeMillis()
+            )
+            persistStats(updatedStats)
+            return true
+        }
+        return false
+    }
+
     private fun persistLocks(list: List<BagLock>) {
         _activeLocks.value = list
         prefs.edit().putString("active_locks", json.encodeToString(list)).apply()

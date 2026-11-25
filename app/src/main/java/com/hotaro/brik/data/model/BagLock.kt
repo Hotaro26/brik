@@ -16,7 +16,8 @@ data class BagLock(
     val secretHash: String,
     val qrToken: String? = null,
     val lockedAt: Long = System.currentTimeMillis(),
-    val packageNames: Set<String>
+    val packageNames: Set<String> = emptySet(),
+    val isSystemKey: Boolean = false
 )
 
 @Serializable
