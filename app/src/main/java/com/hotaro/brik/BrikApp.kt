@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import com.hotaro.brik.ui.theme.ThemePreferences
 import com.hotaro.brik.util.EmergencyManager
+import com.hotaro.brik.util.WindDownManager
 import com.hotaro.brik.util.ZenManager
 
 class BrikApp : Application() {
@@ -15,6 +16,7 @@ class BrikApp : Application() {
         ThemePreferences.init(this)
         EmergencyManager.init(this)
         ZenManager.init(this)
+        WindDownManager.init(this)
 
         val screenLockFilter = IntentFilter(Intent.ACTION_SCREEN_OFF)
         registerReceiver(object : BroadcastReceiver() {

@@ -270,18 +270,23 @@ private fun InactiveZenConfigScreen(
         },
         containerColor = appBackground
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) { /* Absorb blank space clicks */ }
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { /* Absorb blank space clicks */ }
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp, vertical = 12.dp)
+                    .padding(bottom = 76.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
             // Hero Card
             ElevatedCard(
                 shape = RoundedCornerShape(24.dp),
@@ -758,7 +763,37 @@ private fun InactiveZenConfigScreen(
 
             Spacer(Modifier.height(16.dp))
         }
+
+        // Floating Pill Button: Lotus man + "Enter Zen"
+        Surface(
+            onClick = { onStartZen(selectedDurationMinutes, isInfiniteSelected) },
+            shape = CircleShape,
+            color = colorScheme.primary,
+            contentColor = colorScheme.onPrimary,
+            shadowElevation = 8.dp,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 16.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 22.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.self_improvement_fill0),
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "Enter Zen",
+                    style = typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                )
+            }
+        }
     }
+}
 
     // Modal Bottom Sheet for Managing Allowed Apps
     if (showAppPickerSheet) {

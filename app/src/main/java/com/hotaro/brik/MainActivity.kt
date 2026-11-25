@@ -104,11 +104,16 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             BrikTheme {
+                val isWindDownActive by com.hotaro.brik.util.WindDownManager.isWindDownActive.collectAsState()
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    BrikMainScreen()
+                    if (isWindDownActive) {
+                        com.hotaro.brik.ui.screen.WindDownDesktop()
+                    } else {
+                        BrikMainScreen()
+                    }
                 }
             }
         }
