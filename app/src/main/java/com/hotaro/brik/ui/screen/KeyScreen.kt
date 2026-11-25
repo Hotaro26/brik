@@ -200,11 +200,6 @@ fun KeyScreen(
                 homeMode = newMode
                 homePrefs.edit().putString("home_screen_mode", newMode.name).apply()
                 isUnlockPillVisible = false
-                Toast.makeText(
-                    context,
-                    if (newMode == HomeScreenMode.ZEN) "Switched to Zen Mode" else "Switched to Key Mode",
-                    Toast.LENGTH_SHORT
-                ).show()
                 delay(550)
                 isRefreshing = false
             }
