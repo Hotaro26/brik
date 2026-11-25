@@ -190,7 +190,7 @@ fun SettingsScreen(
 
         // --- SECTION: PRIVILEGED BRIDGES & KEYS (CONJOINED) ---
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            TomatoSectionHeader(title = "SECTION")
+            TomatoSectionHeader(title = "SECURITY & BRIDGES")
 
             val isDeviceOwner = bridgeStatus.isDeviceOwner
             val totalItems = if (isDeviceOwner) 2 else 4
@@ -481,7 +481,7 @@ fun SettingsScreen(
             }
         }
 
-        Spacer(Modifier.height(130.dp))
+        Spacer(Modifier.height(160.dp))
     }
 }
 

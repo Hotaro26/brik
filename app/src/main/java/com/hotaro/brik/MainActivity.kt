@@ -85,6 +85,19 @@ fun BrikMainScreen() {
     var isPredictiveBackActive by remember { mutableStateOf(false) }
     var backSwipeEdge by remember { mutableIntStateOf(BackEventCompat.EDGE_LEFT) }
     val coroutineScope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    // Synchronize and enforce anti-uninstall and suspension on active locks
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val keyRepo = com.hotaro.brik.data.repository.KeyRepository(context)
+            val lockedPackages = keyRepo.activeLocks.value.flatMap { it.packageNames }.distinct()
+            if (lockedPackages.isNotEmpty()) {
+                com.hotaro.brik.policy.PolicyBridgeManager.suspendPackages(context, lockedPackages, true)
+                com.hotaro.brik.policy.PolicyBridgeManager.setUninstallBlocked(context, lockedPackages, true)
+            }
+        }
+    }
 
     // Tomato-styled Predictive Back gesture handler
     PredictiveBackHandler(enabled = currentSubScreen == "keys") { progress: Flow<BackEventCompat> ->

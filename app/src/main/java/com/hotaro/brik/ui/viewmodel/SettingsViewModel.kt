@@ -95,7 +95,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun suspendPackages(packages: List<String>, suspend: Boolean, onResult: (Boolean, String?) -> Unit) {
         viewModelScope.launch {
             val res = withContext(Dispatchers.IO) {
-                PolicyBridgeManager.suspendPackages(getApplication(), packages, suspend)
+                val sRes = PolicyBridgeManager.suspendPackages(getApplication(), packages, suspend)
+                if (sRes.isSuccess) {
+                    PolicyBridgeManager.setUninstallBlocked(getApplication(), packages, suspend)
+                }
+                sRes
             }
             if (res.isSuccess) {
                 if (suspend) {

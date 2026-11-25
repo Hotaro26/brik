@@ -33,8 +33,13 @@ class KeyViewModel(application: Application) : AndroidViewModel(application) {
         onResult: (Boolean, String?) -> Unit
     ) {
         viewModelScope.launch {
+            val pkgList = bag.packageNames.toList()
             val suspendResult = withContext(Dispatchers.IO) {
-                PolicyBridgeManager.suspendPackages(context, bag.packageNames.toList(), true)
+                val res = PolicyBridgeManager.suspendPackages(context, pkgList, true)
+                if (res.isSuccess) {
+                    PolicyBridgeManager.setUninstallBlocked(context, pkgList, true)
+                }
+                res
             }
 
             if (suspendResult.isSuccess) {
@@ -62,7 +67,17 @@ class KeyViewModel(application: Application) : AndroidViewModel(application) {
             val valid = repository.verifyAndUnlock(lock.id, inputSecret)
             if (valid) {
                 withContext(Dispatchers.IO) {
-                    PolicyBridgeManager.suspendPackages(context, lock.packageNames.toList(), false)
+                    // Only release packages that are not locked in another active bag
+                    val remainingLockedPackages = repository.activeLocks.value
+                        .filter { it.id != lock.id }
+                        .flatMap { it.packageNames }
+                        .toSet()
+                    val packagesToRelease = lock.packageNames.filterNot { remainingLockedPackages.contains(it) }
+
+                    if (packagesToRelease.isNotEmpty()) {
+                        PolicyBridgeManager.suspendPackages(context, packagesToRelease, false)
+                        PolicyBridgeManager.setUninstallBlocked(context, packagesToRelease, false)
+                    }
                 }
                 onResult(true, null)
             } else {
@@ -80,10 +95,29 @@ class KeyViewModel(application: Application) : AndroidViewModel(application) {
             repository.removeLockDirectly(lock.id)
             if (lock.packageNames.isNotEmpty()) {
                 withContext(Dispatchers.IO) {
-                    PolicyBridgeManager.suspendPackages(context, lock.packageNames.toList(), false)
+                    val remainingLockedPackages = repository.activeLocks.value
+                        .filter { it.id != lock.id }
+                        .flatMap { it.packageNames }
+                        .toSet()
+                    val packagesToRelease = lock.packageNames.filterNot { remainingLockedPackages.contains(it) }
+
+                    if (packagesToRelease.isNotEmpty()) {
+                        PolicyBridgeManager.suspendPackages(context, packagesToRelease, false)
+                        PolicyBridgeManager.setUninstallBlocked(context, packagesToRelease, false)
+                    }
                 }
             }
             onResult(true, null)
+        }
+    }
+
+    fun syncAllActiveLocks(context: Context) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val allLocked = repository.activeLocks.value.flatMap { it.packageNames }.distinct()
+            if (allLocked.isNotEmpty()) {
+                PolicyBridgeManager.suspendPackages(context, allLocked, true)
+                PolicyBridgeManager.setUninstallBlocked(context, allLocked, true)
+            }
         }
     }
 

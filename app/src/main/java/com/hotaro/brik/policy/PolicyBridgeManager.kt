@@ -160,6 +160,69 @@ object PolicyBridgeManager {
     }
 
     /**
+     * App Anti-Uninstall: Block or allow uninstallation of packages.
+     * Prevents bypassing suspension/blocking by uninstalling and reinstalling apps.
+     */
+    fun setUninstallBlocked(context: Context, packages: List<String>, blocked: Boolean): Result<Boolean> {
+        val status = getBridgeStatus(context)
+        return runCatching {
+            when (status.activeBridge) {
+                BridgeType.DEVICE_OWNER -> {
+                    val dpm = context.getSystemService(DevicePolicyManager::class.java)!!
+                    val dar = BrikAdminReceiver.getComponentName(context)
+                    for (pkg in packages) {
+                        try {
+                            dpm.setUninstallBlocked(dar, pkg, blocked)
+                        } catch (e: Throwable) {
+                            e.printStackTrace()
+                        }
+                    }
+                    true
+                }
+                BridgeType.DHIZUKU -> {
+                    val dpm = getDhizukuDpm(context)
+                    val dar = Dhizuku.getOwnerComponent()
+                    for (pkg in packages) {
+                        try {
+                            dpm.setUninstallBlocked(dar, pkg, blocked)
+                        } catch (e: Throwable) {
+                            e.printStackTrace()
+                        }
+                    }
+                    true
+                }
+                else -> {
+                    false
+                }
+            }
+        }
+    }
+
+    /**
+     * Check if package uninstallation is blocked.
+     */
+    fun isUninstallBlocked(context: Context, packageName: String): Boolean {
+        val status = getBridgeStatus(context)
+        return try {
+            when (status.activeBridge) {
+                BridgeType.DEVICE_OWNER -> {
+                    val dpm = context.getSystemService(DevicePolicyManager::class.java)!!
+                    val dar = BrikAdminReceiver.getComponentName(context)
+                    dpm.isUninstallBlocked(dar, packageName)
+                }
+                BridgeType.DHIZUKU -> {
+                    val dpm = getDhizukuDpm(context)
+                    val dar = Dhizuku.getOwnerComponent()
+                    dpm.isUninstallBlocked(dar, packageName)
+                }
+                else -> false
+            }
+        } catch (e: Throwable) {
+            false
+        }
+    }
+
+    /**
      * App Hiding: hide or unhide package completely.
      */
     fun setApplicationHidden(context: Context, packageName: String, hidden: Boolean): Result<Boolean> {
