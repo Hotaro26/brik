@@ -10,7 +10,11 @@ Most mobile blockers fail because they rely on self-regulation at the exact mome
 
 Brik was built out of willpower: the realization that true focus in an attention-economy environment requires absolute, physical friction. By establishing an unyielding commitment through Android enterprise management APIs, Brik treats distractions as non-negotiable boundaries. Once a bag of applications is locked with a physical key or an external QR token, the friction required to reverse the decision forces intentionality and breaks compulsive dopamine feedback loops.
 
----
+## Screenshots
+| | | | |
+| :---: | :---: | :---: | :---: |
+| <img width="160" alt="Screenshot_20261125-155044_Brik" src="https://github.com/user-attachments/assets/a65f9566-9260-4f36-8bfb-3154e36b4757" /> | <img width="160" alt="Screenshot_20261125-163327_Brik" src="https://github.com/user-attachments/assets/55d545e4-a27b-47b2-95f4-ccc6ad2b1fb4" /> | <img width="160" alt="Screenshot_20261125-164329_Brik" src="https://github.com/user-attachments/assets/16dcb4bb-ddb9-41d0-a722-84cd935c6fd4" /> | <img width="160" alt="Screenshot_20261125-164333_Brik" src="https://github.com/user-attachments/assets/17f6fc91-6078-4506-b029-31dd9445877c" /> |
+| <img width="160" alt="Screenshot_20261125-164338_Brik" src="https://github.com/user-attachments/assets/95cc7e78-4cb9-49af-9a92-3ea3be04ac61" /> | <img width="160" alt="Screenshot_20261125-164722_Brik" src="https://github.com/user-attachments/assets/e08147d6-336c-4b13-b309-c256819c4060" /> | <img width="160" alt="Screenshot_20261125-164903_Brik" src="https://github.com/user-attachments/assets/1af601d8-429f-4605-860f-618c6089d623" /> | <img width="160" alt="Screenshot_20261125-165011_Brik" src="https://github.com/user-attachments/assets/ad04ea08-53b6-42fc-8eb9-b2c654ee9db9" /> |
 
 ## Privileged Architecture
 
