@@ -13,6 +13,8 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
@@ -312,6 +314,18 @@ fun BrikMainScreen() {
                     }
                 }
             }
+
+            if (isSubScreenVisible) {
+                // Scrim touch barrier: completely intercepts clicks so they cannot reach the bottom layer
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { /* Absorb any touches */ }
+                )
+            }
         }
 
         // Top layer: Sub-screen (KeysWindow, AppManagerWindow, BagsWindow, RoutinesWindow, ModesWindow) with predictive slide transition
@@ -333,6 +347,11 @@ fun BrikMainScreen() {
                         shape = RoundedCornerShape(keyCorners)
                         shadowElevation = if (p > 0f) 24.dp.toPx() else 0f
                     }
+                    .background(appBackground)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { /* Absorb blank space clicks */ }
             ) {
                 when (currentSubScreen) {
                     "keys" -> KeysWindow(onBack = onBackFromSubScreen)
