@@ -48,6 +48,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hotaro.brik.ui.component.BrikFloatingNavBar
 import com.hotaro.brik.ui.component.FloatingNavItem
+import com.hotaro.brik.ui.screen.AppManagerWindow
+import com.hotaro.brik.ui.screen.BagsWindow
 import com.hotaro.brik.ui.screen.KeyScreen
 import com.hotaro.brik.ui.screen.KeysWindow
 import com.hotaro.brik.ui.screen.SettingsScreen
@@ -100,7 +102,7 @@ fun BrikMainScreen() {
     }
 
     // Tomato-styled Predictive Back gesture handler
-    PredictiveBackHandler(enabled = currentSubScreen == "keys") { progress: Flow<BackEventCompat> ->
+    PredictiveBackHandler(enabled = currentSubScreen != null) { progress: Flow<BackEventCompat> ->
         isPredictiveBackActive = true
         try {
             progress.collect { backEvent ->
@@ -125,15 +127,15 @@ fun BrikMainScreen() {
         }
     }
 
-    val onNavigateToKeys: () -> Unit = {
+    val onNavigateToSubScreen: (String) -> Unit = { screen ->
         coroutineScope.launch {
             animatedBackProgress.snapTo(1f)
-            currentSubScreen = "keys"
+            currentSubScreen = screen
             animatedBackProgress.animateTo(0f, tween(durationMillis = 260))
         }
     }
 
-    val onBackFromKeys: () -> Unit = {
+    val onBackFromSubScreen: () -> Unit = {
         coroutineScope.launch {
             animatedBackProgress.animateTo(1f, tween(durationMillis = 200))
             currentSubScreen = null
@@ -169,7 +171,7 @@ fun BrikMainScreen() {
     ) {
         val screenWidthPx = constraints.maxWidth.toFloat()
         val p = animatedBackProgress.value
-        val isSubScreenVisible = currentSubScreen == "keys" || isPredictiveBackActive || p > 0f
+        val isSubScreenVisible = currentSubScreen != null || isPredictiveBackActive || p > 0f
 
         // Bottom layer: Main Scaffold (Tomato spec: shifts by -screenWidth/4 and dims to 0.75 when sub-screen is active)
         val mainOffsetX = if (isSubScreenVisible) {
@@ -204,8 +206,11 @@ fun BrikMainScreen() {
                 ) { tab ->
                     when (tab) {
                         0 -> KeyScreen()
-                        1 -> ToolsScreen()
-                        2 -> SettingsScreen(onNavigateToKeys = onNavigateToKeys)
+                        1 -> ToolsScreen(
+                            onNavigateToAppManager = { onNavigateToSubScreen("app_manager") },
+                            onNavigateToBags = { onNavigateToSubScreen("bags") }
+                        )
+                        2 -> SettingsScreen(onNavigateToKeys = { onNavigateToSubScreen("keys") })
                     }
                 }
 
@@ -218,7 +223,7 @@ fun BrikMainScreen() {
             }
         }
 
-        // Top layer: Sub-screen (KeysWindow) with Tomato-matched predictive slide transition
+        // Top layer: Sub-screen (KeysWindow, AppManagerWindow, BagsWindow) with predictive slide transition
         if (isSubScreenVisible) {
             val keyOffsetX = screenWidthPx * p
             val keyScale = 1f - (p * 0.05f)
@@ -238,7 +243,11 @@ fun BrikMainScreen() {
                         shadowElevation = if (p > 0f) 24.dp.toPx() else 0f
                     }
             ) {
-                KeysWindow(onBack = onBackFromKeys)
+                when (currentSubScreen) {
+                    "keys" -> KeysWindow(onBack = onBackFromSubScreen)
+                    "app_manager" -> AppManagerWindow(onBack = onBackFromSubScreen)
+                    "bags" -> BagsWindow(onBack = onBackFromSubScreen)
+                }
             }
         }
     }
