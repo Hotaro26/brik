@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -46,6 +47,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -73,6 +76,8 @@ import com.hotaro.brik.R
 import com.hotaro.brik.data.model.KeyType
 import com.hotaro.brik.policy.BridgeType
 import com.hotaro.brik.ui.component.QrScannerView
+import com.hotaro.brik.ui.component.RoundedPullRefreshPage
+import com.hotaro.brik.ui.theme.ThemePreferences
 import com.hotaro.brik.ui.viewmodel.SettingsViewModel
 import com.hotaro.brik.ui.viewmodel.ToolsViewModel
 import com.hotaro.brik.util.QrUtils
@@ -104,61 +109,81 @@ fun SettingsScreen(
     var showBlockSheet by remember { mutableStateOf(false) }
     var showHideSheet by remember { mutableStateOf(false) }
     var showKioskSheet by remember { mutableStateOf(false) }
+    var showThemeSheet by remember { mutableStateOf(false) }
+    var showPaletteSheet by remember { mutableStateOf(false) }
     var showSetUninstallKeyDialog by remember { mutableStateOf(false) }
     var showVerifyUninstallKeyDialog by remember { mutableStateOf(false) }
+    var isRefreshing by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         settingsViewModel.refreshStatus()
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // --- Tomato-style Header & Active Bridge Banner ---
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    text = "Settings",
-                    style = typography.headlineMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 30.sp,
-                        letterSpacing = (-0.5).sp
-                    ),
-                    color = colorScheme.onSurface
-                )
-                Text(
-                    text = "Privileged Bridges & Enforcement",
-                    style = typography.bodySmall,
-                    color = colorScheme.onSurfaceVariant
-                )
+    RoundedPullRefreshPage(
+        isRefreshing = isRefreshing,
+        onRefresh = {
+            coroutineScope.launch {
+                isRefreshing = true
+                settingsViewModel.refreshStatus()
+                toolsViewModel.loadInstalledApps()
+                kotlinx.coroutines.delay(650)
+                isRefreshing = false
             }
-
-            Surface(
-                shape = CircleShape,
-                color = if (bridgeStatus.activeBridge != BridgeType.NONE) colorScheme.primaryContainer else colorScheme.surfaceContainerHighest
+        },
+        topBar = {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = when (bridgeStatus.activeBridge) {
-                        BridgeType.DEVICE_OWNER -> "Device Owner"
-                        BridgeType.DHIZUKU -> "Dhizuku"
-                        BridgeType.SHIZUKU -> "Shizuku"
-                        BridgeType.ROOT -> "Root"
-                        BridgeType.NONE -> "Unprivileged"
-                    },
-                    style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                    color = if (bridgeStatus.activeBridge != BridgeType.NONE) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                )
+                Column {
+                    Text(
+                        text = "Settings",
+                        style = typography.headlineMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 28.sp,
+                            letterSpacing = (-0.5).sp
+                        ),
+                        color = colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Privileged Bridges & Enforcement",
+                        style = typography.bodySmall,
+                        color = colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Surface(
+                    shape = CircleShape,
+                    color = if (bridgeStatus.activeBridge != BridgeType.NONE) colorScheme.primaryContainer else colorScheme.surfaceContainerHighest
+                ) {
+                    Text(
+                        text = when (bridgeStatus.activeBridge) {
+                            BridgeType.DEVICE_OWNER -> "Device Owner"
+                            BridgeType.DHIZUKU -> "Dhizuku"
+                            BridgeType.SHIZUKU -> "Shizuku"
+                            BridgeType.ROOT -> "Root"
+                            BridgeType.NONE -> "Unprivileged"
+                        },
+                        style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        color = if (bridgeStatus.activeBridge != BridgeType.NONE) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
+                }
             }
         }
+    ) { innerPadding ->
+        Column(
+            modifier = modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(innerPadding)
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .padding(bottom = 96.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
 
         // --- SECTION: PRIVILEGED BRIDGES & KEYS (CONJOINED) ---
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -288,6 +313,68 @@ fun SettingsScreen(
             )
         }
 
+        // --- SECTION: CUSTOMISATION ---
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            TomatoSectionHeader(title = "CUSTOMISATION")
+
+            val currentThemeMode by ThemePreferences.themeMode.collectAsState()
+            val currentPalette by ThemePreferences.colorPalette.collectAsState()
+
+            val themeSubtitle = when (currentThemeMode) {
+                1 -> "Light"
+                2 -> "Dark (AMOLED)"
+                else -> "System Default"
+            }
+
+            val paletteSubtitle = when (currentPalette) {
+                "dynamic" -> "Dynamic (Material You)"
+                "brik" -> "Brik Terracotta"
+                "classic" -> "Classic Green"
+                "cherry" -> "Cherry Red"
+                "navy" -> "Navy Blue"
+                "lavender" -> "Lavender"
+                "pink" -> "Pink"
+                "mocha" -> "Mocha"
+                "catppuccin" -> "Catppuccin"
+                "monochrome" -> "Monochrome"
+                else -> "Dynamic (Material You)"
+            }
+
+            // 1. Theme Mode
+            TomatoSettingsItem(
+                title = "Theme Mode",
+                subtitle = themeSubtitle,
+                leadingIcon = R.drawable.dark_mode_fill0,
+                trailingContent = {
+                    Icon(
+                        painter = painterResource(R.drawable.arrow_forward_big),
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = colorScheme.onSurfaceVariant
+                    )
+                },
+                shape = segmentedItemShape(0, 2),
+                onClick = { showThemeSheet = true }
+            )
+
+            // 2. Colour Scheme
+            TomatoSettingsItem(
+                title = "Colour Scheme",
+                subtitle = paletteSubtitle,
+                leadingIcon = R.drawable.palette_fill0,
+                trailingContent = {
+                    Icon(
+                        painter = painterResource(R.drawable.arrow_forward_big),
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = colorScheme.onSurfaceVariant
+                    )
+                },
+                shape = segmentedItemShape(1, 2),
+                onClick = { showPaletteSheet = true }
+            )
+        }
+
         // --- SECTION 3: POLICY ENFORCEMENT ---
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             TomatoSectionHeader(title = "POLICY ENFORCEMENT")
@@ -389,6 +476,7 @@ fun SettingsScreen(
 
         Spacer(Modifier.height(130.dp))
     }
+}
 
     // --- Step 1: Set Uninstall Key Dialog ---
     if (showSetUninstallKeyDialog) {
@@ -1278,6 +1366,209 @@ fun SettingsScreen(
                 }
 
                 Spacer(Modifier.height(24.dp))
+            }
+        }
+    }
+
+    // --- THEME MODE BOTTOM SHEET ---
+    if (showThemeSheet) {
+        val themeSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { showThemeSheet = false },
+            sheetState = themeSheetState,
+            containerColor = colorScheme.surfaceContainerHigh,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            val currentThemeMode by ThemePreferences.themeMode.collectAsState()
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 8.dp)
+                    .padding(bottom = 36.dp)
+            ) {
+                Text(
+                    text = "Theme Mode",
+                    style = typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = colorScheme.onSurface,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                Text(
+                    text = "Select your preferred appearance mode",
+                    style = typography.bodySmall,
+                    color = colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                val themeOptions = listOf(
+                    Triple("System Default", 0, "Follow system light/dark settings"),
+                    Triple("Light", 1, "Crisp light appearance"),
+                    Triple("Dark", 2, "AMOLED pitch black appearance")
+                )
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    themeOptions.forEach { (name, mode, desc) ->
+                        val isSelected = currentThemeMode == mode
+                        Surface(
+                            onClick = {
+                                ThemePreferences.setThemeMode(context, mode)
+                                coroutineScope.launch {
+                                    themeSheetState.hide()
+                                    showThemeSheet = false
+                                }
+                            },
+                            shape = RoundedCornerShape(16.dp),
+                            color = if (isSelected) colorScheme.primaryContainer else colorScheme.surfaceContainer,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = name,
+                                        style = typography.titleMedium,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                        color = if (isSelected) colorScheme.onPrimaryContainer else colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = desc,
+                                        style = typography.bodySmall,
+                                        color = if (isSelected) colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                if (isSelected) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = colorScheme.primary,
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.check_fill0),
+                                                contentDescription = "Selected",
+                                                tint = colorScheme.onPrimary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // --- COLOUR SCHEME BOTTOM SHEET ---
+    if (showPaletteSheet) {
+        val paletteSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { showPaletteSheet = false },
+            sheetState = paletteSheetState,
+            containerColor = colorScheme.surfaceContainerHigh,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            val currentPalette by ThemePreferences.colorPalette.collectAsState()
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 8.dp)
+                    .padding(bottom = 36.dp)
+            ) {
+                Text(
+                    text = "Colour Scheme",
+                    style = typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = colorScheme.onSurface,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                Text(
+                    text = "Personalize colors across the UI",
+                    style = typography.bodySmall,
+                    color = colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                val palettes = listOf(
+                    Triple("Dynamic (Material You)", "dynamic", colorScheme.primary),
+                    Triple("Brik Terracotta", "brik", Color(0xFFB5492A)),
+                    Triple("Classic Green", "classic", Color(0xFF006C4C)),
+                    Triple("Cherry Red", "cherry", Color(0xFF904A4E)),
+                    Triple("Navy Blue", "navy", Color(0xFF2E6386)),
+                    Triple("Lavender", "lavender", Color(0xFF6B587B)),
+                    Triple("Pink", "pink", Color(0xFF8B4A62)),
+                    Triple("Mocha", "mocha", Color(0xFF7B5841)),
+                    Triple("Catppuccin", "catppuccin", Color(0xFF8839EF)),
+                    Triple("Monochrome", "monochrome", Color(0xFF5E5E5E))
+                )
+
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 440.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(palettes) { (name, id, swatchColor) ->
+                        val isSelected = currentPalette == id
+                        Surface(
+                            onClick = {
+                                ThemePreferences.setColorPalette(context, id)
+                                coroutineScope.launch {
+                                    paletteSheetState.hide()
+                                    showPaletteSheet = false
+                                }
+                            },
+                            shape = RoundedCornerShape(16.dp),
+                            color = if (isSelected) colorScheme.primaryContainer else colorScheme.surfaceContainer,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = swatchColor,
+                                    modifier = Modifier.size(36.dp)
+                                ) {}
+
+                                Spacer(Modifier.width(16.dp))
+
+                                Text(
+                                    text = name,
+                                    style = typography.titleMedium,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                    color = if (isSelected) colorScheme.onPrimaryContainer else colorScheme.onSurface,
+                                    modifier = Modifier.weight(1f)
+                                )
+
+                                if (isSelected) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = colorScheme.primary,
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.check_fill0),
+                                                contentDescription = "Selected",
+                                                tint = colorScheme.onPrimary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }

@@ -46,6 +46,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,8 +65,10 @@ import com.hotaro.brik.R
 import com.hotaro.brik.data.model.BagLock
 import com.hotaro.brik.data.model.KeyType
 import com.hotaro.brik.ui.component.QrScannerView
+import com.hotaro.brik.ui.component.RoundedPullRefreshPage
 import com.hotaro.brik.ui.viewmodel.KeyViewModel
 import com.hotaro.brik.util.QrUtils
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -78,6 +81,7 @@ fun KeysWindow(
     keyViewModel: KeyViewModel = viewModel()
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val activeLocks by keyViewModel.activeLocks.collectAsState()
     val stats by keyViewModel.stats.collectAsState()
 
@@ -87,9 +91,17 @@ fun KeysWindow(
     var randomQrKey by remember { mutableStateOf(UUID.randomUUID().toString()) }
     var scannedCustomQr by remember { mutableStateOf<String?>(null) }
     var showCustomQrScanner by remember { mutableStateOf(false) }
+    var isRefreshing by remember { mutableStateOf(false) }
 
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
+    RoundedPullRefreshPage(
+        isRefreshing = isRefreshing,
+        onRefresh = {
+            coroutineScope.launch {
+                isRefreshing = true
+                kotlinx.coroutines.delay(650)
+                isRefreshing = false
+            }
+        },
         topBar = {
             TopAppBar(
                 title = {
@@ -110,7 +122,8 @@ fun KeysWindow(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = colorScheme.surface
+                    containerColor = Color.Transparent,
+                    scrolledContainerColor = Color.Transparent
                 ),
                 modifier = Modifier.statusBarsPadding()
             )

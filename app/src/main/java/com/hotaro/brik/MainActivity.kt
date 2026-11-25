@@ -51,6 +51,7 @@ import com.hotaro.brik.ui.screen.KeyScreen
 import com.hotaro.brik.ui.screen.KeysWindow
 import com.hotaro.brik.ui.screen.SettingsScreen
 import com.hotaro.brik.ui.screen.ToolsScreen
+import com.hotaro.brik.ui.theme.ThemePreferences
 import com.hotaro.brik.ui.theme.BrikTheme
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
@@ -59,6 +60,7 @@ import kotlin.coroutines.cancellation.CancellationException
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        ThemePreferences.init(this)
         enableEdgeToEdge()
         setContent {
             BrikTheme {

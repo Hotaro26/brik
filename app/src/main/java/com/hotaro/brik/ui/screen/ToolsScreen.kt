@@ -81,6 +81,7 @@ import com.hotaro.brik.data.model.KeyType
 import com.hotaro.brik.policy.DnsManager
 import com.hotaro.brik.policy.DnsMode
 import com.hotaro.brik.ui.component.QrScannerView
+import com.hotaro.brik.ui.component.RoundedPullRefreshPage
 import com.hotaro.brik.ui.viewmodel.KeyViewModel
 import com.hotaro.brik.ui.viewmodel.ToolsViewModel
 import com.hotaro.brik.util.QrUtils
@@ -122,18 +123,49 @@ fun ToolsScreen(
     val dnsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val stealthSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Text(
-            text = "Tools",
-            style = typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-            color = colorScheme.onSurface
-        )
+    var isRefreshing by remember { mutableStateOf(false) }
+
+    RoundedPullRefreshPage(
+        isRefreshing = isRefreshing,
+        onRefresh = {
+            coroutineScope.launch {
+                isRefreshing = true
+                viewModel.loadInstalledApps()
+                dnsStatus = DnsManager.getCurrentDns(context)
+                isAppHidden = StealthUtils.isAppHidden(context)
+                dialerCode = StealthUtils.getDialerCode(context)
+                kotlinx.coroutines.delay(650)
+                isRefreshing = false
+            }
+        },
+        topBar = {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Tools",
+                    style = typography.headlineMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 28.sp,
+                        letterSpacing = (-0.5).sp
+                    ),
+                    color = colorScheme.onSurface
+                )
+            }
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(innerPadding)
+                .padding(horizontal = 20.dp, vertical = 16.dp)
+                .padding(bottom = 96.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
 
         // Section 1: App Manager Card
         ElevatedCard(
@@ -357,6 +389,7 @@ fun ToolsScreen(
 
         Spacer(Modifier.height(130.dp))
     }
+}
 
     // --- App Manager Bottom Sheet ---
     if (showAppManagerSheet) {
