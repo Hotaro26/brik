@@ -2,4 +2,9 @@
 <resources>
     <color name="ic_launcher_background">#000000</color>
     <color name="splash_bg">#FCF8F7</color>
+    <color name="ic_dynamic_bg">#090D18</color>
+    <color name="ic_dynamic_primary">#4D77FF</color>
+    <color name="ic_dynamic_secondary">#2952E3</color>
+    <color name="ic_dynamic_dark">#1836A8</color>
+    <color name="ic_dynamic_hole">#0B1B54</color>
 </resources>

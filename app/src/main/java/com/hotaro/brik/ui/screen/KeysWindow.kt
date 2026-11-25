@@ -50,6 +50,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -76,6 +77,7 @@ import com.hotaro.brik.data.model.KeyType
 import com.hotaro.brik.ui.component.QrScannerView
 import com.hotaro.brik.ui.component.RoundedPullRefreshPage
 import com.hotaro.brik.ui.viewmodel.KeyViewModel
+import com.hotaro.brik.util.EmergencyManager
 import com.hotaro.brik.util.QrUtils
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -101,6 +103,9 @@ fun KeysWindow(
     var deleteSavedKeyTarget by remember { mutableStateOf<SavedKey?>(null) }
     var showAddSavedKeyDialog by remember { mutableStateOf(false) }
 
+    val isEmergencyActive by EmergencyManager.isEmergencyModeActive.collectAsState()
+    val pullTimestamps = remember { mutableStateListOf<Long>() }
+
     var qrOptionMode by remember { mutableStateOf(0) } // 0: Random, 1: Scan External
     var randomQrKey by remember { mutableStateOf(UUID.randomUUID().toString()) }
     var scannedCustomQr by remember { mutableStateOf<String?>(null) }
@@ -112,6 +117,16 @@ fun KeysWindow(
         onRefresh = {
             coroutineScope.launch {
                 isRefreshing = true
+                val now = System.currentTimeMillis()
+                pullTimestamps.removeAll { now - it > 5000L }
+                pullTimestamps.add(now)
+
+                if (pullTimestamps.size >= 3) {
+                    pullTimestamps.clear()
+                    EmergencyManager.setEmergencyModeActive(context, true)
+                    Toast.makeText(context, "Emergency Mode activated!", Toast.LENGTH_SHORT).show()
+                }
+
                 kotlinx.coroutines.delay(650)
                 isRefreshing = false
             }
@@ -173,6 +188,52 @@ fun KeysWindow(
             contentPadding = PaddingValues(top = 12.dp, bottom = 40.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Emergency Mode Active Banner
+            if (isEmergencyActive) {
+                item {
+                    Surface(
+                        shape = RoundedCornerShape(18.dp),
+                        color = colorScheme.errorContainer,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.shield_fill0),
+                                contentDescription = null,
+                                tint = colorScheme.onErrorContainer,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Emergency Mode Active",
+                                    style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = colorScheme.onErrorContainer
+                                )
+                                Text(
+                                    text = "Saved QR codes & tokens are visible",
+                                    style = typography.bodySmall,
+                                    color = colorScheme.onErrorContainer.copy(alpha = 0.85f)
+                                )
+                            }
+                            TextButton(
+                                onClick = {
+                                    EmergencyManager.setEmergencyModeActive(context, false)
+                                    Toast.makeText(context, "Emergency Mode deactivated", Toast.LENGTH_SHORT).show()
+                                }
+                            ) {
+                                Text("Deactivate", color = colorScheme.error, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+
             // Stats Row
             item {
                 Row(
@@ -386,15 +447,19 @@ fun KeysWindow(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     IconButton(
                                         onClick = {
-                                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                            clipboard.setPrimaryClip(ClipData.newPlainText("Brik Saved Key", key.token))
-                                            Toast.makeText(context, "Key token copied!", Toast.LENGTH_SHORT).show()
+                                            if (!isEmergencyActive) {
+                                                Toast.makeText(context, "Activate Emergency Mode to view or copy saved key tokens", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                                clipboard.setPrimaryClip(ClipData.newPlainText("Brik Saved Key", key.token))
+                                                Toast.makeText(context, "Key token copied!", Toast.LENGTH_SHORT).show()
+                                            }
                                         }
                                     ) {
                                         Icon(
-                                            painter = painterResource(R.drawable.content_copy_fill0),
-                                            contentDescription = "Copy Token",
-                                            tint = colorScheme.onSurfaceVariant,
+                                            painter = painterResource(if (isEmergencyActive) R.drawable.content_copy_fill0 else R.drawable.shield_fill0),
+                                            contentDescription = if (isEmergencyActive) "Copy Token" else "Key Protected",
+                                            tint = if (isEmergencyActive) colorScheme.onSurfaceVariant else colorScheme.outline,
                                             modifier = Modifier.size(20.dp)
                                         )
                                     }
@@ -1266,51 +1331,95 @@ fun KeysWindow(
 
                 Spacer(Modifier.height(20.dp))
 
-                // QR Code
-                if (qrBitmap != null) {
+                if (isEmergencyActive) {
+                    // QR Code
+                    if (qrBitmap != null) {
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = Color.White,
+                            modifier = Modifier.size(240.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(12.dp)) {
+                                Image(
+                                    bitmap = qrBitmap.asImageBitmap(),
+                                    contentDescription = "QR Code Key",
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+
+                    Text(
+                        text = key.token,
+                        style = typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
+                        color = colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Spacer(Modifier.height(14.dp))
+
+                    OutlinedButton(
+                        onClick = {
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            clipboard.setPrimaryClip(ClipData.newPlainText("Brik QR Token", key.token))
+                            Toast.makeText(context, "QR Token copied!", Toast.LENGTH_SHORT).show()
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.content_copy_fill0),
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("Copy Token Text")
+                    }
+                } else {
+                    // Protected Key Placeholder
                     Surface(
                         shape = RoundedCornerShape(20.dp),
-                        color = Color.White,
-                        modifier = Modifier.size(240.dp)
+                        color = colorScheme.surfaceContainerLowest,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(12.dp)) {
-                            Image(
-                                bitmap = qrBitmap.asImageBitmap(),
-                                contentDescription = "QR Code Key",
-                                modifier = Modifier.fillMaxSize()
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = colorScheme.secondaryContainer,
+                                modifier = Modifier.size(56.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.shield_fill0),
+                                        contentDescription = null,
+                                        tint = colorScheme.onSecondaryContainer,
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.height(14.dp))
+                            Text(
+                                text = "Key Content Protected",
+                                style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = colorScheme.onSurface
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                text = "QR code and token string are hidden to enforce lockdown security.\n\nPull down 3 times within 5 seconds on Keys & Analytics to activate Emergency Mode.",
+                                style = typography.bodySmall,
+                                color = colorScheme.onSurfaceVariant,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
                             )
                         }
                     }
-                }
-
-                Spacer(Modifier.height(16.dp))
-
-                Text(
-                    text = key.token,
-                    style = typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
-                    color = colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Spacer(Modifier.height(14.dp))
-
-                OutlinedButton(
-                    onClick = {
-                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        clipboard.setPrimaryClip(ClipData.newPlainText("Brik QR Token", key.token))
-                        Toast.makeText(context, "QR Token copied!", Toast.LENGTH_SHORT).show()
-                    },
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.content_copy_fill0),
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text("Copy Token Text")
                 }
             }
         }

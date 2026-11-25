@@ -67,6 +67,8 @@ import com.hotaro.brik.util.StealthUtils
 import com.hotaro.brik.ui.screen.ZenWindow
 import com.hotaro.brik.ui.screen.GrayscaleWindow
 import com.hotaro.brik.ui.screen.AboutWindow
+import com.hotaro.brik.ui.screen.EmergencyModeWindow
+import com.hotaro.brik.util.EmergencyManager
 import com.hotaro.brik.ui.theme.ThemePreferences
 import com.hotaro.brik.ui.theme.BrikTheme
 import kotlinx.coroutines.flow.Flow
@@ -77,6 +79,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         ThemePreferences.init(this)
+        EmergencyManager.init(this)
 
         // Ensure active launcher alias is enabled if stealth mode is inactive
         if (!StealthUtils.isAppHidden(this)) {
@@ -249,7 +252,8 @@ fun BrikMainScreen() {
                         )
                         2 -> SettingsScreen(
                             onNavigateToKeys = { onNavigateToSubScreen("keys") },
-                            onNavigateToAbout = { onNavigateToSubScreen("about") }
+                            onNavigateToAbout = { onNavigateToSubScreen("about") },
+                            onNavigateToEmergency = { onNavigateToSubScreen("emergency") }
                         )
                     }
                 }
@@ -332,6 +336,7 @@ fun BrikMainScreen() {
                     "zen" -> ZenWindow(onBack = onBackFromSubScreen)
                     "grayscale" -> GrayscaleWindow(onBack = onBackFromSubScreen)
                     "about" -> AboutWindow(onBack = onBackFromSubScreen)
+                    "emergency" -> EmergencyModeWindow(onBack = onBackFromSubScreen)
                 }
             }
         }

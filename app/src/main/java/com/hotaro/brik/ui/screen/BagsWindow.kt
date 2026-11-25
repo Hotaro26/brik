@@ -82,6 +82,7 @@ import com.hotaro.brik.ui.component.QrScannerView
 import com.hotaro.brik.ui.component.RoundedPullRefreshPage
 import com.hotaro.brik.ui.viewmodel.KeyViewModel
 import com.hotaro.brik.ui.viewmodel.ToolsViewModel
+import com.hotaro.brik.util.EmergencyManager
 import com.hotaro.brik.util.QrUtils
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -109,6 +110,8 @@ fun BagsWindow(
     var bagToLock by remember { mutableStateOf<AppBag?>(null) }
     // Bag to delete confirmation state
     var bagToDelete by remember { mutableStateOf<AppBag?>(null) }
+    // Attempted to edit a running bag
+    var bagLockedEditAttempt by remember { mutableStateOf<AppBag?>(null) }
 
     RoundedPullRefreshPage(
         isRefreshing = isRefreshing,
@@ -227,7 +230,13 @@ fun BagsWindow(
                             isLocked = isLocked,
                             viewModel = viewModel,
                             onClick = { selectedBagForSheet = bag },
-                            onSwipeDelete = { bagToDelete = bag }
+                            onSwipeDelete = {
+                                if (isLocked) {
+                                    bagLockedEditAttempt = bag
+                                } else {
+                                    bagToDelete = bag
+                                }
+                            }
                         )
                     }
                 }
@@ -278,6 +287,33 @@ fun BagsWindow(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        val isEmergencyActive by EmergencyManager.isEmergencyModeActive.collectAsState()
+                        if (isLocked && isEmergencyActive) {
+                            Surface(
+                                shape = CircleShape,
+                                color = colorScheme.errorContainer,
+                                modifier = Modifier.height(38.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 10.dp)
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.shield_fill0),
+                                        contentDescription = null,
+                                        tint = colorScheme.onErrorContainer,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(
+                                        text = "EMERGENCY",
+                                        style = typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold, fontSize = 9.sp),
+                                        color = colorScheme.onErrorContainer
+                                    )
+                                }
+                            }
+                        }
+
                         // Toggle Switch Pill at top
                         Surface(
                             shape = CircleShape,
@@ -318,7 +354,13 @@ fun BagsWindow(
 
                         // Edit Icon to add/remove apps, change name, etc.
                         Surface(
-                            onClick = { editingBag = activeBag },
+                            onClick = {
+                                if (isLocked) {
+                                    bagLockedEditAttempt = activeBag
+                                } else {
+                                    editingBag = activeBag
+                                }
+                            },
                             shape = CircleShape,
                             color = colorScheme.secondaryContainer,
                             modifier = Modifier.size(38.dp)
@@ -356,7 +398,9 @@ fun BagsWindow(
 
                     Surface(
                         onClick = {
-                            if (activeBag.actionType != BagAction.SUSPEND) {
+                            if (isLocked) {
+                                bagLockedEditAttempt = activeBag
+                            } else if (activeBag.actionType != BagAction.SUSPEND) {
                                 val updated = activeBag.copy(actionType = BagAction.SUSPEND)
                                 viewModel.updateBag(updated)
                                 Toast.makeText(context, "Mode set to Suspend (apps greyed out)", Toast.LENGTH_SHORT).show()
@@ -390,7 +434,9 @@ fun BagsWindow(
 
                     Surface(
                         onClick = {
-                            if (activeBag.actionType != BagAction.HIDE) {
+                            if (isLocked) {
+                                bagLockedEditAttempt = activeBag
+                            } else if (activeBag.actionType != BagAction.HIDE) {
                                 val updated = activeBag.copy(actionType = BagAction.HIDE)
                                 viewModel.updateBag(updated)
                                 Toast.makeText(context, "Mode set to Hide (apps hidden from launcher)", Toast.LENGTH_SHORT).show()
@@ -514,9 +560,13 @@ fun BagsWindow(
     // --- EDIT BAG BOTTOM SHEET (Change name, add/remove apps) ---
     if (editingBag != null) {
         val targetBag = editingBag!!
-        var editedName by remember { mutableStateOf(targetBag.name) }
-        var editedPackages by remember { mutableStateOf(targetBag.packageNames.toSet()) }
-        var editedActionType by remember { mutableStateOf(targetBag.actionType) }
+        if (keyViewModel.isBagLocked(targetBag.id)) {
+            bagLockedEditAttempt = targetBag
+            editingBag = null
+        }
+        var editedName by remember(targetBag.id) { mutableStateOf(targetBag.name) }
+        var editedPackages by remember(targetBag.id) { mutableStateOf(targetBag.packageNames.toSet()) }
+        var editedActionType by remember(targetBag.id) { mutableStateOf(targetBag.actionType) }
         var appSearchQuery by remember { mutableStateOf("") }
         val editSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -801,6 +851,56 @@ fun BagsWindow(
             dismissButton = {
                 TextButton(onClick = { bagToDelete = null }) {
                     Text("Cancel")
+                }
+            },
+            shape = RoundedCornerShape(24.dp),
+            containerColor = colorScheme.surfaceContainerHigh
+        )
+    }
+
+    // --- RUNNING BAG EDIT PROTECTION DIALOG ---
+    if (bagLockedEditAttempt != null) {
+        val lockedBag = bagLockedEditAttempt!!
+        AlertDialog(
+            onDismissRequest = { bagLockedEditAttempt = null },
+            icon = {
+                Icon(
+                    painter = painterResource(R.drawable.block_fill0),
+                    contentDescription = null,
+                    tint = colorScheme.error,
+                    modifier = Modifier.size(32.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "Bag is Running",
+                    style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = colorScheme.onSurface
+                )
+            },
+            text = {
+                Text(
+                    text = "'${lockedBag.name}' is currently active and locked. Adding apps, removing apps, or changing the activation mode is protected. Please unlock or disable this bag in the Key tab first using its key.",
+                    style = typography.bodyMedium,
+                    color = colorScheme.onSurfaceVariant
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        bagLockedEditAttempt = null
+                        selectedBagForSheet = null
+                        onBack()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Go to Key Tab")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { bagLockedEditAttempt = null }) {
+                    Text("Dismiss")
                 }
             },
             shape = RoundedCornerShape(24.dp),
@@ -1392,6 +1492,33 @@ private fun SwipeableBagItemCard(
                                             color = colorScheme.onError,
                                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                         )
+                                    }
+
+                                    val isEmergencyActive by EmergencyManager.isEmergencyModeActive.collectAsState()
+                                    if (isEmergencyActive) {
+                                        Spacer(Modifier.width(6.dp))
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = colorScheme.errorContainer
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                                            ) {
+                                                Icon(
+                                                    painter = painterResource(R.drawable.shield_fill0),
+                                                    contentDescription = null,
+                                                    tint = colorScheme.onErrorContainer,
+                                                    modifier = Modifier.size(10.dp)
+                                                )
+                                                Spacer(Modifier.width(3.dp))
+                                                Text(
+                                                    text = "EMERGENCY",
+                                                    style = typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold, fontSize = 9.sp),
+                                                    color = colorScheme.onErrorContainer
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }

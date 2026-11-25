@@ -125,6 +125,48 @@
             </intent-filter>
         </activity-alias>
 
+        <activity-alias
+            android:name=".LauncherBrik"
+            android:targetActivity=".MainActivity"
+            android:exported="true"
+            android:enabled="false"
+            android:icon="@mipmap/ic_launcher_brik_alias"
+            android:label="@string/app_name"
+            android:roundIcon="@mipmap/ic_launcher_brik_alias">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".LauncherPink"
+            android:targetActivity=".MainActivity"
+            android:exported="true"
+            android:enabled="false"
+            android:icon="@mipmap/ic_launcher_pink_alias"
+            android:label="@string/app_name"
+            android:roundIcon="@mipmap/ic_launcher_pink_alias">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".LauncherCatppuccin"
+            android:targetActivity=".MainActivity"
+            android:exported="true"
+            android:enabled="false"
+            android:icon="@mipmap/ic_launcher_catppuccin_alias"
+            android:label="@string/app_name"
+            android:roundIcon="@mipmap/ic_launcher_catppuccin_alias">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
         <receiver
             android:name=".receiver.DialerSecretCodeReceiver"
             android:exported="true">

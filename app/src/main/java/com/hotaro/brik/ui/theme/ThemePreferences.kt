@@ -27,7 +27,7 @@ object ThemePreferences {
     private val _navBarStyle = MutableStateFlow(NavBarStyle.FLOATING)
     val navBarStyle: StateFlow<NavBarStyle> = _navBarStyle.asStateFlow()
 
-    private val _appIcon = MutableStateFlow("default")
+    private val _appIcon = MutableStateFlow("dynamic")
     val appIcon: StateFlow<String> = _appIcon.asStateFlow()
 
     fun init(context: Context) {
@@ -37,7 +37,8 @@ object ThemePreferences {
         val navStyleStr = prefs.getString(KEY_NAVBAR_STYLE, NavBarStyle.FLOATING.name)
         _navBarStyle.value = runCatching { NavBarStyle.valueOf(navStyleStr ?: NavBarStyle.FLOATING.name) }
             .getOrDefault(NavBarStyle.FLOATING)
-        _appIcon.value = prefs.getString(KEY_APP_ICON, "default") ?: "default"
+        val savedIcon = prefs.getString(KEY_APP_ICON, "dynamic") ?: "dynamic"
+        _appIcon.value = if (savedIcon == "default") "dynamic" else savedIcon
     }
 
     fun setThemeMode(context: Context, mode: Int) {

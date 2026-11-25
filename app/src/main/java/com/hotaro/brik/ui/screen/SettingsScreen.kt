@@ -93,6 +93,7 @@ import com.hotaro.brik.ui.theme.NavBarStyle
 import com.hotaro.brik.ui.viewmodel.SettingsViewModel
 import com.hotaro.brik.ui.viewmodel.ToolsViewModel
 import com.hotaro.brik.util.AppIconManager
+import com.hotaro.brik.util.EmergencyManager
 import com.hotaro.brik.util.QrUtils
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -103,6 +104,7 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     onNavigateToKeys: () -> Unit = {},
     onNavigateToAbout: () -> Unit = {},
+    onNavigateToEmergency: () -> Unit = {},
     settingsViewModel: SettingsViewModel = viewModel(),
     toolsViewModel: ToolsViewModel = viewModel(),
     keyViewModel: com.hotaro.brik.ui.viewmodel.KeyViewModel = viewModel()
@@ -315,6 +317,32 @@ fun SettingsScreen(
                                 showVerifyUninstallKeyDialog = true
                             }
                         }
+                    )
+
+                    Spacer(Modifier.height(2.dp))
+
+                    val isEmergencyActive by EmergencyManager.isEmergencyModeActive.collectAsState()
+                    TomatoSettingsItem(
+                        title = "Emergency Mode",
+                        subtitle = if (isEmergencyActive) "Active • Overrides and saved keys revealed" else "Inactive • Pull down 3x in Keys to trigger",
+                        leadingIcon = R.drawable.shield_fill0,
+                        iconContainerColor = if (isEmergencyActive) colorScheme.errorContainer else colorScheme.secondaryContainer,
+                        iconTint = if (isEmergencyActive) colorScheme.onErrorContainer else colorScheme.onSecondaryContainer,
+                        trailingContent = {
+                            Surface(
+                                shape = CircleShape,
+                                color = if (isEmergencyActive) colorScheme.errorContainer else colorScheme.surfaceContainerHighest
+                            ) {
+                                Text(
+                                    text = if (isEmergencyActive) "Active" else "Configure",
+                                    style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = if (isEmergencyActive) colorScheme.onErrorContainer else colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                )
+                            }
+                        },
+                        shape = RoundedCornerShape(4.dp),
+                        onClick = onNavigateToEmergency
                     )
                 }
             }
@@ -1599,16 +1627,20 @@ fun SettingsScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 // Themed Brick Icon Preview Box
+                                val isDynamic = iconOption.id == "dynamic"
+                                val boxBg = if (isDynamic) colorScheme.surfaceContainerHighest else Color(iconOption.bgColor)
+                                val boxTint = if (isDynamic) colorScheme.primary else Color(iconOption.primaryColor)
+
                                 Surface(
                                     shape = RoundedCornerShape(12.dp),
-                                    color = Color(iconOption.bgColor),
+                                    color = boxBg,
                                     modifier = Modifier.size(46.dp)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Icon(
                                             painter = painterResource(R.drawable.ic_brik_monochrome),
                                             contentDescription = null,
-                                            tint = Color(iconOption.primaryColor),
+                                            tint = boxTint,
                                             modifier = Modifier.size(30.dp)
                                         )
                                     }

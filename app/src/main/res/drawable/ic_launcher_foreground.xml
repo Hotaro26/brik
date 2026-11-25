@@ -5,34 +5,34 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Single Minimal Isometric Rectangular Brick -->
+    <!-- Single Minimal Isometric Rectangular Brick - Dynamic Accent Themed -->
     <group>
         <!-- Top Face (Elongated Rhombus) -->
         <path
-            android:fillColor="#E55B2B"
+            android:fillColor="@color/ic_dynamic_primary"
             android:pathData="M44,30 L80,50 L62,60 L26,40 Z" />
 
         <!-- Front-Left Long Face -->
         <path
-            android:fillColor="#B83E15"
+            android:fillColor="@color/ic_dynamic_secondary"
             android:pathData="M26,40 L62,60 L62,78 L26,58 Z" />
 
         <!-- Front-Right Short End Face -->
         <path
-            android:fillColor="#8C2A0A"
+            android:fillColor="@color/ic_dynamic_dark"
             android:pathData="M62,60 L80,50 L80,68 L62,78 Z" />
 
         <!-- Three Recessed Holes along Long Axis -->
         <path
-            android:fillColor="#4A1404"
+            android:fillColor="@color/ic_dynamic_hole"
             android:pathData="M41.5,38.5 L46.5,41.5 L44,43 L39,40 Z" />
 
         <path
-            android:fillColor="#4A1404"
+            android:fillColor="@color/ic_dynamic_hole"
             android:pathData="M50.5,43.5 L55.5,46.5 L53,48 L48,45 Z" />
 
         <path
-            android:fillColor="#4A1404"
+            android:fillColor="@color/ic_dynamic_hole"
             android:pathData="M59.5,48.5 L64.5,51.5 L62,53 L57,50 Z" />
     </group>
 </vector>
