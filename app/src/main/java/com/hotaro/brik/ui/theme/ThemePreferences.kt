@@ -17,6 +17,7 @@ object ThemePreferences {
     private const val KEY_COLOR_PALETTE = "pref_color_palette"
     private const val KEY_NAVBAR_STYLE = "pref_navbar_style"
     private const val KEY_APP_ICON = "pref_app_icon"
+    private const val KEY_CLOCK_FORMAT = "pref_clock_format"
 
     // Defaults: 0 = System, "dynamic" = Material You, FLOATING = Default
     private val _themeMode = MutableStateFlow(0)
@@ -31,6 +32,10 @@ object ThemePreferences {
     private val _appIcon = MutableStateFlow("dynamic")
     val appIcon: StateFlow<String> = _appIcon.asStateFlow()
 
+    // true = 24-hour, false = 12-hour (AM/PM)
+    private val _use24HourClock = MutableStateFlow(false)
+    val use24HourClock: StateFlow<Boolean> = _use24HourClock.asStateFlow()
+
     fun init(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         _themeMode.value = prefs.getInt(KEY_THEME_MODE, 0)
@@ -40,6 +45,7 @@ object ThemePreferences {
             .getOrDefault(NavBarStyle.FLOATING)
         val savedIcon = prefs.getString(KEY_APP_ICON, "dynamic") ?: "dynamic"
         _appIcon.value = if (savedIcon == "default") "dynamic" else savedIcon
+        _use24HourClock.value = prefs.getBoolean(KEY_CLOCK_FORMAT, false)
     }
 
     fun setThemeMode(context: Context, mode: Int) {
@@ -64,5 +70,25 @@ object ThemePreferences {
         _appIcon.value = iconId
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putString(KEY_APP_ICON, iconId).apply()
+    }
+
+    fun setUse24HourClock(context: Context, use24: Boolean) {
+        _use24HourClock.value = use24
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_CLOCK_FORMAT, use24).apply()
+    }
+
+    fun formatTime(hour: Int, minute: Int, use24: Boolean = _use24HourClock.value): String {
+        return if (use24) {
+            String.format(java.util.Locale.getDefault(), "%02d:%02d", hour, minute)
+        } else {
+            val ampm = if (hour >= 12) "PM" else "AM"
+            val h12 = if (hour % 12 == 0) 12 else hour % 12
+            String.format(java.util.Locale.getDefault(), "%d:%02d %s", h12, minute, ampm)
+        }
+    }
+
+    fun getTimePattern(use24: Boolean = _use24HourClock.value): String {
+        return if (use24) "HH:mm" else "h:mm a"
     }
 }

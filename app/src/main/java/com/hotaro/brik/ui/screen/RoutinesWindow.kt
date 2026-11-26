@@ -2119,14 +2119,7 @@ private fun RoutineDetailWindow(
 }
 
 private fun formatRoutineTime(sh: Int, sm: Int, eh: Int, em: Int): String {
-    fun fmt(h: Int, m: Int): String {
-        val ampm = if (h >= 12) "PM" else "AM"
-        val hour12 = when {
-            h == 0 -> 12
-            h > 12 -> h - 12
-            else -> h
-        }
-        return String.format(Locale.US, "%02d:%02d %s", hour12, m, ampm)
-    }
-    return "${fmt(sh, sm)} - ${fmt(eh, em)}"
+    val t1 = com.hotaro.brik.ui.theme.ThemePreferences.formatTime(sh, sm)
+    val t2 = com.hotaro.brik.ui.theme.ThemePreferences.formatTime(eh, em)
+    return "$t1 - $t2"
 }

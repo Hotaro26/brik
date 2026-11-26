@@ -20,10 +20,16 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+import com.hotaro.brik.data.repository.AppLimitRepository
+import com.hotaro.brik.data.repository.AppLimit
+
 class ToolsViewModel(application: Application) : AndroidViewModel(application) {
 
     private val bagRepository = BagRepository(application)
     val bags: StateFlow<List<AppBag>> = bagRepository.bags
+
+    val appLimitRepository = AppLimitRepository(application)
+    val appLimits: StateFlow<Map<String, AppLimit>> = appLimitRepository.limits
 
     private val _installedApps = MutableStateFlow<List<AppInfo>>(emptyList())
     val installedApps: StateFlow<List<AppInfo>> = _installedApps.asStateFlow()
@@ -168,5 +174,20 @@ class ToolsViewModel(application: Application) : AndroidViewModel(application) {
 
     fun getAppInfo(packageName: String): AppInfo? {
         return _installedApps.value.find { it.packageName == packageName }
+    }
+
+    fun setAppLimit(packageName: String, dailyLimitMinutes: Int, blockMode: String) {
+        appLimitRepository.setLimit(packageName, dailyLimitMinutes, blockMode)
+    }
+
+    fun clearAppLimit(packageName: String) {
+        appLimitRepository.clearLimit(packageName)
+    }
+
+    fun createBagFromPackages(name: String, packages: Set<String>): Boolean {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty() || packages.isEmpty()) return false
+        bagRepository.saveBag(trimmed, packages)
+        return true
     }
 }

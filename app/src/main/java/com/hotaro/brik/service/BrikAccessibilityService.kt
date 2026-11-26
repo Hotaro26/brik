@@ -20,6 +20,7 @@ class BrikAccessibilityService : AccessibilityService() {
                 return
             }
             GrayscaleManager.onForegroundAppChanged(applicationContext, packageName)
+            com.hotaro.brik.util.AppLimitManager.checkAndEnforceLimits(applicationContext)
         }
     }
 

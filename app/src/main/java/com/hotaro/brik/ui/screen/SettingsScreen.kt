@@ -106,6 +106,7 @@ fun SettingsScreen(
     onNavigateToKeys: () -> Unit = {},
     onNavigateToAbout: () -> Unit = {},
     onNavigateToEmergency: () -> Unit = {},
+    onNavigateToMisc: () -> Unit = {},
     settingsViewModel: SettingsViewModel = viewModel(),
     toolsViewModel: ToolsViewModel = viewModel(),
     keyViewModel: com.hotaro.brik.ui.viewmodel.KeyViewModel = viewModel()
@@ -560,7 +561,30 @@ fun SettingsScreen(
             )
         }
 
-        // --- SECTION 3: ABOUT ---
+        // --- SECTION 3: MISCELLANEOUS ---
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            TomatoSectionHeader(title = "MISCELLANEOUS")
+
+            TomatoSettingsItem(
+                title = "Miscellaneous",
+                subtitle = "Clock format and general preferences",
+                leadingIcon = R.drawable.schedule_fill0,
+                iconContainerColor = colorScheme.secondaryContainer,
+                iconTint = colorScheme.onSecondaryContainer,
+                trailingContent = {
+                    Icon(
+                        painter = painterResource(R.drawable.arrow_forward_big),
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = colorScheme.onSurfaceVariant
+                    )
+                },
+                shape = segmentedItemShape(0, 1),
+                onClick = onNavigateToMisc
+            )
+        }
+
+        // --- SECTION 4: ABOUT ---
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             TomatoSectionHeader(title = "ABOUT")
 

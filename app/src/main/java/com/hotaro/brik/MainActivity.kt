@@ -76,6 +76,7 @@ import com.hotaro.brik.ui.screen.ZenWindow
 import com.hotaro.brik.ui.screen.GrayscaleWindow
 import com.hotaro.brik.ui.screen.AboutWindow
 import com.hotaro.brik.ui.screen.EmergencyModeWindow
+import com.hotaro.brik.ui.screen.MiscWindow
 import com.hotaro.brik.util.EmergencyManager
 import com.hotaro.brik.ui.theme.ThemePreferences
 import com.hotaro.brik.ui.theme.BrikTheme
@@ -332,7 +333,8 @@ fun BrikMainScreen() {
                             2 -> SettingsScreen(
                                 onNavigateToKeys = { onNavigateToSubScreen("keys") },
                                 onNavigateToAbout = { onNavigateToSubScreen("about") },
-                                onNavigateToEmergency = { onNavigateToSubScreen("emergency") }
+                                onNavigateToEmergency = { onNavigateToSubScreen("emergency") },
+                                onNavigateToMisc = { onNavigateToSubScreen("misc") }
                             )
                         }
                     }
@@ -442,6 +444,7 @@ fun BrikMainScreen() {
                         "grayscale" -> GrayscaleWindow(onBack = onBackFromSubScreen)
                         "about" -> AboutWindow(onBack = onBackFromSubScreen)
                         "emergency" -> EmergencyModeWindow(onBack = onBackFromSubScreen)
+                        "misc" -> MiscWindow(onBack = onBackFromSubScreen)
                     }
                 }
             }
