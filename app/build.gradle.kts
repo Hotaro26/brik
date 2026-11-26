@@ -32,8 +32,8 @@ android {
         applicationId = "com.hotaro.brik"
         minSdk = 26
         targetSdk = 37
-        versionCode = 26
-        versionName = "2.0.7"
+        versionCode = 27
+        versionName = "2.0.8"
     }
 
     buildTypes {
