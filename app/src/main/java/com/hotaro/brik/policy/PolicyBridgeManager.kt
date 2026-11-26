@@ -13,6 +13,9 @@ import com.rosan.dhizuku.api.DhizukuBinderWrapper
 import com.topjohnwu.superuser.Shell
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 import rikka.shizuku.Shizuku
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.io.BufferedReader
 import java.io.InputStreamReader
 
@@ -35,6 +38,15 @@ data class BridgeStatus(
 )
 
 object PolicyBridgeManager {
+
+    private val _bridgeStatus = MutableStateFlow(BridgeStatus())
+    val bridgeStatus: StateFlow<BridgeStatus> = _bridgeStatus.asStateFlow()
+
+    fun updateStatus(context: Context): BridgeStatus {
+        val status = getBridgeStatus(context)
+        _bridgeStatus.value = status
+        return status
+    }
 
     init {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {

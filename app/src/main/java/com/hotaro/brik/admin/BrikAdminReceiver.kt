@@ -24,16 +24,19 @@ class BrikAdminReceiver : DeviceAdminReceiver() {
 
     override fun onEnabled(context: Context, intent: Intent) {
         super.onEnabled(context, intent)
+        com.hotaro.brik.policy.PolicyBridgeManager.updateStatus(context)
         Toast.makeText(context, "Brik Device Admin enabled", Toast.LENGTH_SHORT).show()
     }
 
     override fun onDisabled(context: Context, intent: Intent) {
         super.onDisabled(context, intent)
+        com.hotaro.brik.policy.PolicyBridgeManager.updateStatus(context)
         Toast.makeText(context, "Brik Device Admin disabled", Toast.LENGTH_SHORT).show()
     }
 
     override fun onProfileProvisioningComplete(context: Context, intent: Intent) {
         super.onProfileProvisioningComplete(context, intent)
+        com.hotaro.brik.policy.PolicyBridgeManager.updateStatus(context)
         Toast.makeText(context, "Brik Provisioning Complete", Toast.LENGTH_SHORT).show()
     }
 

@@ -20,8 +20,7 @@ import rikka.shizuku.Shizuku
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val _bridgeStatus = MutableStateFlow(BridgeStatus())
-    val bridgeStatus: StateFlow<BridgeStatus> = _bridgeStatus.asStateFlow()
+    val bridgeStatus: StateFlow<BridgeStatus> = PolicyBridgeManager.bridgeStatus
 
     private val _suspendedPackages = MutableStateFlow<Set<String>>(emptySet())
     val suspendedPackages: StateFlow<Set<String>> = _suspendedPackages.asStateFlow()
@@ -41,10 +40,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun refreshStatus() {
         viewModelScope.launch {
-            val status = withContext(Dispatchers.IO) {
-                PolicyBridgeManager.getBridgeStatus(getApplication())
+            withContext(Dispatchers.IO) {
+                PolicyBridgeManager.updateStatus(getApplication())
             }
-            _bridgeStatus.value = status
 
             // Load kiosk allowed packages
             val allowed = withContext(Dispatchers.IO) {

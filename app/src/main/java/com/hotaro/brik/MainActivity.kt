@@ -79,6 +79,7 @@ import com.hotaro.brik.ui.screen.EmergencyModeWindow
 import com.hotaro.brik.ui.screen.MiscWindow
 import com.hotaro.brik.ui.screen.AssistiveSettingsWindow
 import com.hotaro.brik.ui.screen.KioskSettingsWindow
+import com.hotaro.brik.ui.screen.SideloadLockWindow
 import com.hotaro.brik.util.EmergencyManager
 import com.hotaro.brik.ui.theme.ThemePreferences
 import com.hotaro.brik.ui.theme.BrikTheme
@@ -515,9 +516,11 @@ private fun RenderSubScreen(
         "misc" -> MiscWindow(
             onBack = onBack,
             onNavigateToAssistiveSettings = { onNavigate("assistive_settings") },
-            onNavigateToKioskSettings = { onNavigate("kiosk_settings") }
+            onNavigateToKioskSettings = { onNavigate("kiosk_settings") },
+            onNavigateToSideloadLock = { onNavigate("sideload_lock") }
         )
         "assistive_settings" -> AssistiveSettingsWindow(onBack = onBack)
         "kiosk_settings" -> KioskSettingsWindow(onBack = onBack)
+        "sideload_lock" -> SideloadLockWindow(onBack = onBack)
     }
 }

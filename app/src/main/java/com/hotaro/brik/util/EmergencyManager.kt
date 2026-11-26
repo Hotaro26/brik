@@ -73,7 +73,9 @@ object EmergencyManager {
             if (dpmLock != null && dpmLock.secretHash.equals(inputHash, ignoreCase = true)) {
                 return true
             }
-            if (ZenManager.verifySecurityKey(context, inputSecret)) {
+            val zenPrefs = context.getSharedPreferences("brik_zen_prefs", Context.MODE_PRIVATE)
+            val zenHash = zenPrefs.getString("pref_zen_secret_hash", null)
+            if (!zenHash.isNullOrBlank() && zenHash.equals(inputHash, ignoreCase = true)) {
                 return true
             }
         }

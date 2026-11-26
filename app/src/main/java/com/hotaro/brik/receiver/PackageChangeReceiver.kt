@@ -57,6 +57,7 @@ class PackageChangeReceiver : BroadcastReceiver() {
                             PolicyBridgeManager.setUninstallBlocked(appContext, allLocked, true)
                         }
                         TimeBlockRepository(appContext).syncActiveBlocks(appContext)
+                        com.hotaro.brik.util.SideloadLockManager.init(appContext)
                     } catch (e: Throwable) {
                         e.printStackTrace()
                     } finally {

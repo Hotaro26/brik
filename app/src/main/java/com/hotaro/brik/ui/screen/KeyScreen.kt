@@ -88,6 +88,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.accompanist.drawablepainter.rememberDrawablePainter
 import com.hotaro.brik.R
@@ -180,7 +183,20 @@ fun KeyScreen(
 
     val view = LocalView.current
     val activity = context as? Activity
+    val lifecycleOwner = LocalLifecycleOwner.current
     var lotusProgress by remember { mutableFloatStateOf(0f) }
+
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                settingsViewModel.refreshStatus()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     val onStartZenDirectly = {
         if (!ZenManager.hasKey(context)) {
@@ -276,6 +292,58 @@ fun KeyScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
+                    val isPrivileged = bridgeStatus.isDeviceOwner || bridgeStatus.isDhizukuGranted || bridgeStatus.isShizukuGranted
+                    if (!isPrivileged) {
+                        Surface(
+                            onClick = { showBridgeSetupSheet = true },
+                            shape = RoundedCornerShape(16.dp),
+                            color = colorScheme.errorContainer.copy(alpha = 0.5f),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 24.dp)
+                                .padding(bottom = 24.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = colorScheme.errorContainer,
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.shield_fill0),
+                                            contentDescription = null,
+                                            tint = colorScheme.onErrorContainer,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Bridge Setup Needed",
+                                        style = typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                        color = colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "Tap to set up using ADB, Shizuku, or Dhizuku",
+                                        style = typography.bodySmall,
+                                        color = colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Icon(
+                                    painter = painterResource(R.drawable.arrow_forward_big),
+                                    contentDescription = null,
+                                    tint = colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
+
                     Crossfade(
                         targetState = homeMode,
                         label = "homeModeCrossfade"
@@ -286,57 +354,6 @@ fun KeyScreen(
                         ) {
                             if (currentMode == HomeScreenMode.KEY) {
                                 // --- KEY MODE CONTENT ---
-                                val isPrivileged = bridgeStatus.isDeviceOwner || bridgeStatus.isDhizukuGranted || bridgeStatus.isShizukuGranted
-                                if (!isPrivileged) {
-                                    Surface(
-                                        onClick = { showBridgeSetupSheet = true },
-                                        shape = RoundedCornerShape(16.dp),
-                                        color = colorScheme.errorContainer.copy(alpha = 0.5f),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 24.dp)
-                                            .padding(bottom = 24.dp)
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Surface(
-                                                shape = CircleShape,
-                                                color = colorScheme.errorContainer,
-                                                modifier = Modifier.size(36.dp)
-                                            ) {
-                                                Box(contentAlignment = Alignment.Center) {
-                                                    Icon(
-                                                        painter = painterResource(R.drawable.shield_fill0),
-                                                        contentDescription = null,
-                                                        tint = colorScheme.onErrorContainer,
-                                                        modifier = Modifier.size(18.dp)
-                                                    )
-                                                }
-                                            }
-                                            Spacer(Modifier.width(12.dp))
-                                            Column(modifier = Modifier.weight(1f)) {
-                                                Text(
-                                                    text = "Bridge Setup Needed",
-                                                    style = typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                                                    color = colorScheme.onSurface
-                                                )
-                                                Text(
-                                                    text = "Tap to set up using ADB, Shizuku, or Dhizuku",
-                                                    style = typography.bodySmall,
-                                                    color = colorScheme.onSurfaceVariant
-                                                )
-                                            }
-                                            Icon(
-                                                painter = painterResource(R.drawable.arrow_forward_big),
-                                                contentDescription = null,
-                                                tint = colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                        }
-                                    }
-                                }
 
                                 // Tappable Material 3 Expressive Cookie Shape with Slow Rotation
                                 Surface(

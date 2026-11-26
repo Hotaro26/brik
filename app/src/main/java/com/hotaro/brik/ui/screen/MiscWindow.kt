@@ -54,7 +54,8 @@ import com.hotaro.brik.ui.theme.ThemePreferences
 fun MiscWindow(
     onBack: () -> Unit,
     onNavigateToAssistiveSettings: () -> Unit = {},
-    onNavigateToKioskSettings: () -> Unit = {}
+    onNavigateToKioskSettings: () -> Unit = {},
+    onNavigateToSideloadLock: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val use24Hour by ThemePreferences.use24HourClock.collectAsState()
@@ -215,7 +216,7 @@ fun MiscWindow(
                 title = "Assistive Quick Controls",
                 subtitle = "Floating ball, tile selection & notifications",
                 leadingIcon = R.drawable.ic_assistive_touch,
-                shape = segmentedItemShape(0, 2),
+                shape = segmentedItemShape(0, 3),
                 trailingContent = {
                     Icon(
                         painter = painterResource(R.drawable.arrow_forward_big),
@@ -231,7 +232,7 @@ fun MiscWindow(
                 title = "Kiosk Launcher Settings",
                 subtitle = "Incoming calls window, emergency & lockdown",
                 leadingIcon = R.drawable.screen_lock_portrait_fill0,
-                shape = segmentedItemShape(1, 2),
+                shape = segmentedItemShape(1, 3),
                 trailingContent = {
                     Icon(
                         painter = painterResource(R.drawable.arrow_forward_big),
@@ -241,6 +242,22 @@ fun MiscWindow(
                     )
                 },
                 onClick = onNavigateToKioskSettings
+            )
+
+            TomatoSettingsItem(
+                title = "Sideload & ADB Lock",
+                subtitle = "Block APK installation, Play Store & debugging",
+                leadingIcon = R.drawable.block_fill0,
+                shape = segmentedItemShape(2, 3),
+                trailingContent = {
+                    Icon(
+                        painter = painterResource(R.drawable.arrow_forward_big),
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = colorScheme.onSurfaceVariant
+                    )
+                },
+                onClick = onNavigateToSideloadLock
             )
 
             Spacer(Modifier.height(18.dp))

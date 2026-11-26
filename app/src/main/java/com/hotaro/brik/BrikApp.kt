@@ -10,6 +10,7 @@ import com.hotaro.brik.util.AssistivePreferences
 import com.hotaro.brik.util.EmergencyManager
 import com.hotaro.brik.util.GrayscaleManager
 import com.hotaro.brik.util.KioskPreferences
+import com.hotaro.brik.util.SideloadLockManager
 import com.hotaro.brik.util.WindDownManager
 import com.hotaro.brik.util.ZenManager
 
@@ -17,9 +18,11 @@ class BrikApp : Application() {
     override fun onCreate() {
         super.onCreate()
         ThemePreferences.init(this)
+        com.hotaro.brik.policy.PolicyBridgeManager.updateStatus(this)
         AssistivePreferences.init(this)
         KioskPreferences.init(this)
         EmergencyManager.init(this)
+        SideloadLockManager.init(this)
         ZenManager.init(this)
         WindDownManager.init(this)
         GrayscaleManager.init(this)
