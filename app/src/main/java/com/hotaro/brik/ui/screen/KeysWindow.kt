@@ -591,8 +591,13 @@ fun KeysWindow(
                                     shape = CircleShape,
                                     color = if (lock.isSystemKey) colorScheme.primaryContainer else if (lock.keyType == KeyType.QR_CODE) colorScheme.tertiaryContainer else colorScheme.secondaryContainer
                                 ) {
+                                    val keyBadgeText = if (lock.keyType == KeyType.QR_CODE) {
+                                        savedKeys.find { !lock.qrToken.isNullOrBlank() && it.token == lock.qrToken }?.name ?: "QR Key"
+                                    } else {
+                                        "Password"
+                                    }
                                     Text(
-                                        text = if (lock.keyType == KeyType.QR_CODE) "QR Key" else "Password",
+                                        text = keyBadgeText,
                                         style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                                         color = if (lock.isSystemKey) colorScheme.onPrimaryContainer else if (lock.keyType == KeyType.QR_CODE) colorScheme.onTertiaryContainer else colorScheme.onSecondaryContainer,
                                         modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp)

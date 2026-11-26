@@ -19,6 +19,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import com.hotaro.brik.ui.component.RealFillBatteryIcon
+import com.hotaro.brik.ui.component.queryBatteryStatus
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -113,12 +114,9 @@ fun ModeKioskDesktop(
 
     val endsAt = sessionEndsAt ?: 0L
     val bm = remember { context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager }
-    val initialCap = remember {
-        val c = bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1
-        if (c in 0..100) c else 100
-    }
-    var batteryLevel by remember { mutableIntStateOf(initialCap) }
-    var isCharging by remember { mutableStateOf(bm?.isCharging == true) }
+    val initialBattery = remember { queryBatteryStatus(context, bm) }
+    var batteryLevel by remember { mutableIntStateOf(initialBattery.first) }
+    var isCharging by remember { mutableStateOf(initialBattery.second) }
 
     LaunchedEffect(endsAt) {
         while (true) {
@@ -128,11 +126,9 @@ fun ModeKioskDesktop(
                 remainingMillis = (endsAt - now).coerceAtLeast(0L)
             }
             try {
-                val cap = bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1
-                if (cap in 0..100) {
-                    batteryLevel = cap
-                }
-                isCharging = bm?.isCharging == true
+                val (cap, chg) = queryBatteryStatus(context, bm)
+                batteryLevel = cap
+                isCharging = chg
             } catch (_: Exception) {}
             delay(1000)
         }
@@ -151,24 +147,33 @@ fun ModeKioskDesktop(
     val appNamesAlignment by com.hotaro.brik.util.KioskPreferences.appNamesAlignment.collectAsState()
 
     DisposableEffect(context) {
-        val batteryFilter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
+        val batteryFilter = IntentFilter().apply {
+            addAction(Intent.ACTION_BATTERY_CHANGED)
+            addAction(Intent.ACTION_POWER_CONNECTED)
+            addAction(Intent.ACTION_POWER_DISCONNECTED)
+        }
         val batteryReceiver = object : BroadcastReceiver() {
             override fun onReceive(c: Context?, intent: Intent?) {
                 intent?.let {
-                    val level = it.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
-                    val scale = it.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
-                    if (level >= 0 && scale > 0) {
-                        batteryLevel = (level * 100) / scale
+                    when (it.action) {
+                        Intent.ACTION_POWER_CONNECTED -> {
+                            isCharging = true
+                        }
+                        Intent.ACTION_POWER_DISCONNECTED -> {
+                            isCharging = false
+                        }
+                        Intent.ACTION_BATTERY_CHANGED -> {
+                            val (level, chg) = queryBatteryStatus(context, bm)
+                            batteryLevel = level
+                            isCharging = chg
+                        }
                     }
-                    val status = it.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
-                    isCharging = (status == BatteryManager.BATTERY_STATUS_CHARGING ||
-                            status == BatteryManager.BATTERY_STATUS_FULL)
                 }
             }
         }
         try {
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                context.registerReceiver(batteryReceiver, batteryFilter, Context.RECEIVER_NOT_EXPORTED)
+                context.registerReceiver(batteryReceiver, batteryFilter, Context.RECEIVER_EXPORTED)
             } else {
                 context.registerReceiver(batteryReceiver, batteryFilter)
             }

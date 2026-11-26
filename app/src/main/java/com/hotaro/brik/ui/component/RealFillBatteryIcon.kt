@@ -1,5 +1,9 @@
 package com.hotaro.brik.ui.component
 
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
@@ -78,4 +82,52 @@ fun RealFillBatteryIcon(
             drawPath(boltPath, color = boltColor)
         }
     }
+}
+
+fun queryBatteryStatus(context: Context, bm: BatteryManager? = null): Pair<Int, Boolean> {
+    val batteryManager = bm ?: (context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager)
+    var level = -1
+    var isCharging = false
+
+    try {
+        val intent = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        if (intent != null) {
+            val rawLevel = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+            val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+            if (rawLevel >= 0 && scale > 0) {
+                level = (rawLevel * 100) / scale
+            }
+            val status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
+            val plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0)
+            isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
+                    status == BatteryManager.BATTERY_STATUS_FULL ||
+                    plugged == BatteryManager.BATTERY_PLUGGED_AC ||
+                    plugged == BatteryManager.BATTERY_PLUGGED_USB ||
+                    plugged == BatteryManager.BATTERY_PLUGGED_WIRELESS ||
+                    plugged > 0
+        }
+    } catch (_: Exception) {}
+
+    if (level !in 0..100) {
+        try {
+            val cap = batteryManager?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1
+            if (cap in 0..100) {
+                level = cap
+            }
+        } catch (_: Exception) {}
+    }
+
+    if (!isCharging) {
+        try {
+            val status = batteryManager?.getIntProperty(BatteryManager.BATTERY_PROPERTY_STATUS) ?: -1
+            if (status == BatteryManager.BATTERY_STATUS_CHARGING ||
+                status == BatteryManager.BATTERY_STATUS_FULL ||
+                batteryManager?.isCharging == true
+            ) {
+                isCharging = true
+            }
+        } catch (_: Exception) {}
+    }
+
+    return Pair(if (level in 0..100) level else 100, isCharging)
 }

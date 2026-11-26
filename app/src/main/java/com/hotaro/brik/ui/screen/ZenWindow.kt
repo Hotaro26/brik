@@ -2,8 +2,11 @@ package com.hotaro.brik.ui.screen
 
 import android.app.Activity
 import android.content.Context
+import android.content.BroadcastReceiver
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
+import com.hotaro.brik.ui.component.queryBatteryStatus
 import android.graphics.drawable.Drawable
 import android.view.HapticFeedbackConstants
 import android.widget.Toast
@@ -90,6 +93,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -144,6 +148,10 @@ fun ZenWindow(
     val useKiosk by ZenManager.useKiosk.collectAsState()
     val hasKey by ZenManager.hasSecurityKey.collectAsState()
     val holdDurationSeconds by ZenManager.holdDurationSeconds.collectAsState()
+    val savedKeys by com.hotaro.brik.data.repository.KeyRepository(context).savedKeys.collectAsState(initial = emptyList())
+    val activeKeyName = remember(hasKey, savedKeys) {
+        ZenManager.getActiveKeyName(context, savedKeys)
+    }
 
     var showSetKeyDialog by remember { mutableStateOf(false) }
     var showVerifyKeyDialog by remember { mutableStateOf(false) }
@@ -168,6 +176,7 @@ fun ZenWindow(
             allowedPackages = allowedPackages,
             useKiosk = useKiosk,
             hasKey = hasKey,
+            activeKeyName = activeKeyName,
             holdDurationSeconds = holdDurationSeconds,
             onBack = onBack,
             onSetKeyRequested = { showSetKeyDialog = true },
@@ -191,11 +200,13 @@ fun ZenWindow(
 
     if (showSetKeyDialog) {
         SetEmergencyKeyDialog(
+            savedKeys = savedKeys,
             title = "Set Zen Security Key",
             subtitle = "Set a secure password or QR key. This key will be required whenever you wish to exit Zen Mode early.",
             onDismiss = { showSetKeyDialog = false },
             onSaveKey = { keyType, secret ->
-                ZenManager.setSecurityKey(context, keyType, secret)
+                val matched = savedKeys.find { it.token == secret }
+                ZenManager.setSecurityKey(context, keyType, secret, matched?.name)
                 Toast.makeText(context, "Security key configured", Toast.LENGTH_SHORT).show()
             },
             onKeySet = {
@@ -234,6 +245,7 @@ private fun InactiveZenConfigScreen(
     allowedPackages: Set<String>,
     useKiosk: Boolean,
     hasKey: Boolean,
+    activeKeyName: String,
     holdDurationSeconds: Int,
     onBack: () -> Unit,
     onSetKeyRequested: () -> Unit,
@@ -895,7 +907,7 @@ private fun InactiveZenConfigScreen(
                     // 3. Security Key Protection Item
                     TomatoSettingsItem(
                         title = if (hasKey) "Security Key Active" else "Security Key Required",
-                        subtitle = if (hasKey) "Guards early exit (${ZenManager.getKeyType(context).name})" else "Configure key to enable Zen Mode",
+                        subtitle = if (hasKey) "Guards early exit • $activeKeyName" else "Configure key to enable Zen Mode",
                         leadingIcon = if (hasKey) R.drawable.check_fill0 else R.drawable.shield_fill0,
                         iconContainerColor = if (hasKey) colorScheme.primaryContainer else colorScheme.errorContainer,
                         iconTint = if (hasKey) colorScheme.onPrimaryContainer else colorScheme.onErrorContainer,
@@ -921,7 +933,7 @@ private fun InactiveZenConfigScreen(
                     TomatoSettingsItem(
                         title = "Exit Hold Duration",
                         subtitle = "${holdDurationSeconds}s continuous press • Tap to adjust",
-                        leadingIcon = R.drawable.tune_fill0,
+                        leadingIcon = R.drawable.timer_fill0,
                         iconContainerColor = colorScheme.tertiaryContainer,
                         iconTint = colorScheme.onTertiaryContainer,
                         trailingContent = {
@@ -1273,12 +1285,9 @@ private fun ActiveZenDesktop(
     var hideJob by remember { mutableStateOf<Job?>(null) }
 
     val bm = remember { context.getSystemService(Context.BATTERY_SERVICE) as? android.os.BatteryManager }
-    val initialCap = remember {
-        val c = bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1
-        if (c in 0..100) c else 100
-    }
-    var batteryLevel by remember { mutableIntStateOf(initialCap) }
-    var isCharging by remember { mutableStateOf(bm?.isCharging == true) }
+    val initialBattery = remember { queryBatteryStatus(context, bm) }
+    var batteryLevel by remember { mutableIntStateOf(initialBattery.first) }
+    var isCharging by remember { mutableStateOf(initialBattery.second) }
 
     LaunchedEffect(sessionEndTime, isInfinite) {
         while (true) {
@@ -1288,13 +1297,54 @@ private fun ActiveZenDesktop(
                 remainingMillis = (sessionEndTime - now).coerceAtLeast(0L)
             }
             try {
-                val cap = bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1
-                if (cap in 0..100) {
-                    batteryLevel = cap
-                }
-                isCharging = bm?.isCharging == true
+                val (cap, chg) = queryBatteryStatus(context, bm)
+                batteryLevel = cap
+                isCharging = chg
             } catch (_: Exception) {}
             delay(1000)
+        }
+    }
+
+    DisposableEffect(context) {
+        val batteryFilter = IntentFilter().apply {
+            addAction(Intent.ACTION_BATTERY_CHANGED)
+            addAction(Intent.ACTION_POWER_CONNECTED)
+            addAction(Intent.ACTION_POWER_DISCONNECTED)
+        }
+        val batteryReceiver = object : BroadcastReceiver() {
+            override fun onReceive(c: Context?, intent: Intent?) {
+                intent?.let {
+                    when (it.action) {
+                        Intent.ACTION_POWER_CONNECTED -> {
+                            isCharging = true
+                        }
+                        Intent.ACTION_POWER_DISCONNECTED -> {
+                            isCharging = false
+                        }
+                        Intent.ACTION_BATTERY_CHANGED -> {
+                            val (level, chg) = queryBatteryStatus(context, bm)
+                            batteryLevel = level
+                            isCharging = chg
+                        }
+                    }
+                }
+            }
+        }
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                context.registerReceiver(batteryReceiver, batteryFilter, Context.RECEIVER_EXPORTED)
+            } else {
+                context.registerReceiver(batteryReceiver, batteryFilter)
+            }
+        } catch (_: Throwable) {
+            try {
+                context.registerReceiver(batteryReceiver, batteryFilter)
+            } catch (_: Throwable) {}
+        }
+        onDispose {
+            try {
+                context.unregisterReceiver(batteryReceiver)
+            } catch (_: Exception) {}
         }
     }
 

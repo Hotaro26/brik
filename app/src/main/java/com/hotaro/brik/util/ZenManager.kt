@@ -21,6 +21,7 @@ object ZenManager {
     private const val KEY_ZEN_FLOATING_CONTROLS = "pref_zen_floating_controls"
     private const val KEY_ZEN_FLOATING_AUTOHIDE_SECONDS = "pref_zen_floating_autohide_seconds"
     private const val KEY_ZEN_KEY_TYPE = "pref_zen_key_type"
+    private const val KEY_ZEN_KEY_NAME = "pref_zen_key_name"
     private const val KEY_ZEN_SECRET_HASH = "pref_zen_secret_hash"
     private const val KEY_ZEN_QR_TOKEN = "pref_zen_qr_token"
     private const val KEY_ZEN_HOLD_DURATION_SECONDS = "pref_zen_hold_duration_seconds"
@@ -210,17 +211,18 @@ object ZenManager {
         return endTime > 0L && System.currentTimeMillis() >= endTime
     }
 
-    fun setSecurityKey(context: Context, keyType: KeyType, secret: String) {
+    fun setSecurityKey(context: Context, keyType: KeyType, secret: String, keyName: String? = null) {
         val hash = QrUtils.sha256(secret)
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit()
             .putString(KEY_ZEN_KEY_TYPE, keyType.name)
             .putString(KEY_ZEN_SECRET_HASH, hash)
             .putString(KEY_ZEN_QR_TOKEN, if (keyType == KeyType.QR_CODE) secret else null)
+            .putString(KEY_ZEN_KEY_NAME, keyName)
             .apply()
         com.hotaro.brik.data.repository.KeyRepository(context).setSystemSecurityKey(
             id = "zen_security_key",
-            name = "Zen Mode Security Key",
+            name = keyName ?: "Zen Mode Security Key",
             keyType = keyType,
             secret = secret
         )
@@ -234,6 +236,55 @@ object ZenManager {
             return runCatching { KeyType.valueOf(typeStr) }.getOrDefault(KeyType.PASSWORD)
         }
         return EmergencyManager.getKeyType(context)
+    }
+
+    fun getActiveKeyName(context: Context, savedKeys: List<com.hotaro.brik.data.model.SavedKey> = emptyList()): String {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val customName = prefs.getString(KEY_ZEN_KEY_NAME, null)
+        if (!customName.isNullOrBlank()) return customName
+
+        val qrToken = prefs.getString(KEY_ZEN_QR_TOKEN, null)
+        if (!qrToken.isNullOrBlank()) {
+            val saved = savedKeys.find { it.token == qrToken }
+            if (saved != null) return saved.name
+            return "QR Key"
+        }
+
+        val hash = prefs.getString(KEY_ZEN_SECRET_HASH, null)
+        if (!hash.isNullOrBlank()) {
+            val type = getKeyType(context)
+            return if (type == KeyType.PASSWORD) "Password" else "QR Key"
+        }
+
+        // Shared key fallback: Device Owner / Emergency key
+        val dpmLock = com.hotaro.brik.data.repository.KeyRepository(context).getDpmUninstallLock()
+        if (dpmLock != null && !dpmLock.secretHash.isNullOrBlank()) {
+            if (!dpmLock.qrToken.isNullOrBlank()) {
+                val saved = savedKeys.find { it.token == dpmLock.qrToken }
+                if (saved != null) return saved.name
+                return "Device Owner (QR)"
+            }
+            return "Device Owner Key"
+        }
+
+        val dpmPrefs = context.getSharedPreferences("brik_admin_pref", Context.MODE_PRIVATE)
+        val dpmHash = dpmPrefs.getString("pref_dpm_uninstall_secret_hash", null)
+        if (!dpmHash.isNullOrBlank()) {
+            val dpmQr = dpmPrefs.getString("pref_dpm_uninstall_qr_token", null)
+            if (!dpmQr.isNullOrBlank()) {
+                val saved = savedKeys.find { it.token == dpmQr }
+                if (saved != null) return saved.name
+                return "Device Owner (QR)"
+            }
+            return "Device Owner Key"
+        }
+
+        if (EmergencyManager.hasKey(context)) {
+            val emType = EmergencyManager.getKeyType(context)
+            return if (emType == KeyType.PASSWORD) "Emergency Password" else "Emergency QR"
+        }
+
+        return "No Key Set"
     }
 
     fun verifySecurityKey(context: Context, input: String): Boolean {
@@ -252,6 +303,7 @@ object ZenManager {
             .remove(KEY_ZEN_SECRET_HASH)
             .remove(KEY_ZEN_QR_TOKEN)
             .remove(KEY_ZEN_KEY_TYPE)
+            .remove(KEY_ZEN_KEY_NAME)
             .apply()
         com.hotaro.brik.data.repository.KeyRepository(context).removeSystemSecurityKey("zen_security_key")
         _hasSecurityKey.value = EmergencyManager.hasKey(context)

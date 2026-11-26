@@ -723,8 +723,19 @@ fun GrayscaleWindow(
                                         style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                                         color = colorScheme.onSurface
                                     )
+                                    val grayKeyName = if (hasSecurityKey) {
+                                        val qrToken = context.getSharedPreferences("brik_grayscale_preferences", Context.MODE_PRIVATE)
+                                            .getString("pref_grayscale_qr_token", null)
+                                        if (!qrToken.isNullOrBlank()) {
+                                            effectiveSavedKeys.find { it.token == qrToken }?.name ?: "QR Key"
+                                        } else {
+                                            if (GrayscaleManager.getKeyType(context) == KeyType.PASSWORD) "Password" else "QR Key"
+                                        }
+                                    } else {
+                                        "Uses System Emergency Key"
+                                    }
                                     Text(
-                                        text = if (hasSecurityKey) "Configured (${GrayscaleManager.getKeyType(context).name})" else "Uses System Emergency Key",
+                                        text = if (hasSecurityKey) "Configured • $grayKeyName" else "Uses System Emergency Key",
                                         style = typography.bodySmall,
                                         color = colorScheme.onSurfaceVariant
                                     )
