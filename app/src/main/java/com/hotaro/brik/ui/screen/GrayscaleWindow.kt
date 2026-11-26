@@ -138,7 +138,12 @@ fun GrayscaleWindow(
     var showAppSpecificSheet by remember { mutableStateOf(false) }
     var showSetKeyDialog by remember { mutableStateOf(false) }
     var showVerifyKeyDialog by remember { mutableStateOf(false) }
+    var showVerifyBeforeChangeKeyDialog by remember { mutableStateOf(false) }
     var pendingGuardedAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+
+    val keyRepository = remember(context) { com.hotaro.brik.data.repository.KeyRepository(context) }
+    val repoSavedKeys by keyRepository.savedKeys.collectAsState()
+    val effectiveSavedKeys = if (savedKeys.isNotEmpty()) savedKeys else repoSavedKeys
 
     val launcherApps = remember(context) { loadLauncherApps(pm, context.packageName) }
 
@@ -726,7 +731,13 @@ fun GrayscaleWindow(
                                 }
 
                                 Button(
-                                    onClick = { showSetKeyDialog = true },
+                                    onClick = {
+                                        if (hasSecurityKey) {
+                                            showVerifyBeforeChangeKeyDialog = true
+                                        } else {
+                                            showSetKeyDialog = true
+                                        }
+                                    },
                                     shape = CircleShape,
                                     colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary)
                                 ) {
@@ -1074,10 +1085,31 @@ fun GrayscaleWindow(
         }
     }
 
+    // --- VERIFY BEFORE CHANGE KEY DIALOG ---
+    if (showVerifyBeforeChangeKeyDialog) {
+        VerifyEmergencyKeyDialog(
+            title = "Verify Previous Key",
+            subtitle = if (GrayscaleManager.getKeyType(context) == KeyType.QR_CODE) {
+                "Scan or enter your previous QR key to set up a new password or key."
+            } else {
+                "Enter your previous password to set up a new password or key."
+            },
+            keyTypeOverride = GrayscaleManager.getKeyType(context),
+            onVerifyCustom = { input ->
+                GrayscaleManager.verifySecurityKey(context, input)
+            },
+            onDismiss = { showVerifyBeforeChangeKeyDialog = false },
+            onVerified = {
+                showVerifyBeforeChangeKeyDialog = false
+                showSetKeyDialog = true
+            }
+        )
+    }
+
     // --- SECURITY KEY SETUP DIALOG ---
     if (showSetKeyDialog) {
         SetEmergencyKeyDialog(
-            savedKeys = savedKeys,
+            savedKeys = effectiveSavedKeys,
             title = "Set Grayscale Security Key",
             subtitle = "Set a secure password or QR key. This key will be required whenever you modify or turn off grayscale policies.",
             onDismiss = { showSetKeyDialog = false },

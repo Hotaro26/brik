@@ -157,6 +157,49 @@ class KeyRepository(private val context: Context) {
             val keyType = if (zenTypeStr == KeyType.QR_CODE.name) KeyType.QR_CODE else KeyType.PASSWORD
             registerSystemKeyIfMissing("zen_security_key", "Zen Mode Security Key", keyType, zenHash, zenQr)
         }
+
+        // 6. Automated Routines
+        val timeBlockPrefs = context.getSharedPreferences("brik_time_block_pref", Context.MODE_PRIVATE)
+        val serializedRoutines = timeBlockPrefs.getString("saved_routines", null)
+        if (!serializedRoutines.isNullOrBlank()) {
+            try {
+                val routinesList = json.decodeFromString<List<com.hotaro.brik.data.model.AutomatedRoutine>>(serializedRoutines)
+                routinesList.forEach { routine ->
+                    if (!routine.keySecret.isNullOrBlank()) {
+                        registerSystemKeyIfMissing(
+                            id = "routine_${routine.id}",
+                            name = "Routine: ${routine.name}",
+                            keyType = routine.keyType,
+                            secretHash = QrUtils.sha256(routine.keySecret),
+                            qrToken = if (routine.keyType == KeyType.QR_CODE) routine.keySecret else null
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        // 7. Focus Modes
+        val serializedModes = timeBlockPrefs.getString("saved_focus_modes", null)
+        if (!serializedModes.isNullOrBlank()) {
+            try {
+                val modesList = json.decodeFromString<List<com.hotaro.brik.data.model.FocusMode>>(serializedModes)
+                modesList.forEach { mode ->
+                    if (!mode.keySecret.isNullOrBlank()) {
+                        registerSystemKeyIfMissing(
+                            id = "focus_mode_${mode.id}",
+                            name = "Focus: ${mode.name}",
+                            keyType = mode.keyType,
+                            secretHash = QrUtils.sha256(mode.keySecret),
+                            qrToken = if (mode.keyType == KeyType.QR_CODE) mode.keySecret else null
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     fun lockBag(
@@ -335,6 +378,45 @@ class KeyRepository(private val context: Context) {
                     .putString("pref_zen_qr_token", if (keyType == KeyType.QR_CODE) secret else null)
                     .apply()
             }
+            else -> {
+                if (id.startsWith("routine_")) {
+                    val routineId = id.removePrefix("routine_")
+                    val timeBlockPrefs = context.getSharedPreferences("brik_time_block_pref", Context.MODE_PRIVATE)
+                    val serializedRoutines = timeBlockPrefs.getString("saved_routines", null)
+                    if (!serializedRoutines.isNullOrBlank()) {
+                        try {
+                            val routinesList = json.decodeFromString<List<com.hotaro.brik.data.model.AutomatedRoutine>>(serializedRoutines)
+                            val r = routinesList.find { it.id == routineId }
+                            if (r != null && (r.keySecret != secret || r.keyType != keyType)) {
+                                val updatedList = routinesList.map {
+                                    if (it.id == routineId) it.copy(keyType = keyType, keySecret = secret) else it
+                                }
+                                timeBlockPrefs.edit().putString("saved_routines", json.encodeToString(updatedList)).apply()
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                } else if (id.startsWith("focus_mode_")) {
+                    val modeId = id.removePrefix("focus_mode_")
+                    val timeBlockPrefs = context.getSharedPreferences("brik_time_block_pref", Context.MODE_PRIVATE)
+                    val serializedModes = timeBlockPrefs.getString("saved_focus_modes", null)
+                    if (!serializedModes.isNullOrBlank()) {
+                        try {
+                            val modesList = json.decodeFromString<List<com.hotaro.brik.data.model.FocusMode>>(serializedModes)
+                            val m = modesList.find { it.id == modeId }
+                            if (m != null && (m.keySecret != secret || m.keyType != keyType)) {
+                                val updatedList = modesList.map {
+                                    if (it.id == modeId) it.copy(keyType = keyType, keySecret = secret) else it
+                                }
+                                timeBlockPrefs.edit().putString("saved_focus_modes", json.encodeToString(updatedList)).apply()
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                }
+            }
         }
 
         return lock
@@ -348,26 +430,58 @@ class KeyRepository(private val context: Context) {
         val updated = _activeLocks.value.filterNot { it.id == id }
         persistLocks(updated)
 
-        when (id) {
-            "dns_lock" -> {
+        when {
+            id == "dns_lock" -> {
                 val dnsPrefs = context.getSharedPreferences("brik_dns_lock_prefs", Context.MODE_PRIVATE)
                 dnsPrefs.edit().putBoolean("dns_lock_enabled", false).remove("dns_key_hash").remove("dns_key_type").apply()
             }
-            "grayscale_security_key" -> {
+            id == "grayscale_security_key" -> {
                 val grayPrefs = context.getSharedPreferences("brik_grayscale_preferences", Context.MODE_PRIVATE)
                 grayPrefs.edit().remove("pref_grayscale_key_type").remove("pref_grayscale_secret_hash").remove("pref_grayscale_qr_token").apply()
             }
-            "zen_security_key" -> {
+            id == "zen_security_key" -> {
                 val zenPrefs = context.getSharedPreferences("brik_zen_preferences", Context.MODE_PRIVATE)
                 zenPrefs.edit().remove("pref_zen_key_type").remove("pref_zen_secret_hash").remove("pref_zen_qr_token").apply()
             }
-            "sideload_adb_lock" -> {
+            id == "sideload_adb_lock" -> {
                 val sideloadPrefs = context.getSharedPreferences("brik_sideload_lock_prefs", Context.MODE_PRIVATE)
                 sideloadPrefs.edit().remove("pref_sideload_lock_key_type").remove("pref_sideload_lock_secret_hash").remove("pref_sideload_lock_qr_token").apply()
             }
-            "dpm_uninstall_lock" -> {
+            id == "dpm_uninstall_lock" -> {
                 val dpmPrefs = context.getSharedPreferences("brik_admin_pref", Context.MODE_PRIVATE)
                 dpmPrefs.edit().remove("pref_dpm_uninstall_secret_hash").remove("pref_dpm_uninstall_key_type").remove("pref_dpm_uninstall_qr_token").apply()
+            }
+            id.startsWith("routine_") -> {
+                val routineId = id.removePrefix("routine_")
+                val timeBlockPrefs = context.getSharedPreferences("brik_time_block_pref", Context.MODE_PRIVATE)
+                val serializedRoutines = timeBlockPrefs.getString("saved_routines", null)
+                if (!serializedRoutines.isNullOrBlank()) {
+                    try {
+                        val routinesList = json.decodeFromString<List<com.hotaro.brik.data.model.AutomatedRoutine>>(serializedRoutines)
+                        val updatedList = routinesList.map {
+                            if (it.id == routineId) it.copy(keySecret = null) else it
+                        }
+                        timeBlockPrefs.edit().putString("saved_routines", json.encodeToString(updatedList)).apply()
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+            }
+            id.startsWith("focus_mode_") -> {
+                val modeId = id.removePrefix("focus_mode_")
+                val timeBlockPrefs = context.getSharedPreferences("brik_time_block_pref", Context.MODE_PRIVATE)
+                val serializedModes = timeBlockPrefs.getString("saved_focus_modes", null)
+                if (!serializedModes.isNullOrBlank()) {
+                    try {
+                        val modesList = json.decodeFromString<List<com.hotaro.brik.data.model.FocusMode>>(serializedModes)
+                        val updatedList = modesList.map {
+                            if (it.id == modeId) it.copy(keySecret = null) else it
+                        }
+                        timeBlockPrefs.edit().putString("saved_focus_modes", json.encodeToString(updatedList)).apply()
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
             }
         }
     }

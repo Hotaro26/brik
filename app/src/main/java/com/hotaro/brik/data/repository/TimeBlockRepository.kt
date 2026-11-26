@@ -25,22 +25,48 @@ import java.util.UUID
 
 class TimeBlockRepository(private val context: Context) {
     private val prefs = context.getSharedPreferences("brik_time_block_pref", Context.MODE_PRIVATE)
-    private val json = Json { ignoreUnknownKeys = true }
 
     private val bagRepository = BagRepository(context)
     private val keyRepository = KeyRepository(context)
 
-    private val _focusModes = MutableStateFlow<List<FocusMode>>(emptyList())
-    val focusModes: StateFlow<List<FocusMode>> = _focusModes.asStateFlow()
+    val focusModes: StateFlow<List<FocusMode>> get() = _focusModes.asStateFlow()
+    val routines: StateFlow<List<AutomatedRoutine>> get() = _routines.asStateFlow()
+    val activeSession: StateFlow<ActiveTimeBlockState?> get() = _activeSession.asStateFlow()
 
-    private val _routines = MutableStateFlow<List<AutomatedRoutine>>(emptyList())
-    val routines: StateFlow<List<AutomatedRoutine>> = _routines.asStateFlow()
+    companion object {
+        private val json = Json { ignoreUnknownKeys = true }
 
-    private val _activeSession = MutableStateFlow<ActiveTimeBlockState?>(null)
-    val activeSession: StateFlow<ActiveTimeBlockState?> = _activeSession.asStateFlow()
+        private val _focusModes = MutableStateFlow<List<FocusMode>>(emptyList())
+        val focusModes: StateFlow<List<FocusMode>> = _focusModes.asStateFlow()
+
+        private val _routines = MutableStateFlow<List<AutomatedRoutine>>(emptyList())
+        val routines: StateFlow<List<AutomatedRoutine>> = _routines.asStateFlow()
+
+        private val _activeSession = MutableStateFlow<ActiveTimeBlockState?>(null)
+        val activeSession: StateFlow<ActiveTimeBlockState?> = _activeSession.asStateFlow()
+
+        @Volatile
+        private var isLoaded = false
+
+        @Volatile
+        private var instance: TimeBlockRepository? = null
+
+        fun getInstance(context: Context): TimeBlockRepository {
+            return instance ?: synchronized(this) {
+                instance ?: TimeBlockRepository(context.applicationContext).also { instance = it }
+            }
+        }
+    }
 
     init {
-        loadData()
+        if (!isLoaded) {
+            synchronized(TimeBlockRepository::class.java) {
+                if (!isLoaded) {
+                    loadData()
+                    isLoaded = true
+                }
+            }
+        }
     }
 
     private fun loadData() {
@@ -158,6 +184,8 @@ class TimeBlockRepository(private val context: Context) {
                 keyType = mode.keyType,
                 secret = mode.keySecret
             )
+        } else {
+            keyRepository.removeSystemSecurityKey("focus_mode_${mode.id}")
         }
         return mode
     }
@@ -226,6 +254,8 @@ class TimeBlockRepository(private val context: Context) {
                 keyType = routine.keyType,
                 secret = routine.keySecret
             )
+        } else {
+            keyRepository.removeSystemSecurityKey("routine_${routine.id}")
         }
         return routine
     }
@@ -522,16 +552,5 @@ class TimeBlockRepository(private val context: Context) {
     private fun persistRoutines(list: List<AutomatedRoutine>) {
         _routines.value = list
         prefs.edit().putString("saved_routines", json.encodeToString(list)).apply()
-    }
-
-    companion object {
-        @Volatile
-        private var instance: TimeBlockRepository? = null
-
-        fun getInstance(context: Context): TimeBlockRepository {
-            return instance ?: synchronized(this) {
-                instance ?: TimeBlockRepository(context.applicationContext).also { instance = it }
-            }
-        }
     }
 }
