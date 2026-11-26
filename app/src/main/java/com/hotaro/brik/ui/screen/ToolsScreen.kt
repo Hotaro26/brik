@@ -134,6 +134,7 @@ fun ToolsScreen(
     val installedApps by viewModel.installedApps.collectAsState()
     val showSystemApps by viewModel.showSystemApps.collectAsState()
     val activeLocks by keyViewModel.activeLocks.collectAsState()
+    val lockedBagsCount = remember(activeLocks) { activeLocks.count { !it.isSystemKey } }
 
     val dnsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val stealthSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -220,7 +221,11 @@ fun ToolsScreen(
                             "bags" -> {
                                 TomatoSettingsItem(
                                     title = "Bags",
-                                    subtitle = if (bags.isNotEmpty()) "${bags.size} bags configured (${activeLocks.size} locked)" else "Pack apps into custom bundles",
+                                    subtitle = if (bags.isNotEmpty()) {
+                                        "${bags.size} bag${if (bags.size == 1) "" else "s"} configured ($lockedBagsCount locked)"
+                                    } else {
+                                        "Pack apps into custom bundles"
+                                    },
                                     leadingIcon = R.drawable.backpack_fill0,
                                     iconContainerColor = colorScheme.secondaryContainer,
                                     iconTint = colorScheme.onSecondaryContainer,

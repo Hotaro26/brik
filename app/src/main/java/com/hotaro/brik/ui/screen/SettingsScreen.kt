@@ -431,7 +431,7 @@ fun SettingsScreen(
             val keysIndex = if (isDeviceOwner) 1 else 3
             TomatoSettingsItem(
                 title = "Keys & Lock Analytics",
-                subtitle = "${activeLocks.size} active bag keys • ${stats.totalLocks} sessions",
+                subtitle = "${activeLocks.size} active protection key${if (activeLocks.size == 1) "" else "s"} • ${stats.totalLocks} sessions",
                 leadingIcon = R.drawable.key_fill0,
                 iconContainerColor = colorScheme.primaryContainer,
                 iconTint = colorScheme.onPrimaryContainer,

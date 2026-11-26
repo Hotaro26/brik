@@ -177,6 +177,7 @@ fun KeyScreen(
     var isRefreshing by remember { mutableStateOf(false) }
 
     val activeLocks by keyViewModel.activeLocks.collectAsState()
+    val lockedBags = remember(activeLocks) { activeLocks.filter { !it.isSystemKey } }
     val bridgeStatus by settingsViewModel.bridgeStatus.collectAsState()
     val isZenActive by ZenManager.isZenActive.collectAsState()
     var showBridgeSetupSheet by remember { mutableStateOf(false) }
@@ -395,7 +396,7 @@ fun KeyScreen(
                                 )
 
                                 Text(
-                                    text = if (activeLocks.isNotEmpty()) "${activeLocks.size} active locked bag${if (activeLocks.size > 1) "s" else ""}" else "Tap cookie to reveal unlock",
+                                    text = if (lockedBags.isNotEmpty()) "${lockedBags.size} active locked bag${if (lockedBags.size > 1) "s" else ""}" else "Tap cookie to reveal unlock",
                                     style = typography.bodyMedium,
                                     color = colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(top = 6.dp)
@@ -565,7 +566,7 @@ fun KeyScreen(
                             color = colorScheme.onSurface
                         )
                         Text(
-                            text = if (activeLocks.isNotEmpty()) "${activeLocks.size} locked bundles" else "No locked bags",
+                            text = if (lockedBags.isNotEmpty()) "${lockedBags.size} locked bundle${if (lockedBags.size > 1) "s" else ""}" else "No locked bags",
                             style = typography.bodySmall,
                             color = colorScheme.onSurfaceVariant
                         )
@@ -582,7 +583,7 @@ fun KeyScreen(
 
                 Spacer(Modifier.height(16.dp))
 
-                if (activeLocks.isEmpty()) {
+                if (lockedBags.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -621,7 +622,7 @@ fun KeyScreen(
                         contentPadding = PaddingValues(bottom = 32.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        items(activeLocks, key = { it.id }) { lock ->
+                        items(lockedBags, key = { it.id }) { lock ->
                             ElevatedCard(
                                 shape = RoundedCornerShape(20.dp),
                                 colors = CardDefaults.elevatedCardColors(
