@@ -475,12 +475,14 @@ fun KeyScreen(
                                     color = colorScheme.onSurface
                                 )
 
-                                Text(
-                                    text = if (isZenActive) "Active lockdown session • Tap to view" else "Hold lotus icon to enter directly • Tap below to configure",
-                                    style = typography.bodyMedium,
-                                    color = if (isZenActive) colorScheme.primary else colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(top = 6.dp)
-                                )
+                                if (isZenActive) {
+                                    Text(
+                                        text = "Active lockdown session • Tap to view",
+                                        style = typography.bodyMedium,
+                                        color = colorScheme.primary,
+                                        modifier = Modifier.padding(top = 6.dp)
+                                    )
+                                }
 
                                 Spacer(Modifier.height(24.dp))
 
