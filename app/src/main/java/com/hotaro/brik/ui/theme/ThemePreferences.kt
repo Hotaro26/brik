@@ -11,6 +11,15 @@ enum class NavBarStyle {
     CLASSIC
 }
 
+enum class PullRefreshAnimStyle(val displayName: String) {
+    SMILEY("Smiley"),
+    CAT("Cat"),
+    BUTTERFLY("Butterfly"),
+    BOOKS("Books"),
+    LOTUS("Man in Lotus"),
+    RANDOM("Random Mixed")
+}
+
 object ThemePreferences {
     private const val PREFS_NAME = "brik_theme_preferences"
     private const val KEY_THEME_MODE = "pref_theme_mode"
@@ -18,6 +27,7 @@ object ThemePreferences {
     private const val KEY_NAVBAR_STYLE = "pref_navbar_style"
     private const val KEY_APP_ICON = "pref_app_icon"
     private const val KEY_CLOCK_FORMAT = "pref_clock_format"
+    private const val KEY_PULL_REFRESH_ANIM = "pref_pull_refresh_anim"
 
     // Defaults: 0 = System, "dynamic" = Material You, FLOATING = Default
     private val _themeMode = MutableStateFlow(0)
@@ -36,6 +46,9 @@ object ThemePreferences {
     private val _use24HourClock = MutableStateFlow(false)
     val use24HourClock: StateFlow<Boolean> = _use24HourClock.asStateFlow()
 
+    private val _pullRefreshAnim = MutableStateFlow(PullRefreshAnimStyle.SMILEY)
+    val pullRefreshAnim: StateFlow<PullRefreshAnimStyle> = _pullRefreshAnim.asStateFlow()
+
     fun init(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         _themeMode.value = prefs.getInt(KEY_THEME_MODE, 0)
@@ -46,6 +59,9 @@ object ThemePreferences {
         val savedIcon = prefs.getString(KEY_APP_ICON, "dynamic") ?: "dynamic"
         _appIcon.value = if (savedIcon == "default") "dynamic" else savedIcon
         _use24HourClock.value = prefs.getBoolean(KEY_CLOCK_FORMAT, false)
+        val animStr = prefs.getString(KEY_PULL_REFRESH_ANIM, PullRefreshAnimStyle.SMILEY.name)
+        _pullRefreshAnim.value = runCatching { PullRefreshAnimStyle.valueOf(animStr ?: PullRefreshAnimStyle.SMILEY.name) }
+            .getOrDefault(PullRefreshAnimStyle.SMILEY)
     }
 
     fun setThemeMode(context: Context, mode: Int) {
@@ -76,6 +92,12 @@ object ThemePreferences {
         _use24HourClock.value = use24
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putBoolean(KEY_CLOCK_FORMAT, use24).apply()
+    }
+
+    fun setPullRefreshAnim(context: Context, style: PullRefreshAnimStyle) {
+        _pullRefreshAnim.value = style
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putString(KEY_PULL_REFRESH_ANIM, style.name).apply()
     }
 
     fun formatTime(hour: Int, minute: Int, use24: Boolean = _use24HourClock.value): String {
