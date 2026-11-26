@@ -1,0 +1,21 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Top status bar container -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M3,3h18c1.1,0 2,0.9 2,2v3c0,0.55 -0.45,1 -1,1H2C1.45,9 1,8.55 1,8V5c0,-1.1 0.9,-2 2,-2zM4,6.5h3v-1H4v1zM17,6.5h3v-1h-3v1z" />
+    <!-- Notification shade / panel swipe down -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M5,11h14c0.55,0 1,0.45 1,1v1c0,0.55 -0.45,1 -1,1H5c-0.55,0 -1,-0.45 -1,-1v-1c0,-0.55 0.45,-1 1,-1z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M7,16h10c0.55,0 1,0.45 1,1v1c0,0.55 -0.45,1 -1,1H7c-0.55,0 -1,-0.45 -1,-1v-1c0,-0.55 0.45,-1 1,-1z" />
+    <!-- Downward arrow indicator -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,22l-3,-3h6z" />
+</vector>

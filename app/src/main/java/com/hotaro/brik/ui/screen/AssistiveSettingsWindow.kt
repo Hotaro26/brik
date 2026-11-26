@@ -61,6 +61,7 @@ fun AssistiveSettingsWindow(onBack: () -> Unit) {
     val showBluetooth by AssistivePreferences.showBluetooth.collectAsState()
     val showDnd by AssistivePreferences.showDnd.collectAsState()
     val showPhone by AssistivePreferences.showPhone.collectAsState()
+    val showQuickSettings by AssistivePreferences.showQuickSettings.collectAsState()
     val showNotifications by AssistivePreferences.showNotifications.collectAsState()
     val notifPreviewMode by AssistivePreferences.notifPreviewMode.collectAsState()
 
@@ -270,6 +271,13 @@ fun AssistiveSettingsWindow(onBack: () -> Unit) {
                     iconRes = R.drawable.call_fill0,
                     checked = showPhone,
                     onToggle = { AssistivePreferences.setShowPhone(context, it) }
+                ),
+                TileConfig(
+                    title = "Quick Settings & Status Bar",
+                    subtitle = "Allow pulling down quick settings & notifications from top",
+                    iconRes = R.drawable.ic_status_bar_shade,
+                    checked = showQuickSettings,
+                    onToggle = { AssistivePreferences.setShowQuickSettings(context, it) }
                 )
             )
 

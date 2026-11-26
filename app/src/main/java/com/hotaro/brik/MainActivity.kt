@@ -115,6 +115,8 @@ class MainActivity : ComponentActivity() {
             BrikTheme {
                 val isWindDownActive by com.hotaro.brik.util.WindDownManager.isWindDownActive.collectAsState()
                 val isZenActive by com.hotaro.brik.util.ZenManager.isZenActive.collectAsState()
+                val allowControlPanelsStatusBar by com.hotaro.brik.util.KioskPreferences.allowControlPanelsStatusBar.collectAsState()
+                val allowSystemGestures by com.hotaro.brik.util.KioskPreferences.allowSystemGestures.collectAsState()
                 val timeBlockRepo = remember { com.hotaro.brik.data.repository.TimeBlockRepository.getInstance(applicationContext) }
                 val activeSession by timeBlockRepo.activeSession.collectAsState()
                 val focusModes by timeBlockRepo.focusModes.collectAsState()
@@ -124,7 +126,7 @@ class MainActivity : ComponentActivity() {
                     } else null
                 }
 
-                androidx.compose.runtime.LaunchedEffect(isWindDownActive, isZenActive, activeKioskFocusMode) {
+                androidx.compose.runtime.LaunchedEffect(isWindDownActive, isZenActive, activeKioskFocusMode, allowControlPanelsStatusBar, allowSystemGestures) {
                     if (activeKioskFocusMode != null) {
                         try {
                             val defaultDialer = (getSystemService(android.content.Context.TELECOM_SERVICE) as? android.telecom.TelecomManager)?.defaultDialerPackage
@@ -138,11 +140,11 @@ class MainActivity : ComponentActivity() {
                             )
                             val packagesToAllow = (activeKioskFocusMode.kioskAllowedPackages + systemPackages).distinct()
                             com.hotaro.brik.policy.PolicyBridgeManager.setLockTaskPackages(this@MainActivity, packagesToAllow)
-                            val lockdownNotifs = com.hotaro.brik.util.KioskPreferences.lockdownNotificationShade.value
+                            val disableGestures = !allowSystemGestures || activeKioskFocusMode.kioskDisableSystemGestures
                             com.hotaro.brik.policy.PolicyBridgeManager.setLockTaskFeatures(
                                 this@MainActivity,
-                                activeKioskFocusMode.kioskDisableSystemGestures,
-                                lockdownNotifs
+                                disableSystemGestures = disableGestures,
+                                lockdownNotificationShade = !allowControlPanelsStatusBar
                             )
                             startLockTask()
                         } catch (e: Exception) {

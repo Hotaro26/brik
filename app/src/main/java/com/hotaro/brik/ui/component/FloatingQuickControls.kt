@@ -146,8 +146,10 @@ fun FloatingQuickControls(
     val showBluetooth by AssistivePreferences.showBluetooth.collectAsState()
     val showDnd by AssistivePreferences.showDnd.collectAsState()
     val showPhone by AssistivePreferences.showPhone.collectAsState()
+    val showQuickSettings by AssistivePreferences.showQuickSettings.collectAsState()
     val showNotifications by AssistivePreferences.showNotifications.collectAsState()
     val notifPreviewMode by AssistivePreferences.notifPreviewMode.collectAsState()
+    val allowControlPanelsStatusBar by com.hotaro.brik.util.KioskPreferences.allowControlPanelsStatusBar.collectAsState()
 
     var isExpanded by remember { mutableStateOf(false) }
     var isDraggingBall by remember { mutableStateOf(false) }
@@ -489,7 +491,16 @@ fun FloatingQuickControls(
         val boxWidthDp = 290.dp
         val boxWidthPx = with(density) { boxWidthDp.toPx() }
 
-        val activeTiles = remember(showWifi, showData, showHotspot, showFlashlight, showBluetooth, showDnd, showPhone, isWifiEnabled, isDataEnabled, isHotspotEnabled, isBtEnabled, isDndOn, isFlashlightOn) {
+        val primaryColor = colorScheme.primary
+        val secondaryColor = colorScheme.secondary
+        val tertiaryColor = colorScheme.tertiary
+        val errorColor = colorScheme.error
+
+        val activeTiles = remember(
+            showWifi, showData, showHotspot, showFlashlight, showBluetooth, showDnd, showPhone, showQuickSettings,
+            allowControlPanelsStatusBar, isWifiEnabled, isDataEnabled, isHotspotEnabled, isBtEnabled,
+            isDndOn, isFlashlightOn, primaryColor, secondaryColor, tertiaryColor, errorColor
+        ) {
             val list = mutableListOf<QuickTileData>()
             if (showWifi) {
                 list.add(
@@ -498,7 +509,7 @@ fun FloatingQuickControls(
                         title = "Wi-Fi",
                         statusText = if (isWifiEnabled) "On" else "Off",
                         isActive = isWifiEnabled,
-                        activeColor = Color(0xFF2979FF),
+                        activeColor = primaryColor,
                         onClick = toggleWifi
                     )
                 )
@@ -510,7 +521,7 @@ fun FloatingQuickControls(
                         title = "Mobile Data",
                         statusText = if (isDataEnabled) "Active" else "Off",
                         isActive = isDataEnabled,
-                        activeColor = Color(0xFF00E676),
+                        activeColor = secondaryColor,
                         onClick = {
                             lastInteractionTime = System.currentTimeMillis()
                             val target = !isDataEnabled
@@ -564,7 +575,7 @@ fun FloatingQuickControls(
                         title = "Hotspot",
                         statusText = if (isHotspotEnabled) "On" else "Off",
                         isActive = isHotspotEnabled,
-                        activeColor = Color(0xFFFF9100),
+                        activeColor = tertiaryColor,
                         onClick = toggleHotspot
                     )
                 )
@@ -576,7 +587,7 @@ fun FloatingQuickControls(
                         title = "Flashlight",
                         statusText = if (isFlashlightOn) "Torch ON" else "Off",
                         isActive = isFlashlightOn,
-                        activeColor = Color(0xFFFFD54F),
+                        activeColor = if (isFlashlightOn) Color(0xFFFFD54F) else primaryColor,
                         onClick = { toggleFlashlight() }
                     )
                 )
@@ -588,7 +599,7 @@ fun FloatingQuickControls(
                         title = "Bluetooth",
                         statusText = if (isBtEnabled) "On" else "Off",
                         isActive = isBtEnabled,
-                        activeColor = Color(0xFF00B0FF),
+                        activeColor = primaryColor,
                         onClick = toggleBluetooth
                     )
                 )
@@ -600,7 +611,7 @@ fun FloatingQuickControls(
                         title = "Do Not Disturb",
                         statusText = if (isDndOn) "Active" else "Off",
                         isActive = isDndOn,
-                        activeColor = Color(0xFFE040FB),
+                        activeColor = errorColor,
                         onClick = {
                             lastInteractionTime = System.currentTimeMillis()
                             try {
@@ -632,7 +643,7 @@ fun FloatingQuickControls(
                         title = "Phone",
                         statusText = "Caller",
                         isActive = false,
-                        activeColor = Color(0xFF00E676),
+                        activeColor = secondaryColor,
                         onClick = {
                             lastInteractionTime = System.currentTimeMillis()
                             try {
@@ -655,6 +666,32 @@ fun FloatingQuickControls(
                     )
                 )
             }
+
+            // Quick Setting card: Quick Settings / Status Bar Swipe
+            if (showQuickSettings) {
+                list.add(
+                    QuickTileData(
+                        iconRes = R.drawable.ic_status_bar_shade,
+                        title = "Quick Settings",
+                        statusText = if (allowControlPanelsStatusBar) "Swiping Allowed" else "Swiping Locked",
+                        isActive = allowControlPanelsStatusBar,
+                        activeColor = primaryColor,
+                        onClick = {
+                            lastInteractionTime = System.currentTimeMillis()
+                            val target = !allowControlPanelsStatusBar
+                            com.hotaro.brik.util.KioskPreferences.setAllowControlPanelsStatusBar(context, target)
+                            try {
+                                com.hotaro.brik.policy.PolicyBridgeManager.setLockTaskFeatures(
+                                    context = context,
+                                    disableSystemGestures = !com.hotaro.brik.util.KioskPreferences.allowSystemGestures.value,
+                                    lockdownNotificationShade = !target
+                                )
+                            } catch (_: Exception) {}
+                        }
+                    )
+                )
+            }
+
             list
         }
 
@@ -865,8 +902,8 @@ fun FloatingQuickControls(
         ) {
             Surface(
                 shape = RoundedCornerShape(28.dp),
-                color = if (isExpanded) Color(0xF71B1C22) else Color(0x99121316),
-                border = BorderStroke(1.dp, if (isExpanded) Color(0x33FFFFFF) else Color(0x35FFFFFF)),
+                color = if (isExpanded) colorScheme.surfaceContainerHigh else colorScheme.surfaceContainer.copy(alpha = 0.90f),
+                border = BorderStroke(1.dp, if (isExpanded) colorScheme.outlineVariant.copy(alpha = 0.6f) else colorScheme.outline.copy(alpha = 0.35f)),
                 shadowElevation = if (isExpanded) 18.dp else 8.dp,
                 modifier = Modifier.fillMaxSize()
             ) {
@@ -883,20 +920,20 @@ fun FloatingQuickControls(
                         ) {
                             Surface(
                                 shape = CircleShape,
-                                color = Color(0x30FFFFFF),
+                                color = colorScheme.surfaceContainerHighest.copy(alpha = 0.5f),
                                 modifier = Modifier.size(36.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Surface(
                                         shape = CircleShape,
-                                        color = Color(0x45FFFFFF),
-                                        border = BorderStroke(0.8.dp, Color(0x55FFFFFF)),
+                                        color = colorScheme.surfaceContainerHighest.copy(alpha = 0.85f),
+                                        border = BorderStroke(0.8.dp, colorScheme.outlineVariant.copy(alpha = 0.6f)),
                                         modifier = Modifier.size(24.dp)
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
                                             Surface(
                                                 shape = CircleShape,
-                                                color = if (isFlashlightOn) Color(0xFFFFC107) else Color(0xFAFFFFFF),
+                                                color = if (isFlashlightOn) Color(0xFFFFC107) else primaryColor,
                                                 modifier = Modifier.size(13.dp)
                                             ) {}
                                         }
@@ -952,7 +989,7 @@ fun FloatingQuickControls(
                             ) {
                                 Surface(
                                     shape = CircleShape,
-                                    color = Color(0x35FFFFFF),
+                                    color = colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                                     modifier = Modifier
                                         .width(36.dp)
                                         .height(4.dp)
@@ -967,8 +1004,8 @@ fun FloatingQuickControls(
                                 ) {
                                     Surface(
                                         shape = CircleShape,
-                                        color = colorScheme.primaryContainer.copy(alpha = 0.35f),
-                                        border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.4f))
+                                        color = colorScheme.primaryContainer.copy(alpha = 0.45f),
+                                        border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.5f))
                                     ) {
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
@@ -984,14 +1021,15 @@ fun FloatingQuickControls(
                                             Text(
                                                 text = "Quick Controls",
                                                 style = typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold),
-                                                color = Color.White
+                                                color = colorScheme.onSurface
                                             )
                                         }
                                     }
 
                                     Surface(
                                         shape = CircleShape,
-                                        color = Color(0x22FFFFFF),
+                                        color = colorScheme.surfaceContainerHighest.copy(alpha = 0.8f),
+                                        border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.4f)),
                                         modifier = Modifier
                                             .size(30.dp)
                                             .clickable(
@@ -1006,7 +1044,7 @@ fun FloatingQuickControls(
                                             Icon(
                                                 painter = painterResource(R.drawable.close_fill0),
                                                 contentDescription = "Close",
-                                                tint = Color(0xEEFFFFFF),
+                                                tint = colorScheme.onSurface,
                                                 modifier = Modifier.size(16.dp)
                                             )
                                         }
@@ -1080,8 +1118,8 @@ private fun NotificationControlPill(
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(16.dp),
-        color = Color(0x22FFFFFF),
-        border = BorderStroke(1.dp, Color(0x33FFFFFF)),
+        color = colorScheme.surfaceContainerLow,
+        border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.4f)),
         modifier = Modifier.fillMaxWidth()
     ) {
         if (previewMode == "preview") {
@@ -1094,14 +1132,14 @@ private fun NotificationControlPill(
             ) {
                 Surface(
                     shape = CircleShape,
-                    color = Color(0x33FFFFFF),
+                    color = colorScheme.primaryContainer.copy(alpha = 0.45f),
                     modifier = Modifier.size(28.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             painter = painterResource(R.drawable.ic_notifications),
                             contentDescription = null,
-                            tint = Color.White,
+                            tint = colorScheme.primary,
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -1110,12 +1148,12 @@ private fun NotificationControlPill(
                     Text(
                         text = "Notifications Muted",
                         style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                        color = Color.White
+                        color = colorScheme.onSurface
                     )
                     Text(
                         text = "Focus lockdown active • Tap to expand notification shade",
                         style = typography.bodySmall.copy(fontSize = 10.sp),
-                        color = Color(0xBBFFFFFF),
+                        color = colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -1136,23 +1174,23 @@ private fun NotificationControlPill(
                     Icon(
                         painter = painterResource(R.drawable.ic_notifications),
                         contentDescription = null,
-                        tint = Color.White,
+                        tint = colorScheme.primary,
                         modifier = Modifier.size(16.dp)
                     )
                     Text(
                         text = "Notification Shade",
                         style = typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                        color = Color.White
+                        color = colorScheme.onSurface
                     )
                 }
                 Surface(
                     shape = CircleShape,
-                    color = Color(0x33FFFFFF)
+                    color = colorScheme.primaryContainer.copy(alpha = 0.45f)
                 ) {
                     Text(
                         text = "Expand",
                         style = typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
-                        color = Color.White,
+                        color = colorScheme.onPrimaryContainer,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                     )
                 }
@@ -1200,19 +1238,19 @@ private fun ExpressiveQuickTile(
     onClick: () -> Unit
 ) {
     val containerBg by animateColorAsState(
-        targetValue = if (isActive) activeColor.copy(alpha = 0.20f) else Color(0x1CFFFFFF),
+        targetValue = if (isActive) activeColor.copy(alpha = 0.22f) else colorScheme.surfaceContainerLowest.copy(alpha = 0.65f),
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "tileContainerBg"
     )
 
     val iconBoxBg by animateColorAsState(
-        targetValue = if (isActive) activeColor else Color(0x28FFFFFF),
+        targetValue = if (isActive) activeColor else colorScheme.surfaceContainerHighest,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "iconBoxBg"
     )
 
     val iconTint by animateColorAsState(
-        targetValue = if (isActive) Color(0xFF101114) else Color(0xEEFFFFFF),
+        targetValue = if (isActive) colorScheme.onPrimary else colorScheme.onSurface,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "tileIconTint"
     )
@@ -1223,7 +1261,7 @@ private fun ExpressiveQuickTile(
         color = containerBg,
         border = BorderStroke(
             width = 1.dp,
-            color = if (isActive) activeColor.copy(alpha = 0.5f) else Color(0x1AFFFFFF)
+            color = if (isActive) activeColor.copy(alpha = 0.55f) else colorScheme.outlineVariant.copy(alpha = 0.3f)
         ),
         modifier = modifier.height(84.dp)
     ) {
@@ -1256,7 +1294,7 @@ private fun ExpressiveQuickTile(
 
                 Surface(
                     shape = CircleShape,
-                    color = if (isActive) activeColor.copy(alpha = 0.25f) else Color(0x1AFFFFFF)
+                    color = if (isActive) activeColor.copy(alpha = 0.25f) else colorScheme.surfaceContainerHigh
                 ) {
                     Text(
                         text = if (isActive) "ON" else "OFF",
@@ -1264,7 +1302,7 @@ private fun ExpressiveQuickTile(
                             fontWeight = FontWeight.ExtraBold,
                             fontSize = 8.sp
                         ),
-                        color = if (isActive) activeColor else Color(0x88FFFFFF),
+                        color = if (isActive) activeColor else colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                     )
                 }
@@ -1278,7 +1316,7 @@ private fun ExpressiveQuickTile(
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp
                     ),
-                    color = Color.White,
+                    color = colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -1288,7 +1326,7 @@ private fun ExpressiveQuickTile(
                         fontSize = 10.sp,
                         fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal
                     ),
-                    color = if (isActive) activeColor else Color(0x88FFFFFF),
+                    color = if (isActive) activeColor else colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )

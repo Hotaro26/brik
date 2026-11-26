@@ -71,6 +71,7 @@ import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -96,6 +97,7 @@ import com.hotaro.brik.data.model.AppBag
 import com.hotaro.brik.data.model.AppInfo
 import com.hotaro.brik.data.model.AutomatedRoutine
 import com.hotaro.brik.data.model.KeyType
+import com.hotaro.brik.data.model.RoutineBreak
 import com.hotaro.brik.data.model.SavedKey
 import com.hotaro.brik.data.model.TimeBlockType
 import com.hotaro.brik.policy.DnsManager
@@ -283,7 +285,7 @@ fun RoutinesWindow(
                 floatingActionButton = {
                     FloatingActionButton(
                         onClick = {
-                            sheetRoutineName = ""
+                            sheetRoutineName = "Routine ${routines.size + 1}"
                             sheetDaysOfWeek = setOf(2, 3, 4, 5, 6)
                             sheetStartHour = 9
                             sheetStartMinute = 0
@@ -711,28 +713,30 @@ fun RoutinesWindow(
                         shadowElevation = if (p > 0f) 24.dp.toPx() else 0f
                     }
             ) {
-                RoutineDetailWindow(
-                    routine = configuringRoutine!!,
-                    bags = bags,
-                    savedKeys = savedKeys,
-                    installedApps = installedApps,
-                    onBack = { showDiscardDialog = true },
-                    onSave = { updated ->
-                        if (updated.name.isBlank()) {
-                            Toast.makeText(context, "Please enter a routine name", Toast.LENGTH_SHORT).show()
-                        } else if (updated.keySecret.isNullOrBlank()) {
-                            Toast.makeText(context, "A protection key is required", Toast.LENGTH_SHORT).show()
-                        } else {
-                            viewModel.saveRoutine(updated)
-                            Toast.makeText(context, "Routine '${updated.name}' saved!", Toast.LENGTH_SHORT).show()
-                            coroutineScope.launch {
-                                animatedDetailProgress.animateTo(1f, tween(durationMillis = 180))
-                                configuringRoutine = null
-                                animatedDetailProgress.snapTo(0f)
+                key(configuringRoutine!!.id) {
+                    RoutineDetailWindow(
+                        routine = configuringRoutine!!,
+                        bags = bags,
+                        savedKeys = savedKeys,
+                        installedApps = installedApps,
+                        onBack = { showDiscardDialog = true },
+                        onSave = { updated ->
+                            if (updated.name.isBlank()) {
+                                Toast.makeText(context, "Please enter a routine name", Toast.LENGTH_SHORT).show()
+                            } else if (updated.keySecret.isNullOrBlank()) {
+                                Toast.makeText(context, "A protection key is required", Toast.LENGTH_SHORT).show()
+                            } else {
+                                viewModel.saveRoutine(updated)
+                                Toast.makeText(context, "Routine '${updated.name}' saved!", Toast.LENGTH_SHORT).show()
+                                coroutineScope.launch {
+                                    animatedDetailProgress.animateTo(1f, tween(durationMillis = 180))
+                                    configuringRoutine = null
+                                    animatedDetailProgress.snapTo(0f)
+                                }
                             }
                         }
-                    }
-                )
+                    )
+                }
             }
         }
 
@@ -796,16 +800,18 @@ fun RoutinesWindow(
 
                     Button(
                         onClick = {
+                            val chosenName = sheetRoutineName.trim().ifBlank { "Routine ${routines.size + 1}" }
                             val newRoutine = AutomatedRoutine(
                                 id = UUID.randomUUID().toString(),
-                                name = sheetRoutineName.trim(),
+                                name = chosenName,
                                 daysOfWeek = sheetDaysOfWeek.toList().sorted(),
                                 startHour = sheetStartHour,
                                 startMinute = sheetStartMinute,
                                 endHour = sheetEndHour,
                                 endMinute = sheetEndMinute,
                                 keyType = KeyType.PASSWORD,
-                                keySecret = ""
+                                keySecret = "",
+                                breaks = emptyList()
                             )
                             showCreateSheet = false
                             openDetailWindow(newRoutine)
@@ -1257,569 +1263,996 @@ private fun RoutineDetailWindow(
     onSave: (AutomatedRoutine) -> Unit
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val use24Hour by com.hotaro.brik.ui.theme.ThemePreferences.use24HourClock.collectAsState()
-    var nameInput by remember { mutableStateOf(routine.name) }
-    var selectedDays by remember { mutableStateOf(routine.daysOfWeek.toSet()) }
-    var startHour by remember { mutableStateOf(routine.startHour) }
-    var startMinute by remember { mutableStateOf(routine.startMinute) }
-    var endHour by remember { mutableStateOf(routine.endHour) }
-    var endMinute by remember { mutableStateOf(routine.endMinute) }
-    var showDetailStartTimePicker by remember { mutableStateOf(false) }
-    var showDetailEndTimePicker by remember { mutableStateOf(false) }
 
-    var selectedBags by remember { mutableStateOf(routine.targetBagIds.toSet()) }
-    var selectedPackages by remember { mutableStateOf(routine.targetPackageNames.toSet()) }
+    var nameInput by remember(routine.id) { mutableStateOf(routine.name) }
+    var selectedDays by remember(routine.id) { mutableStateOf(routine.daysOfWeek.toSet()) }
+    var startHour by remember(routine.id) { mutableStateOf(routine.startHour) }
+    var startMinute by remember(routine.id) { mutableStateOf(routine.startMinute) }
+    var endHour by remember(routine.id) { mutableStateOf(routine.endHour) }
+    var endMinute by remember(routine.id) { mutableStateOf(routine.endMinute) }
+    var routineBreaks by remember(routine.id) { mutableStateOf(routine.breaks) }
+
+    var selectedBags by remember(routine.id) { mutableStateOf(routine.targetBagIds.toSet()) }
+    var selectedPackages by remember(routine.id) { mutableStateOf(routine.targetPackageNames.toSet()) }
     var showBagsSheet by remember { mutableStateOf(false) }
     var showCustomAppsSheet by remember { mutableStateOf(false) }
 
-    var enableDns by remember { mutableStateOf(routine.enableDnsBlocking) }
-    var selectedDnsHost by remember { mutableStateOf(routine.dnsHost) }
+    var enableDns by remember(routine.id) { mutableStateOf(routine.enableDnsBlocking) }
+    var selectedDnsHost by remember(routine.id) { mutableStateOf(routine.dnsHost) }
 
-    var selectedKeyType by remember { mutableStateOf(routine.keyType) }
-    var passwordSecret by remember { mutableStateOf(if (routine.keyType == KeyType.PASSWORD) routine.keySecret ?: "" else "") }
-    var qrSecret by remember { mutableStateOf(if (routine.keyType == KeyType.QR_CODE) routine.keySecret ?: "" else "") }
-    var selectedSavedKeyId by remember { mutableStateOf(routine.savedKeyId) }
+    var selectedKeyType by remember(routine.id) { mutableStateOf(routine.keyType) }
+    var passwordSecret by remember(routine.id) { mutableStateOf(if (routine.keyType == KeyType.PASSWORD) routine.keySecret ?: "" else "") }
+    var qrSecret by remember(routine.id) { mutableStateOf(if (routine.keyType == KeyType.QR_CODE) routine.keySecret ?: "" else "") }
+    var selectedSavedKeyId by remember(routine.id) { mutableStateOf(routine.savedKeyId) }
     var showSavedKeysSheet by remember { mutableStateOf(false) }
     var showScanKeySheet by remember { mutableStateOf(false) }
 
+    // Zen-style accordion expansion states
+    var isNameExpanded by remember { mutableStateOf(false) }
+    var isTimeExpanded by remember { mutableStateOf(false) }
+    var isDaysExpanded by remember { mutableStateOf(false) }
+    var isDnsExpanded by remember { mutableStateOf(false) }
+    var isKeyExpanded by remember { mutableStateOf(false) }
+
+    val nameChevronRotation by animateFloatAsState(targetValue = if (isNameExpanded) 90f else 0f, label = "nameRot")
+    val timeChevronRotation by animateFloatAsState(targetValue = if (isTimeExpanded) 90f else 0f, label = "timeRot")
+    val daysChevronRotation by animateFloatAsState(targetValue = if (isDaysExpanded) 90f else 0f, label = "daysRot")
+    val dnsChevronRotation by animateFloatAsState(targetValue = if (isDnsExpanded) 90f else 0f, label = "dnsRot")
+    val keyChevronRotation by animateFloatAsState(targetValue = if (isKeyExpanded) 90f else 0f, label = "keyRot")
+
+    var showDetailStartTimePicker by remember { mutableStateOf(false) }
+    var showDetailEndTimePicker by remember { mutableStateOf(false) }
+
+    // Sub-window state for Routine Breaks
+    var isBreaksWindowOpen by remember { mutableStateOf(false) }
+    val animatedBreaksProgress = remember { Animatable(0f) }
+    var isPredictiveBreaksActive by remember { mutableStateOf(false) }
+    val isBreaksWindowVisible = isBreaksWindowOpen || isPredictiveBreaksActive || animatedBreaksProgress.value > 0f
+
+    PredictiveBackHandler(enabled = isBreaksWindowOpen) { progress: Flow<BackEventCompat> ->
+        isPredictiveBreaksActive = true
+        try {
+            progress.collect { backEvent ->
+                animatedBreaksProgress.snapTo(backEvent.progress)
+            }
+            animatedBreaksProgress.animateTo(1f, tween(durationMillis = 180))
+            isBreaksWindowOpen = false
+        } catch (e: CancellationException) {
+            animatedBreaksProgress.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow))
+        } finally {
+            isPredictiveBreaksActive = false
+            animatedBreaksProgress.snapTo(0f)
+        }
+    }
+
+    val openBreaksWindow = {
+        coroutineScope.launch {
+            animatedBreaksProgress.snapTo(1f)
+            isBreaksWindowOpen = true
+            animatedBreaksProgress.animateTo(0f, tween(durationMillis = 260))
+        }
+    }
+
+    val closeBreaksWindow = {
+        coroutineScope.launch {
+            animatedBreaksProgress.animateTo(1f, tween(durationMillis = 180))
+            isBreaksWindowOpen = false
+            animatedBreaksProgress.snapTo(0f)
+        }
+    }
+
     val currentSecret = if (selectedKeyType == KeyType.PASSWORD) passwordSecret.trim() else qrSecret.trim()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = nameInput.ifBlank { "Configure Routine" },
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                },
-                navigationIcon = {
-                    Surface(
-                        shape = CircleShape,
-                        color = colorScheme.secondaryContainer,
-                        modifier = Modifier
-                            .padding(start = 12.dp)
-                            .size(40.dp),
-                        onClick = onBack
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                painter = painterResource(R.drawable.arrow_back_fill0),
-                                contentDescription = "Back",
-                                tint = colorScheme.onSecondaryContainer,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-                },
-                actions = {
-                    Button(
-                        onClick = {
-                            val updated = routine.copy(
-                                name = nameInput.trim(),
-                                daysOfWeek = selectedDays.toList().sorted(),
-                                startHour = startHour,
-                                startMinute = startMinute,
-                                endHour = endHour,
-                                endMinute = endMinute,
-                                targetBagIds = selectedBags.toList(),
-                                targetPackageNames = selectedPackages.toList(),
-                                enableDnsBlocking = enableDns,
-                                dnsHost = selectedDnsHost,
-                                keyType = selectedKeyType,
-                                keySecret = currentSecret,
-                                savedKeyId = selectedSavedKeyId
-                            )
-                            onSave(updated)
-                        },
-                        shape = CircleShape,
-                        colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary),
-                        modifier = Modifier.padding(end = 12.dp)
-                    ) {
-                        Text("Save", fontWeight = FontWeight.Bold)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent,
-                    scrolledContainerColor = Color.Transparent
-                ),
-                modifier = Modifier.statusBarsPadding()
-            )
-        },
-        containerColor = colorScheme.surface
-    ) { innerPadding ->
-        LazyColumn(
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(colorScheme.surface)
+    ) {
+        val screenWidthPx = constraints.maxWidth.toFloat()
+        val pBreak = animatedBreaksProgress.value
+        val mainOffsetX = if (isBreaksWindowVisible) (-screenWidthPx / 4f) * (1f - pBreak) else 0f
+        val mainAlpha = if (isBreaksWindowVisible) 0.75f + (pBreak * 0.25f) else 1f
+
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 20.dp),
-            contentPadding = PaddingValues(top = 12.dp, bottom = 48.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .graphicsLayer {
+                    translationX = mainOffsetX
+                    alpha = mainAlpha
+                }
         ) {
-            // Schedule Info Card
-            item {
-                ElevatedCard(
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.elevatedCardColors(containerColor = colorScheme.surfaceContainerHigh),
-                    modifier = Modifier.fillMaxWidth()
+            Scaffold(
+                topBar = {
+                    TopAppBar(
+                        title = {
+                            Column {
+                                Text(
+                                    text = nameInput.ifBlank { "Configure Routine" },
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 18.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = "Automated schedule & breaks",
+                                    style = typography.bodySmall,
+                                    color = colorScheme.onSurfaceVariant
+                                )
+                            }
+                        },
+                        navigationIcon = {
+                            Surface(
+                                shape = CircleShape,
+                                color = colorScheme.secondaryContainer,
+                                modifier = Modifier
+                                    .padding(start = 12.dp)
+                                    .size(40.dp),
+                                onClick = onBack
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.arrow_back_fill0),
+                                        contentDescription = "Back",
+                                        tint = colorScheme.onSecondaryContainer,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        },
+                        actions = {
+                            Button(
+                                onClick = {
+                                    val updated = routine.copy(
+                                        name = nameInput.trim(),
+                                        daysOfWeek = selectedDays.toList().sorted(),
+                                        startHour = startHour,
+                                        startMinute = startMinute,
+                                        endHour = endHour,
+                                        endMinute = endMinute,
+                                        breaks = routineBreaks,
+                                        targetBagIds = selectedBags.toList(),
+                                        targetPackageNames = selectedPackages.toList(),
+                                        enableDnsBlocking = enableDns,
+                                        dnsHost = selectedDnsHost,
+                                        keyType = selectedKeyType,
+                                        keySecret = currentSecret,
+                                        savedKeyId = selectedSavedKeyId
+                                    )
+                                    onSave(updated)
+                                },
+                                shape = CircleShape,
+                                colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary),
+                                modifier = Modifier.padding(end = 12.dp)
+                            ) {
+                                Text("Save", fontWeight = FontWeight.Bold)
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = Color.Transparent,
+                            scrolledContainerColor = Color.Transparent
+                        ),
+                        modifier = Modifier.statusBarsPadding()
+                    )
+                },
+                containerColor = colorScheme.surface
+            ) { innerPadding ->
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                        .padding(horizontal = 20.dp),
+                    contentPadding = PaddingValues(top = 12.dp, bottom = 48.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Column(modifier = Modifier.padding(18.dp)) {
-                        Text("Schedule Details", style = typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = colorScheme.onSurface)
-                        Spacer(Modifier.height(10.dp))
-
-                        OutlinedTextField(
-                            value = nameInput,
-                            onValueChange = { nameInput = it },
-                            label = { Text("Routine Name *") },
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
+                    // Top Hero Card (Zen style)
+                    item {
+                        ElevatedCard(
+                            shape = RoundedCornerShape(22.dp),
+                            colors = CardDefaults.elevatedCardColors(containerColor = colorScheme.surfaceContainerHigh),
                             modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Spacer(Modifier.height(14.dp))
-
-                        Text("Active Days of Week:", style = typography.labelSmall, color = colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.height(6.dp))
-
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            val dayLabels = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
-                            (1..7).forEach { dayNum ->
-                                val isSelected = selectedDays.contains(dayNum)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(20.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Surface(
-                                    onClick = {
-                                        selectedDays = if (isSelected) selectedDays - dayNum else selectedDays + dayNum
-                                    },
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = if (isSelected) colorScheme.primary else colorScheme.surfaceContainerLowest,
-                                    modifier = Modifier.size(38.dp)
+                                    shape = CircleShape,
+                                    color = colorScheme.primaryContainer,
+                                    modifier = Modifier.size(50.dp)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
-                                        Text(
-                                            text = dayLabels[dayNum - 1].take(2),
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (isSelected) colorScheme.onPrimary else colorScheme.onSurface
+                                        Icon(
+                                            painter = painterResource(R.drawable.schedule_fill0),
+                                            contentDescription = null,
+                                            tint = colorScheme.primary,
+                                            modifier = Modifier.size(26.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = nameInput.ifBlank { "Automated Routine" },
+                                        style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = colorScheme.onSurface
+                                    )
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        text = "${formatRoutineTime(startHour, startMinute, endHour, endMinute)} • ${selectedDays.size} days active • ${routineBreaks.count { it.isEnabled }} breaks",
+                                        style = typography.bodySmall,
+                                        color = colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // --- SECTION 1: SCHEDULE & TIMING ---
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            TomatoSectionHeader(title = "SCHEDULE & TIMING")
+
+                            // 1. Routine Name
+                            TomatoSettingsItem(
+                                title = "Routine Name",
+                                subtitle = nameInput.ifBlank { "Tap to set routine name" },
+                                leadingIcon = R.drawable.edit_fill0,
+                                iconContainerColor = colorScheme.primaryContainer,
+                                iconTint = colorScheme.onPrimaryContainer,
+                                trailingContent = {
+                                    Icon(
+                                        painter = painterResource(R.drawable.arrow_forward_big),
+                                        contentDescription = null,
+                                        modifier = Modifier
+                                            .size(16.dp)
+                                            .graphicsLayer { rotationZ = nameChevronRotation },
+                                        tint = colorScheme.onSurfaceVariant
+                                    )
+                                },
+                                shape = if (isNameExpanded) {
+                                    RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+                                } else {
+                                    segmentedItemShape(0, 3)
+                                },
+                                onClick = { isNameExpanded = !isNameExpanded }
+                            )
+
+                            AnimatedVisibility(
+                                visible = isNameExpanded,
+                                enter = expandVertically() + fadeIn(),
+                                exit = shrinkVertically() + fadeOut()
+                            ) {
+                                Surface(
+                                    color = colorScheme.surfaceContainerHigh,
+                                    shape = RoundedCornerShape(4.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        OutlinedTextField(
+                                            value = nameInput,
+                                            onValueChange = { nameInput = it },
+                                            label = { Text("Routine Name *") },
+                                            placeholder = { Text("e.g. Work Hours, Study Session") },
+                                            singleLine = true,
+                                            shape = RoundedCornerShape(12.dp),
+                                            modifier = Modifier.fillMaxWidth()
                                         )
                                     }
                                 }
                             }
-                        }
 
-                        Spacer(Modifier.height(14.dp))
-
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Box(modifier = Modifier.weight(1f)) {
-                                OutlinedTextField(
-                                    value = com.hotaro.brik.ui.theme.ThemePreferences.formatTime(startHour, startMinute),
-                                    onValueChange = {},
-                                    readOnly = true,
-                                    label = { Text("Start Time") },
-                                    trailingIcon = {
+                            // 2. Active Hours
+                            TomatoSettingsItem(
+                                title = "Active Hours",
+                                subtitle = "${formatRoutineTime(startHour, startMinute, endHour, endMinute)} • Tap to adjust",
+                                leadingIcon = R.drawable.schedule_fill0,
+                                iconContainerColor = colorScheme.primaryContainer,
+                                iconTint = colorScheme.onPrimaryContainer,
+                                trailingContent = {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
                                         Surface(
                                             shape = CircleShape,
-                                            color = colorScheme.primaryContainer,
-                                            modifier = Modifier
-                                                .padding(end = 4.dp)
-                                                .size(34.dp),
-                                            onClick = { showDetailStartTimePicker = true }
+                                            color = colorScheme.primaryContainer
                                         ) {
-                                            Box(contentAlignment = Alignment.Center) {
-                                                Icon(
-                                                    painter = painterResource(R.drawable.schedule_fill0),
-                                                    contentDescription = "Pick start time",
-                                                    tint = colorScheme.onPrimaryContainer,
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                            }
-                                        }
-                                    },
-                                    singleLine = true,
-                                    shape = RoundedCornerShape(12.dp),
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                Box(
-                                    modifier = Modifier
-                                        .matchParentSize()
-                                        .clickable(
-                                            interactionSource = remember { MutableInteractionSource() },
-                                            indication = null
-                                        ) { showDetailStartTimePicker = true }
-                                )
-                            }
-
-                            Box(modifier = Modifier.weight(1f)) {
-                                OutlinedTextField(
-                                    value = com.hotaro.brik.ui.theme.ThemePreferences.formatTime(endHour, endMinute),
-                                    onValueChange = {},
-                                    readOnly = true,
-                                    label = { Text("End Time") },
-                                    trailingIcon = {
-                                        Surface(
-                                            shape = CircleShape,
-                                            color = colorScheme.primaryContainer,
-                                            modifier = Modifier
-                                                .padding(end = 4.dp)
-                                                .size(34.dp),
-                                            onClick = { showDetailEndTimePicker = true }
-                                        ) {
-                                            Box(contentAlignment = Alignment.Center) {
-                                                Icon(
-                                                    painter = painterResource(R.drawable.schedule_fill0),
-                                                    contentDescription = "Pick end time",
-                                                    tint = colorScheme.onPrimaryContainer,
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                            }
-                                        }
-                                    },
-                                    singleLine = true,
-                                    shape = RoundedCornerShape(12.dp),
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                Box(
-                                    modifier = Modifier
-                                        .matchParentSize()
-                                        .clickable(
-                                            interactionSource = remember { MutableInteractionSource() },
-                                            indication = null
-                                        ) { showDetailEndTimePicker = true }
-                                )
-                            }
-                        }
-
-                        if (showDetailStartTimePicker) {
-                            BrikTimePickerDialog(
-                                title = "Select Start Time",
-                                initialHour = startHour,
-                                initialMinute = startMinute,
-                                is24Hour = use24Hour,
-                                onConfirm = { h, m ->
-                                    startHour = h
-                                    startMinute = m
-                                },
-                                onDismiss = { showDetailStartTimePicker = false }
-                            )
-                        }
-
-                        if (showDetailEndTimePicker) {
-                            BrikTimePickerDialog(
-                                title = "Select End Time",
-                                initialHour = endHour,
-                                initialMinute = endMinute,
-                                is24Hour = use24Hour,
-                                onConfirm = { h, m ->
-                                    endHour = h
-                                    endMinute = m
-                                },
-                                onDismiss = { showDetailEndTimePicker = false }
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Target to Block Card (Two pills: Bags and Custom)
-            item {
-                ElevatedCard(
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.elevatedCardColors(containerColor = colorScheme.surfaceContainerHigh),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(18.dp)) {
-                        Text("Targets to Block", style = typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = colorScheme.onSurface)
-                        Text("Choose bags or individual apps to suspend during routine", style = typography.bodySmall, color = colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.height(12.dp))
-
-                        // Two Pills: Bags and Custom
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            // Bags Pill
-                            Surface(
-                                onClick = { showBagsSheet = true },
-                                shape = CircleShape,
-                                color = if (selectedBags.isNotEmpty()) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
-                                border = BorderStroke(1.dp, if (selectedBags.isNotEmpty()) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                                modifier = Modifier.weight(1f).height(44.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.backpack_fill0),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp),
-                                        tint = if (selectedBags.isNotEmpty()) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(
-                                        text = if (selectedBags.isNotEmpty()) "Bags (${selectedBags.size})" else "Bags",
-                                        style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                        color = if (selectedBags.isNotEmpty()) colorScheme.onPrimaryContainer else colorScheme.onSurface
-                                    )
-                                }
-                            }
-
-                            // Custom Pill
-                            Surface(
-                                onClick = { showCustomAppsSheet = true },
-                                shape = CircleShape,
-                                color = if (selectedPackages.isNotEmpty()) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
-                                border = BorderStroke(1.dp, if (selectedPackages.isNotEmpty()) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                                modifier = Modifier.weight(1f).height(44.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.apps_fill0),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp),
-                                        tint = if (selectedPackages.isNotEmpty()) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(
-                                        text = if (selectedPackages.isNotEmpty()) "Custom (${selectedPackages.size})" else "Custom",
-                                        style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                        color = if (selectedPackages.isNotEmpty()) colorScheme.onPrimaryContainer else colorScheme.onSurface
-                                    )
-                                }
-                            }
-                        }
-
-                        // Summary badges preview
-                        if (selectedBags.isEmpty() && selectedPackages.isEmpty()) {
-                            Spacer(Modifier.height(10.dp))
-                            Text("No targets selected yet. Tap Bags or Custom to choose apps to block.", style = typography.bodySmall, color = colorScheme.outline)
-                        } else {
-                            Spacer(Modifier.height(12.dp))
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                bags.filter { selectedBags.contains(it.id) }.forEach { b ->
-                                    InputChip(
-                                        selected = true,
-                                        onClick = { selectedBags = selectedBags - b.id },
-                                        label = { Text(b.name) },
-                                        leadingIcon = {
-                                            Icon(painter = painterResource(R.drawable.backpack_fill0), contentDescription = null, modifier = Modifier.size(14.dp))
-                                        },
-                                        trailingIcon = {
-                                            Icon(painter = painterResource(R.drawable.close_fill0), contentDescription = "Remove", modifier = Modifier.size(14.dp))
-                                        }
-                                    )
-                                }
-
-                                installedApps.filter { selectedPackages.contains(it.packageName) }.take(6).forEach { app ->
-                                    InputChip(
-                                        selected = true,
-                                        onClick = { selectedPackages = selectedPackages - app.packageName },
-                                        label = { Text(app.label) },
-                                        leadingIcon = {
-                                            Icon(painter = painterResource(R.drawable.apps_fill0), contentDescription = null, modifier = Modifier.size(14.dp))
-                                        },
-                                        trailingIcon = {
-                                            Icon(painter = painterResource(R.drawable.close_fill0), contentDescription = "Remove", modifier = Modifier.size(14.dp))
-                                        }
-                                    )
-                                }
-
-                                val remainingCustom = selectedPackages.size - installedApps.filter { selectedPackages.contains(it.packageName) }.take(6).size
-                                if (remainingCustom > 0) {
-                                    SuggestionChip(
-                                        onClick = { showCustomAppsSheet = true },
-                                        label = { Text("+$remainingCustom more") }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Private DNS Blocking Card
-            item {
-                ElevatedCard(
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.elevatedCardColors(containerColor = colorScheme.surfaceContainerHigh),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(18.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(Modifier.weight(1f)) {
-                                Text("Private DNS Blocking", style = typography.titleSmall.copy(fontWeight = FontWeight.Bold))
-                                Text("Filter domains during routine schedule", style = typography.bodySmall, color = colorScheme.onSurfaceVariant)
-                            }
-                            Switch(checked = enableDns, onCheckedChange = { enableDns = it })
-                        }
-
-                        if (enableDns) {
-                            Spacer(Modifier.height(12.dp))
-                            Text("Select DNS Resolver:", style = typography.labelSmall, color = colorScheme.onSurfaceVariant)
-                            Spacer(Modifier.height(6.dp))
-                            DnsManager.PRESETS.take(4).forEach { preset ->
-                                val isSelected = selectedDnsHost == preset.host
-                                Surface(
-                                    onClick = { selectedDnsHost = preset.host },
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = if (isSelected) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
-                                ) {
-                                    Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        Column(Modifier.weight(1f)) {
-                                            Text(preset.name, style = typography.labelMedium.copy(fontWeight = FontWeight.Bold))
-                                            Text(preset.host, style = typography.bodySmall.copy(fontSize = 11.sp), color = colorScheme.outline)
-                                        }
-                                        if (isSelected) {
-                                            Icon(painter = painterResource(R.drawable.check_fill0), contentDescription = null, tint = colorScheme.onPrimaryContainer, modifier = Modifier.size(18.dp))
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Routine Protection Key Card
-            item {
-                ElevatedCard(
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.elevatedCardColors(containerColor = colorScheme.surfaceContainerHigh),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(18.dp)) {
-                        Text("Routine Protection Key *", style = typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = colorScheme.primary)
-                        Text("Strict key required to toggle, modify, or delete this routine", style = typography.bodySmall, color = colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.height(14.dp))
-
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Surface(
-                                onClick = { selectedKeyType = KeyType.PASSWORD },
-                                shape = RoundedCornerShape(10.dp),
-                                color = if (selectedKeyType == KeyType.PASSWORD) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
-                                modifier = Modifier.weight(1f).height(40.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) { Text("Password", style = typography.labelMedium.copy(fontWeight = FontWeight.Bold)) }
-                            }
-                            Surface(
-                                onClick = { selectedKeyType = KeyType.QR_CODE },
-                                shape = RoundedCornerShape(10.dp),
-                                color = if (selectedKeyType == KeyType.QR_CODE) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
-                                modifier = Modifier.weight(1f).height(40.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) { Text("QR Key", style = typography.labelMedium.copy(fontWeight = FontWeight.Bold)) }
-                            }
-                        }
-
-                        Spacer(Modifier.height(14.dp))
-
-                        if (selectedKeyType == KeyType.PASSWORD) {
-                            OutlinedTextField(
-                                value = passwordSecret,
-                                onValueChange = { passwordSecret = it },
-                                label = { Text("Protection Password *") },
-                                placeholder = { Text("Enter secret password") },
-                                singleLine = true,
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        } else {
-                            // QR Key Section with Two Pills: Choose from Saved Keys or Scan New Key
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Surface(
-                                    onClick = { showSavedKeysSheet = true },
-                                    shape = CircleShape,
-                                    color = if (selectedSavedKeyId != null) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
-                                    border = BorderStroke(1.dp, if (selectedSavedKeyId != null) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                                    modifier = Modifier.weight(1f).height(42.dp)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.Center
-                                    ) {
-                                        Icon(painter = painterResource(R.drawable.key_fill0), contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Spacer(Modifier.width(6.dp))
-                                        Text("Saved Keys", style = typography.labelMedium.copy(fontWeight = FontWeight.Bold))
-                                    }
-                                }
-
-                                Surface(
-                                    onClick = { showScanKeySheet = true },
-                                    shape = CircleShape,
-                                    color = if (selectedSavedKeyId == null && qrSecret.isNotBlank()) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
-                                    border = BorderStroke(1.dp, if (selectedSavedKeyId == null && qrSecret.isNotBlank()) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                                    modifier = Modifier.weight(1f).height(42.dp)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.Center
-                                    ) {
-                                        Icon(painter = painterResource(R.drawable.qr_code_scanner_fill0), contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Spacer(Modifier.width(6.dp))
-                                        Text("Scan New Key", style = typography.labelMedium.copy(fontWeight = FontWeight.Bold))
-                                    }
-                                }
-                            }
-
-                            Spacer(Modifier.height(12.dp))
-
-                            // Selected Key Preview Status
-                            if (qrSecret.isNotBlank()) {
-                                Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = colorScheme.primaryContainer.copy(alpha = 0.4f),
-                                    border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.4f)),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth().padding(12.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(painter = painterResource(R.drawable.qr_code_fill0), contentDescription = null, tint = colorScheme.primary, modifier = Modifier.size(24.dp))
-                                        Spacer(Modifier.width(10.dp))
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            val keyName = savedKeys.find { it.id == selectedSavedKeyId }?.name
-                                            if (keyName != null) {
-                                                Text("Saved Key: $keyName", style = typography.bodyMedium.copy(fontWeight = FontWeight.Bold), color = colorScheme.onSurface)
-                                            } else {
-                                                Text("Scanned QR Key", style = typography.bodyMedium.copy(fontWeight = FontWeight.Bold), color = colorScheme.onSurface)
-                                            }
                                             Text(
-                                                text = if (qrSecret.length > 14) "${qrSecret.take(6)}...${qrSecret.takeLast(6)}" else qrSecret,
-                                                style = typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
-                                                color = colorScheme.outline
+                                                text = formatDurationHours(startHour, startMinute, endHour, endMinute),
+                                                style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = colorScheme.onPrimaryContainer,
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                                             )
                                         }
-                                        IconButton(onClick = {
-                                            qrSecret = ""
-                                            selectedSavedKeyId = null
-                                        }) {
-                                            Icon(painter = painterResource(R.drawable.close_fill0), contentDescription = "Clear Key", modifier = Modifier.size(18.dp))
+                                        Icon(
+                                            painter = painterResource(R.drawable.arrow_forward_big),
+                                            contentDescription = null,
+                                            modifier = Modifier
+                                                .size(16.dp)
+                                                .graphicsLayer { rotationZ = timeChevronRotation },
+                                            tint = colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                },
+                                shape = if (isTimeExpanded) {
+                                    RoundedCornerShape(4.dp)
+                                } else {
+                                    segmentedItemShape(1, 3)
+                                },
+                                onClick = { isTimeExpanded = !isTimeExpanded }
+                            )
+
+                            AnimatedVisibility(
+                                visible = isTimeExpanded,
+                                enter = expandVertically() + fadeIn(),
+                                exit = shrinkVertically() + fadeOut()
+                            ) {
+                                Surface(
+                                    color = colorScheme.surfaceContainerHigh,
+                                    shape = RoundedCornerShape(4.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            // Start Time Pill Button
+                                            Surface(
+                                                onClick = { showDetailStartTimePicker = true },
+                                                shape = RoundedCornerShape(14.dp),
+                                                color = colorScheme.surfaceContainerLowest,
+                                                border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Column(modifier = Modifier.padding(14.dp)) {
+                                                    Text("Starts at", style = typography.labelSmall, color = colorScheme.onSurfaceVariant)
+                                                    Spacer(Modifier.height(4.dp))
+                                                    Text(
+                                                        text = com.hotaro.brik.ui.theme.ThemePreferences.formatTime(startHour, startMinute),
+                                                        style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                                        color = colorScheme.onSurface
+                                                    )
+                                                }
+                                            }
+
+                                            // End Time Pill Button
+                                            Surface(
+                                                onClick = { showDetailEndTimePicker = true },
+                                                shape = RoundedCornerShape(14.dp),
+                                                color = colorScheme.surfaceContainerLowest,
+                                                border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Column(modifier = Modifier.padding(14.dp)) {
+                                                    Text("Ends at", style = typography.labelSmall, color = colorScheme.onSurfaceVariant)
+                                                    Spacer(Modifier.height(4.dp))
+                                                    Text(
+                                                        text = com.hotaro.brik.ui.theme.ThemePreferences.formatTime(endHour, endMinute),
+                                                        style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                                        color = colorScheme.onSurface
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }
-                            } else {
-                                Text(
-                                    text = "No key selected. Choose a saved key or scan a new QR code.",
-                                    style = typography.bodySmall,
-                                    color = colorScheme.error
-                                )
+                            }
+
+                            // 3. Repeat Days
+                            TomatoSettingsItem(
+                                title = "Repeat Days",
+                                subtitle = formatDaysList(selectedDays),
+                                leadingIcon = R.drawable.schedule_fill0,
+                                iconContainerColor = colorScheme.primaryContainer,
+                                iconTint = colorScheme.onPrimaryContainer,
+                                trailingContent = {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = colorScheme.secondaryContainer
+                                        ) {
+                                            Text(
+                                                text = "${selectedDays.size} days",
+                                                style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = colorScheme.onSecondaryContainer,
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                            )
+                                        }
+                                        Icon(
+                                            painter = painterResource(R.drawable.arrow_forward_big),
+                                            contentDescription = null,
+                                            modifier = Modifier
+                                                .size(16.dp)
+                                                .graphicsLayer { rotationZ = daysChevronRotation },
+                                            tint = colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                },
+                                shape = if (isDaysExpanded) {
+                                    RoundedCornerShape(bottomStart = 22.dp, bottomEnd = 22.dp, topStart = 4.dp, topEnd = 4.dp)
+                                } else {
+                                    segmentedItemShape(2, 3)
+                                },
+                                onClick = { isDaysExpanded = !isDaysExpanded }
+                            )
+
+                            AnimatedVisibility(
+                                visible = isDaysExpanded,
+                                enter = expandVertically() + fadeIn(),
+                                exit = shrinkVertically() + fadeOut()
+                            ) {
+                                Surface(
+                                    color = colorScheme.surfaceContainerHigh,
+                                    shape = RoundedCornerShape(bottomStart = 22.dp, bottomEnd = 22.dp, topStart = 4.dp, topEnd = 4.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            val dayLabels = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+                                            (1..7).forEach { dayNum ->
+                                                val isSelected = selectedDays.contains(dayNum)
+                                                Surface(
+                                                    onClick = {
+                                                        selectedDays = if (isSelected) selectedDays - dayNum else selectedDays + dayNum
+                                                    },
+                                                    shape = RoundedCornerShape(12.dp),
+                                                    color = if (isSelected) colorScheme.primary else colorScheme.surfaceContainerLowest,
+                                                    modifier = Modifier.size(40.dp)
+                                                ) {
+                                                    Box(contentAlignment = Alignment.Center) {
+                                                        Text(
+                                                            text = dayLabels[dayNum - 1].take(2),
+                                                            fontSize = 12.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = if (isSelected) colorScheme.onPrimary else colorScheme.onSurface
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // --- SECTION 2: BREAKS & REST INTERVALS ---
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            TomatoSectionHeader(title = "BREAKS & REST INTERVALS")
+
+                            TomatoSettingsItem(
+                                title = "Breaks",
+                                subtitle = if (routineBreaks.isEmpty()) {
+                                    "No breaks scheduled • Tap to add intervals"
+                                } else {
+                                    "${routineBreaks.count { it.isEnabled }} active breaks (${routineBreaks.size} total) • Auto-pauses routine"
+                                },
+                                leadingIcon = R.drawable.tune_fill0,
+                                iconContainerColor = colorScheme.primaryContainer,
+                                iconTint = colorScheme.onPrimaryContainer,
+                                trailingContent = {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = if (routineBreaks.any { it.isEnabled }) colorScheme.primaryContainer else colorScheme.surfaceContainerHighest
+                                        ) {
+                                            Text(
+                                                text = "${routineBreaks.size} breaks",
+                                                style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = if (routineBreaks.any { it.isEnabled }) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                            )
+                                        }
+                                        Icon(
+                                            painter = painterResource(R.drawable.arrow_forward_big),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp),
+                                            tint = colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                },
+                                shape = segmentedItemShape(0, 1),
+                                onClick = { openBreaksWindow() }
+                            )
+                        }
+                    }
+
+                    // --- SECTION 3: RESTRICTIONS & APPS ---
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            TomatoSectionHeader(title = "RESTRICTIONS & APPS")
+
+                            // 1. App Bags
+                            TomatoSettingsItem(
+                                title = "App Bags",
+                                subtitle = if (selectedBags.isEmpty()) {
+                                    "No bags blocked • Tap to select"
+                                } else {
+                                    "${selectedBags.size} bags blocked (${bags.filter { selectedBags.contains(it.id) }.joinToString { it.name }})"
+                                },
+                                leadingIcon = R.drawable.backpack_fill0,
+                                iconContainerColor = colorScheme.primaryContainer,
+                                iconTint = colorScheme.onPrimaryContainer,
+                                trailingContent = {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = if (selectedBags.isNotEmpty()) colorScheme.primaryContainer else colorScheme.surfaceContainerHighest
+                                        ) {
+                                            Text(
+                                                text = "${selectedBags.size} bags",
+                                                style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = if (selectedBags.isNotEmpty()) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                            )
+                                        }
+                                        Icon(
+                                            painter = painterResource(R.drawable.arrow_forward_big),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp),
+                                            tint = colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                },
+                                shape = segmentedItemShape(0, 3),
+                                onClick = { showBagsSheet = true }
+                            )
+
+                            // 2. Custom Apps
+                            TomatoSettingsItem(
+                                title = "Individual Apps",
+                                subtitle = if (selectedPackages.isEmpty()) {
+                                    "No individual apps • Tap to select"
+                                } else {
+                                    "${selectedPackages.size} individual apps blocked"
+                                },
+                                leadingIcon = R.drawable.apps_fill0,
+                                iconContainerColor = colorScheme.primaryContainer,
+                                iconTint = colorScheme.onPrimaryContainer,
+                                trailingContent = {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = if (selectedPackages.isNotEmpty()) colorScheme.primaryContainer else colorScheme.surfaceContainerHighest
+                                        ) {
+                                            Text(
+                                                text = "${selectedPackages.size} apps",
+                                                style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = if (selectedPackages.isNotEmpty()) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                            )
+                                        }
+                                        Icon(
+                                            painter = painterResource(R.drawable.arrow_forward_big),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp),
+                                            tint = colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                },
+                                shape = segmentedItemShape(1, 3),
+                                onClick = { showCustomAppsSheet = true }
+                            )
+
+                            // 3. Private DNS Blocking
+                            TomatoSettingsItem(
+                                title = "Private DNS Blocking",
+                                subtitle = if (enableDns) "Filtered via $selectedDnsHost" else "Disabled • Tap to configure",
+                                leadingIcon = R.drawable.dns_fill0,
+                                iconContainerColor = colorScheme.primaryContainer,
+                                iconTint = colorScheme.onPrimaryContainer,
+                                trailingContent = {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Switch(
+                                            checked = enableDns,
+                                            onCheckedChange = { enableDns = it }
+                                        )
+                                        Icon(
+                                            painter = painterResource(R.drawable.arrow_forward_big),
+                                            contentDescription = null,
+                                            modifier = Modifier
+                                                .size(16.dp)
+                                                .graphicsLayer { rotationZ = dnsChevronRotation },
+                                            tint = colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                },
+                                shape = if (isDnsExpanded) {
+                                    RoundedCornerShape(bottomStart = 4.dp, bottomEnd = 4.dp, topStart = 4.dp, topEnd = 4.dp)
+                                } else {
+                                    segmentedItemShape(2, 3)
+                                },
+                                onClick = { isDnsExpanded = !isDnsExpanded }
+                            )
+
+                            AnimatedVisibility(
+                                visible = isDnsExpanded,
+                                enter = expandVertically() + fadeIn(),
+                                exit = shrinkVertically() + fadeOut()
+                            ) {
+                                Surface(
+                                    color = colorScheme.surfaceContainerHigh,
+                                    shape = RoundedCornerShape(bottomStart = 22.dp, bottomEnd = 22.dp, topStart = 4.dp, topEnd = 4.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Text(
+                                            text = "Select DNS Resolver:",
+                                            style = typography.labelSmall,
+                                            color = colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(Modifier.height(8.dp))
+                                        DnsManager.PRESETS.take(4).forEach { preset ->
+                                            val isSelected = selectedDnsHost == preset.host
+                                            Surface(
+                                                onClick = { selectedDnsHost = preset.host },
+                                                shape = RoundedCornerShape(12.dp),
+                                                color = if (isSelected) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(vertical = 3.dp)
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(12.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Column(Modifier.weight(1f)) {
+                                                        Text(
+                                                            text = preset.name,
+                                                            style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                                            color = if (isSelected) colorScheme.onPrimaryContainer else colorScheme.onSurface
+                                                        )
+                                                        Text(
+                                                            text = preset.host,
+                                                            style = typography.bodySmall.copy(fontSize = 11.sp),
+                                                            color = colorScheme.outline
+                                                        )
+                                                    }
+                                                    if (isSelected) {
+                                                        Icon(
+                                                            painter = painterResource(R.drawable.check_fill0),
+                                                            contentDescription = null,
+                                                            tint = colorScheme.onPrimaryContainer,
+                                                            modifier = Modifier.size(18.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // --- SECTION 4: SECURITY & PROTECTION KEY ---
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            TomatoSectionHeader(title = "PROTECTION KEY")
+
+                            TomatoSettingsItem(
+                                title = "Routine Protection Key",
+                                subtitle = when {
+                                    selectedKeyType == KeyType.PASSWORD -> if (passwordSecret.isNotBlank()) "Password protection set" else "Password required"
+                                    selectedSavedKeyId != null -> "Saved Key: ${savedKeys.find { it.id == selectedSavedKeyId }?.name ?: "Unknown"}"
+                                    qrSecret.isNotBlank() -> "Scanned QR token set"
+                                    else -> "No key configured"
+                                },
+                                leadingIcon = R.drawable.key_fill0,
+                                iconContainerColor = colorScheme.primaryContainer,
+                                iconTint = colorScheme.onPrimaryContainer,
+                                trailingContent = {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = if (currentSecret.isNotBlank()) colorScheme.primaryContainer else colorScheme.errorContainer
+                                        ) {
+                                            Text(
+                                                text = if (currentSecret.isNotBlank()) selectedKeyType.name else "REQUIRED",
+                                                style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = if (currentSecret.isNotBlank()) colorScheme.onPrimaryContainer else colorScheme.onErrorContainer,
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                            )
+                                        }
+                                        Icon(
+                                            painter = painterResource(R.drawable.arrow_forward_big),
+                                            contentDescription = null,
+                                            modifier = Modifier
+                                                .size(16.dp)
+                                                .graphicsLayer { rotationZ = keyChevronRotation },
+                                            tint = colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                },
+                                shape = if (isKeyExpanded) {
+                                    RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+                                } else {
+                                    segmentedItemShape(0, 1)
+                                },
+                                onClick = { isKeyExpanded = !isKeyExpanded }
+                            )
+
+                            AnimatedVisibility(
+                                visible = isKeyExpanded,
+                                enter = expandVertically() + fadeIn(),
+                                exit = shrinkVertically() + fadeOut()
+                            ) {
+                                Surface(
+                                    color = colorScheme.surfaceContainerHigh,
+                                    shape = RoundedCornerShape(bottomStart = 22.dp, bottomEnd = 22.dp, topStart = 4.dp, topEnd = 4.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Text(
+                                            text = "Key Type",
+                                            style = typography.labelSmall,
+                                            color = colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(Modifier.height(8.dp))
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Surface(
+                                                onClick = { selectedKeyType = KeyType.PASSWORD },
+                                                shape = RoundedCornerShape(10.dp),
+                                                color = if (selectedKeyType == KeyType.PASSWORD) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .height(40.dp)
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Text(
+                                                        text = "Password",
+                                                        style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                                        color = if (selectedKeyType == KeyType.PASSWORD) colorScheme.onPrimaryContainer else colorScheme.onSurface
+                                                    )
+                                                }
+                                            }
+
+                                            Surface(
+                                                onClick = { selectedKeyType = KeyType.QR_CODE },
+                                                shape = RoundedCornerShape(10.dp),
+                                                color = if (selectedKeyType == KeyType.QR_CODE) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .height(40.dp)
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Text(
+                                                        text = "QR Key",
+                                                        style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                                        color = if (selectedKeyType == KeyType.QR_CODE) colorScheme.onPrimaryContainer else colorScheme.onSurface
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        Spacer(Modifier.height(14.dp))
+
+                                        if (selectedKeyType == KeyType.PASSWORD) {
+                                            OutlinedTextField(
+                                                value = passwordSecret,
+                                                onValueChange = { passwordSecret = it },
+                                                label = { Text("Protection Password *") },
+                                                placeholder = { Text("Enter secret password") },
+                                                singleLine = true,
+                                                shape = RoundedCornerShape(12.dp),
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                        } else {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                Surface(
+                                                    onClick = { showSavedKeysSheet = true },
+                                                    shape = CircleShape,
+                                                    color = if (selectedSavedKeyId != null) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                                    border = BorderStroke(1.dp, if (selectedSavedKeyId != null) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .height(42.dp)
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier
+                                                            .fillMaxSize()
+                                                            .padding(horizontal = 12.dp),
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.Center
+                                                    ) {
+                                                        Icon(
+                                                            painter = painterResource(R.drawable.key_fill0),
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(16.dp),
+                                                            tint = if (selectedSavedKeyId != null) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
+                                                        )
+                                                        Spacer(Modifier.width(6.dp))
+                                                        Text(
+                                                            text = "Saved Keys",
+                                                            style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                                            color = if (selectedSavedKeyId != null) colorScheme.onPrimaryContainer else colorScheme.onSurface
+                                                        )
+                                                    }
+                                                }
+
+                                                Surface(
+                                                    onClick = { showScanKeySheet = true },
+                                                    shape = CircleShape,
+                                                    color = if (selectedSavedKeyId == null && qrSecret.isNotBlank()) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                                    border = BorderStroke(1.dp, if (selectedSavedKeyId == null && qrSecret.isNotBlank()) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .height(42.dp)
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier
+                                                            .fillMaxSize()
+                                                            .padding(horizontal = 12.dp),
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.Center
+                                                    ) {
+                                                        Icon(
+                                                            painter = painterResource(R.drawable.qr_code_scanner_fill0),
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(16.dp),
+                                                            tint = if (selectedSavedKeyId == null && qrSecret.isNotBlank()) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
+                                                        )
+                                                        Spacer(Modifier.width(6.dp))
+                                                        Text(
+                                                            text = "Scan New Key",
+                                                            style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                                            color = if (selectedSavedKeyId == null && qrSecret.isNotBlank()) colorScheme.onPrimaryContainer else colorScheme.onSurface
+                                                        )
+                                                    }
+                                                }
+                                            }
+
+                                            Spacer(Modifier.height(12.dp))
+
+                                            if (qrSecret.isNotBlank()) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(12.dp),
+                                                    color = colorScheme.primaryContainer.copy(alpha = 0.4f),
+                                                    border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.4f)),
+                                                    modifier = Modifier.fillMaxWidth()
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .padding(12.dp),
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Icon(
+                                                            painter = painterResource(R.drawable.qr_code_fill0),
+                                                            contentDescription = null,
+                                                            tint = colorScheme.primary,
+                                                            modifier = Modifier.size(24.dp)
+                                                        )
+                                                        Spacer(Modifier.width(10.dp))
+                                                        Column(modifier = Modifier.weight(1f)) {
+                                                            val keyName = savedKeys.find { it.id == selectedSavedKeyId }?.name
+                                                            Text(
+                                                                text = if (keyName != null) "Saved Key: $keyName" else "Scanned QR Key",
+                                                                style = typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                                                color = colorScheme.onSurface
+                                                            )
+                                                            Text(
+                                                                text = if (qrSecret.length > 14) "${qrSecret.take(6)}...${qrSecret.takeLast(6)}" else qrSecret,
+                                                                style = typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
+                                                                color = colorScheme.outline
+                                                            )
+                                                        }
+                                                        IconButton(onClick = {
+                                                            qrSecret = ""
+                                                            selectedSavedKeyId = null
+                                                        }) {
+                                                            Icon(
+                                                                painter = painterResource(R.drawable.close_fill0),
+                                                                contentDescription = "Clear Key",
+                                                                modifier = Modifier.size(18.dp)
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            } else {
+                                                Text(
+                                                    text = "No key selected. Choose a saved key or scan a new QR code.",
+                                                    style = typography.bodySmall,
+                                                    color = colorScheme.error
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
         }
+
+        // Top Layer: RoutineBreaksWindow with predictive slide transition
+        if (isBreaksWindowVisible) {
+            val bOffsetX = screenWidthPx * pBreak
+            val bScale = 1f - (pBreak * 0.05f)
+            val bCorners = (pBreak * 24).dp
+            val bAlpha = 1f - (pBreak * 0.15f)
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        translationX = bOffsetX
+                        scaleX = bScale
+                        scaleY = bScale
+                        alpha = bAlpha
+                        clip = pBreak > 0f
+                        shape = RoundedCornerShape(bCorners)
+                        shadowElevation = if (pBreak > 0f) 24.dp.toPx() else 0f
+                    }
+            ) {
+                RoutineBreaksWindow(
+                    routineName = nameInput.ifBlank { "Routine" },
+                    breaks = routineBreaks,
+                    onBreaksChanged = { updatedBreaks -> routineBreaks = updatedBreaks },
+                    onBack = { closeBreaksWindow() }
+                )
+            }
+        }
+    }
+
+    if (showDetailStartTimePicker) {
+        BrikTimePickerDialog(
+            title = "Select Start Time",
+            initialHour = startHour,
+            initialMinute = startMinute,
+            is24Hour = use24Hour,
+            onConfirm = { h, m ->
+                startHour = h
+                startMinute = m
+            },
+            onDismiss = { showDetailStartTimePicker = false }
+        )
+    }
+
+    if (showDetailEndTimePicker) {
+        BrikTimePickerDialog(
+            title = "Select End Time",
+            initialHour = endHour,
+            initialMinute = endMinute,
+            is24Hour = use24Hour,
+            onConfirm = { h, m ->
+                endHour = h
+                endMinute = m
+            },
+            onDismiss = { showDetailEndTimePicker = false }
+        )
     }
 
     // --- BOTTOM SHEET: SELECT TARGET BAGS ---
@@ -2156,4 +2589,505 @@ private fun formatRoutineTime(sh: Int, sm: Int, eh: Int, em: Int): String {
     val t1 = com.hotaro.brik.ui.theme.ThemePreferences.formatTime(sh, sm)
     val t2 = com.hotaro.brik.ui.theme.ThemePreferences.formatTime(eh, em)
     return "$t1 - $t2"
+}
+
+private fun calculateDurationMins(sh: Int, sm: Int, eh: Int, em: Int): Int {
+    val start = sh * 60 + sm
+    val end = eh * 60 + em
+    return if (end >= start) end - start else (1440 - start) + end
+}
+
+private fun formatDurationHours(sh: Int, sm: Int, eh: Int, em: Int): String {
+    val mins = calculateDurationMins(sh, sm, eh, em)
+    val h = mins / 60
+    val m = mins % 60
+    return when {
+        h > 0 && m > 0 -> "${h}h ${m}m"
+        h > 0 -> "${h}h"
+        else -> "${m}m"
+    }
+}
+
+private fun formatDaysList(days: Set<Int>): String {
+    if (days.size == 7) return "Every day (Sun - Sat)"
+    if (days == setOf(2, 3, 4, 5, 6)) return "Weekdays (Mon - Fri)"
+    if (days == setOf(1, 7)) return "Weekends (Sat - Sun)"
+    if (days.isEmpty()) return "No days selected"
+    val names = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+    return days.sorted().joinToString(", ") { names[it - 1] }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun RoutineBreaksWindow(
+    routineName: String,
+    breaks: List<RoutineBreak>,
+    onBreaksChanged: (List<RoutineBreak>) -> Unit,
+    onBack: () -> Unit
+) {
+    val context = LocalContext.current
+    val use24Hour by com.hotaro.brik.ui.theme.ThemePreferences.use24HourClock.collectAsState()
+    var showAddEditDialog by remember { mutableStateOf(false) }
+    var editingBreak by remember { mutableStateOf<RoutineBreak?>(null) }
+    var breakToDelete by remember { mutableStateOf<RoutineBreak?>(null) }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Column {
+                        Text(
+                            text = "Routine Breaks",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "Rest intervals for '$routineName'",
+                            style = typography.bodySmall,
+                            color = colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                navigationIcon = {
+                    Surface(
+                        shape = CircleShape,
+                        color = colorScheme.secondaryContainer,
+                        modifier = Modifier
+                            .padding(start = 12.dp)
+                            .size(40.dp),
+                        onClick = onBack
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                painter = painterResource(R.drawable.arrow_back_fill0),
+                                contentDescription = "Back",
+                                tint = colorScheme.onSecondaryContainer,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Transparent,
+                    scrolledContainerColor = Color.Transparent
+                ),
+                modifier = Modifier.statusBarsPadding()
+            )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = {
+                    editingBreak = null
+                    showAddEditDialog = true
+                },
+                containerColor = colorScheme.primary,
+                contentColor = colorScheme.onPrimary,
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.add_fill0),
+                        contentDescription = "Add Break",
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = "Add Break",
+                        style = typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
+                    )
+                }
+            }
+        },
+        containerColor = colorScheme.surface
+    ) { innerPadding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(horizontal = 20.dp),
+            contentPadding = PaddingValues(top = 12.dp, bottom = 96.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Informational Hero Card
+            item {
+                ElevatedCard(
+                    shape = RoundedCornerShape(22.dp),
+                    colors = CardDefaults.elevatedCardColors(
+                        containerColor = colorScheme.surfaceContainerHigh
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(20.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = colorScheme.primaryContainer,
+                            modifier = Modifier.size(50.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    painter = painterResource(R.drawable.schedule_fill0),
+                                    contentDescription = null,
+                                    tint = colorScheme.primary,
+                                    modifier = Modifier.size(26.dp)
+                                )
+                            }
+                        }
+                        Spacer(Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Automated Break Blocks",
+                                style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = colorScheme.onSurface
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = "During scheduled breaks, routine app restrictions automatically pause and unlock your apps. Once the break ends, restrictions automatically re-lock.",
+                                style = typography.bodySmall,
+                                color = colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (breaks.isEmpty()) {
+                item {
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = colorScheme.surfaceContainerLowest,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(32.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.schedule_fill0),
+                                contentDescription = null,
+                                tint = colorScheme.outline,
+                                modifier = Modifier.size(44.dp)
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                text = "No Breaks Configured",
+                                style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = colorScheme.onSurface
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = "Add break time blocks like lunch, coffee pauses, or walks to temporarily pause your routine.",
+                                style = typography.bodySmall,
+                                color = colorScheme.onSurfaceVariant,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                            Spacer(Modifier.height(16.dp))
+                            Button(
+                                onClick = {
+                                    editingBreak = null
+                                    showAddEditDialog = true
+                                },
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(
+                                    painter = painterResource(R.drawable.add_fill0),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text("Add First Break")
+                            }
+                        }
+                    }
+                }
+            } else {
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        TomatoSectionHeader(title = "SCHEDULED BREAKS (${breaks.size})")
+
+                        breaks.forEachIndexed { index, b ->
+                            val durationMins = calculateDurationMins(b.startHour, b.startMinute, b.endHour, b.endMinute)
+                            val timeStr = formatRoutineTime(b.startHour, b.startMinute, b.endHour, b.endMinute)
+
+                            TomatoSettingsItem(
+                                title = b.name,
+                                subtitle = "$timeStr • ${durationMins}m break",
+                                leadingIcon = R.drawable.schedule_fill0,
+                                iconContainerColor = if (b.isEnabled) colorScheme.primaryContainer else colorScheme.surfaceContainerHighest,
+                                iconTint = if (b.isEnabled) colorScheme.primary else colorScheme.onSurfaceVariant,
+                                trailingContent = {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Switch(
+                                            checked = b.isEnabled,
+                                            onCheckedChange = { checked ->
+                                                val updated = breaks.map {
+                                                    if (it.id == b.id) it.copy(isEnabled = checked) else it
+                                                }
+                                                onBreaksChanged(updated)
+                                            }
+                                        )
+
+                                        IconButton(
+                                            onClick = { breakToDelete = b },
+                                            modifier = Modifier.size(36.dp)
+                                        ) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.delete_fill0),
+                                                contentDescription = "Delete Break",
+                                                tint = colorScheme.error,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                },
+                                shape = segmentedItemShape(index, breaks.size),
+                                onClick = {
+                                    editingBreak = b
+                                    showAddEditDialog = true
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Add / Edit Break Dialog
+    if (showAddEditDialog) {
+        AddEditBreakDialog(
+            existingBreak = editingBreak,
+            use24Hour = use24Hour,
+            defaultIndex = breaks.size + 1,
+            onDismiss = { showAddEditDialog = false },
+            onConfirm = { savedBreak ->
+                val updated = if (editingBreak != null) {
+                    breaks.map { if (it.id == savedBreak.id) savedBreak else it }
+                } else {
+                    breaks + savedBreak
+                }
+                onBreaksChanged(updated)
+                showAddEditDialog = false
+            }
+        )
+    }
+
+    // Delete Break Confirmation Dialog
+    if (breakToDelete != null) {
+        val b = breakToDelete!!
+        AlertDialog(
+            onDismissRequest = { breakToDelete = null },
+            title = { Text("Delete '${b.name}'?", fontWeight = FontWeight.Bold) },
+            text = { Text("Are you sure you want to remove this break interval from the routine?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onBreaksChanged(breaks.filter { it.id != b.id })
+                        breakToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = colorScheme.error),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { breakToDelete = null }) { Text("Cancel") }
+            },
+            shape = RoundedCornerShape(24.dp),
+            containerColor = colorScheme.surfaceContainerHigh
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun AddEditBreakDialog(
+    existingBreak: RoutineBreak?,
+    use24Hour: Boolean,
+    defaultIndex: Int,
+    onDismiss: () -> Unit,
+    onConfirm: (RoutineBreak) -> Unit
+) {
+    var name by remember { mutableStateOf(existingBreak?.name ?: "Break $defaultIndex") }
+    var startH by remember { mutableIntStateOf(existingBreak?.startHour ?: 12) }
+    var startM by remember { mutableIntStateOf(existingBreak?.startMinute ?: 0) }
+    var endH by remember { mutableIntStateOf(existingBreak?.endHour ?: 12) }
+    var endM by remember { mutableIntStateOf(existingBreak?.endMinute ?: 30) }
+
+    var showStartTimePicker by remember { mutableStateOf(false) }
+    var showEndTimePicker by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = if (existingBreak != null) "Edit Break" else "New Break Block",
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Break Name") },
+                    placeholder = { Text("e.g. Lunch Break, Coffee Pause") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Start and End Time selectors
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Start Time Box
+                    Surface(
+                        onClick = { showStartTimePicker = true },
+                        shape = RoundedCornerShape(12.dp),
+                        color = colorScheme.surfaceContainerLowest,
+                        border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                text = "Start Time",
+                                style = typography.labelSmall,
+                                color = colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = com.hotaro.brik.ui.theme.ThemePreferences.formatTime(startH, startM),
+                                style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    // End Time Box
+                    Surface(
+                        onClick = { showEndTimePicker = true },
+                        shape = RoundedCornerShape(12.dp),
+                        color = colorScheme.surfaceContainerLowest,
+                        border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                text = "End Time",
+                                style = typography.labelSmall,
+                                color = colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = com.hotaro.brik.ui.theme.ThemePreferences.formatTime(endH, endM),
+                                style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
+
+                // Quick duration presets to set end time relative to start time
+                Column {
+                    Text(
+                        text = "Quick Presets (+from start):",
+                        style = typography.labelSmall,
+                        color = colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf(15, 30, 45, 60).forEach { mins ->
+                            SuggestionChip(
+                                onClick = {
+                                    val totalMins = (startH * 60 + startM + mins) % 1440
+                                    endH = totalMins / 60
+                                    endM = totalMins % 60
+                                },
+                                label = { Text("+${mins}m") }
+                            )
+                        }
+                    }
+                }
+
+                val duration = calculateDurationMins(startH, startM, endH, endM)
+                Text(
+                    text = "Duration: $duration minutes",
+                    style = typography.bodySmall,
+                    color = colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val finalBreak = (existingBreak ?: RoutineBreak()).copy(
+                        name = name.trim().ifBlank { "Break" },
+                        startHour = startH,
+                        startMinute = startM,
+                        endHour = endH,
+                        endMinute = endM
+                    )
+                    onConfirm(finalBreak)
+                },
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(if (existingBreak != null) "Update" else "Add Break")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+        shape = RoundedCornerShape(24.dp),
+        containerColor = colorScheme.surfaceContainerHigh
+    )
+
+    if (showStartTimePicker) {
+        BrikTimePickerDialog(
+            title = "Break Start Time",
+            initialHour = startH,
+            initialMinute = startM,
+            is24Hour = use24Hour,
+            onConfirm = { h, m ->
+                startH = h
+                startM = m
+            },
+            onDismiss = { showStartTimePicker = false }
+        )
+    }
+
+    if (showEndTimePicker) {
+        BrikTimePickerDialog(
+            title = "Break End Time",
+            initialHour = endH,
+            initialMinute = endM,
+            is24Hour = use24Hour,
+            onConfirm = { h, m ->
+                endH = h
+                endM = m
+            },
+            onDismiss = { showEndTimePicker = false }
+        )
+    }
 }

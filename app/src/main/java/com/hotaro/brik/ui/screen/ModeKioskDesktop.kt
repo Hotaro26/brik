@@ -1,10 +1,13 @@
 package com.hotaro.brik.ui.screen
 
 import android.app.Activity
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
+import android.os.BatteryManager
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -40,10 +43,12 @@ import androidx.compose.material3.MaterialTheme.typography
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -101,6 +106,13 @@ fun ModeKioskDesktop(
     var hideJob by remember { mutableStateOf<Job?>(null) }
 
     val endsAt = sessionEndsAt ?: 0L
+    val bm = remember { context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager }
+    val initialCap = remember {
+        val c = bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1
+        if (c in 0..100) c else 100
+    }
+    var batteryLevel by remember { mutableIntStateOf(initialCap) }
+    var isCharging by remember { mutableStateOf(bm?.isCharging == true) }
 
     LaunchedEffect(endsAt) {
         while (true) {
@@ -109,6 +121,13 @@ fun ModeKioskDesktop(
             if (endsAt > 0L) {
                 remainingMillis = (endsAt - now).coerceAtLeast(0L)
             }
+            try {
+                val cap = bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1
+                if (cap in 0..100) {
+                    batteryLevel = cap
+                }
+                isCharging = bm?.isCharging == true
+            } catch (_: Exception) {}
             delay(1000)
         }
     }
@@ -122,6 +141,42 @@ fun ModeKioskDesktop(
     val assistiveAutoHide by com.hotaro.brik.util.AssistivePreferences.autoHideSeconds.collectAsState()
     val exitHoldSec by com.hotaro.brik.util.KioskPreferences.exitHoldSeconds.collectAsState()
     val allowEmergencyDialer by com.hotaro.brik.util.KioskPreferences.allowEmergencyDialer.collectAsState()
+    val showBatteryIndicator by com.hotaro.brik.util.KioskPreferences.showBatteryIndicator.collectAsState()
+    val appNamesAlignment by com.hotaro.brik.util.KioskPreferences.appNamesAlignment.collectAsState()
+
+    DisposableEffect(context) {
+        val batteryFilter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
+        val batteryReceiver = object : BroadcastReceiver() {
+            override fun onReceive(c: Context?, intent: Intent?) {
+                intent?.let {
+                    val level = it.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+                    val scale = it.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+                    if (level >= 0 && scale > 0) {
+                        batteryLevel = (level * 100) / scale
+                    }
+                    val status = it.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
+                    isCharging = (status == BatteryManager.BATTERY_STATUS_CHARGING ||
+                            status == BatteryManager.BATTERY_STATUS_FULL)
+                }
+            }
+        }
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                context.registerReceiver(batteryReceiver, batteryFilter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                context.registerReceiver(batteryReceiver, batteryFilter)
+            }
+        } catch (_: Throwable) {
+            try {
+                context.registerReceiver(batteryReceiver, batteryFilter)
+            } catch (_: Throwable) {}
+        }
+        onDispose {
+            try {
+                context.unregisterReceiver(batteryReceiver)
+            } catch (_: Exception) {}
+        }
+    }
 
     val launcherApps = remember(context) { loadLauncherApps(pm, context.packageName) }
     val permittedApps = remember(mode.kioskAllowedPackages, launcherApps) {
@@ -251,7 +306,48 @@ fun ModeKioskDesktop(
                 color = Color.White.copy(alpha = 0.5f)
             )
 
-            Spacer(Modifier.height(44.dp))
+            if (showBatteryIndicator) {
+                Spacer(Modifier.height(8.dp))
+                Surface(
+                    shape = CircleShape,
+                    color = Color.White.copy(alpha = 0.08f),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(if (isCharging) R.drawable.ic_battery_charging else R.drawable.ic_battery_std),
+                            contentDescription = "Battery",
+                            tint = when {
+                                isCharging -> colorScheme.primary
+                                batteryLevel <= 15 -> Color(0xFFFF5252)
+                                batteryLevel <= 20 -> Color(0xFFFFAB40)
+                                else -> Color.White.copy(alpha = 0.85f)
+                            },
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = "$batteryLevel%${if (isCharging) " • Charging" else ""}",
+                            style = typography.labelSmall.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 11.sp
+                            ),
+                            color = when {
+                                isCharging -> colorScheme.primary
+                                batteryLevel <= 15 -> Color(0xFFFF5252)
+                                batteryLevel <= 20 -> Color(0xFFFFAB40)
+                                else -> Color.White.copy(alpha = 0.85f)
+                            }
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(36.dp))
 
             // Minimalist Text-Only App List (No icons)
             if (permittedApps.isEmpty()) {
@@ -273,11 +369,19 @@ fun ModeKioskDesktop(
                     )
                 }
             } else {
+                val (columnAlignment, textAlignment) = remember(appNamesAlignment) {
+                    when (appNamesAlignment) {
+                        "left" -> Alignment.Start to TextAlign.Start
+                        "right" -> Alignment.End to TextAlign.End
+                        else -> Alignment.CenterHorizontally to TextAlign.Center
+                    }
+                }
+
                 LazyColumn(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                    horizontalAlignment = columnAlignment,
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     items(permittedApps, key = { it.packageName }) { app ->
@@ -305,7 +409,7 @@ fun ModeKioskDesktop(
                                     }
                                 }
                                 .padding(vertical = 10.dp),
-                            textAlign = TextAlign.Center
+                            textAlign = textAlignment
                         )
                     }
                 }

@@ -1099,6 +1099,14 @@ private fun ActiveZenDesktop(
     var holdProgress by remember { mutableFloatStateOf(0f) }
     var hideJob by remember { mutableStateOf<Job?>(null) }
 
+    val bm = remember { context.getSystemService(Context.BATTERY_SERVICE) as? android.os.BatteryManager }
+    val initialCap = remember {
+        val c = bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1
+        if (c in 0..100) c else 100
+    }
+    var batteryLevel by remember { mutableIntStateOf(initialCap) }
+    var isCharging by remember { mutableStateOf(bm?.isCharging == true) }
+
     LaunchedEffect(sessionEndTime, isInfinite) {
         while (true) {
             val now = System.currentTimeMillis()
@@ -1106,6 +1114,13 @@ private fun ActiveZenDesktop(
             if (!isInfinite && sessionEndTime > 0L) {
                 remainingMillis = (sessionEndTime - now).coerceAtLeast(0L)
             }
+            try {
+                val cap = bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1
+                if (cap in 0..100) {
+                    batteryLevel = cap
+                }
+                isCharging = bm?.isCharging == true
+            } catch (_: Exception) {}
             delay(1000)
         }
     }
@@ -1114,6 +1129,8 @@ private fun ActiveZenDesktop(
     val timeDigitsFormat = remember(use24Hour) { SimpleDateFormat(if (use24Hour) "HH:mm" else "h:mm", Locale.getDefault()) }
     val amPmFormat = remember(use24Hour) { if (use24Hour) null else SimpleDateFormat("a", Locale.getDefault()) }
     val dateFormat = remember { SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()) }
+    val showBatteryIndicator by com.hotaro.brik.util.KioskPreferences.showBatteryIndicator.collectAsState()
+    val appNamesAlignment by com.hotaro.brik.util.KioskPreferences.appNamesAlignment.collectAsState()
 
     val launcherApps = remember(context) { loadLauncherApps(pm, context.packageName) }
     val permittedApps = remember(allowedPackages, launcherApps) {
@@ -1208,6 +1225,47 @@ private fun ActiveZenDesktop(
                     color = Color(0xFF9E9E9E)
                 )
 
+                if (showBatteryIndicator) {
+                    Spacer(Modifier.height(8.dp))
+                    Surface(
+                        shape = CircleShape,
+                        color = Color.White.copy(alpha = 0.08f),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                painter = painterResource(if (isCharging) R.drawable.ic_battery_charging else R.drawable.ic_battery_std),
+                                contentDescription = "Battery",
+                                tint = when {
+                                    isCharging -> colorScheme.primary
+                                    batteryLevel <= 15 -> Color(0xFFFF5252)
+                                    batteryLevel <= 20 -> Color(0xFFFFAB40)
+                                    else -> Color.White.copy(alpha = 0.85f)
+                                },
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "$batteryLevel%${if (isCharging) " • Charging" else ""}",
+                                style = typography.labelSmall.copy(
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 11.sp
+                                ),
+                                color = when {
+                                    isCharging -> colorScheme.primary
+                                    batteryLevel <= 15 -> Color(0xFFFF5252)
+                                    batteryLevel <= 20 -> Color(0xFFFFAB40)
+                                    else -> Color.White.copy(alpha = 0.85f)
+                                }
+                            )
+                        }
+                    }
+                }
+
                 Spacer(Modifier.height(18.dp))
 
                 androidx.compose.animation.AnimatedVisibility(
@@ -1279,10 +1337,18 @@ private fun ActiveZenDesktop(
                         textAlign = TextAlign.Center
                     )
                 } else {
+                    val (columnAlignment, textAlignment) = remember(appNamesAlignment) {
+                        when (appNamesAlignment) {
+                            "left" -> Alignment.Start to TextAlign.Start
+                            "right" -> Alignment.End to TextAlign.End
+                            else -> Alignment.CenterHorizontally to TextAlign.Center
+                        }
+                    }
+
                     LazyColumn(
                         modifier = Modifier.fillMaxWidth(0.85f),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                        horizontalAlignment = columnAlignment
                     ) {
                         items(permittedApps, key = { it.packageName }) { app ->
                             Text(
@@ -1291,8 +1357,9 @@ private fun ActiveZenDesktop(
                                 fontWeight = FontWeight.Medium,
                                 letterSpacing = 0.5.sp,
                                 color = Color(0xFFE8E8EC),
-                                textAlign = TextAlign.Center,
+                                textAlign = textAlignment,
                                 modifier = Modifier
+                                    .fillMaxWidth()
                                     .clip(RoundedCornerShape(14.dp))
                                     .clickable {
                                         val launchIntent = pm.getLaunchIntentForPackage(app.packageName)
@@ -1302,7 +1369,7 @@ private fun ActiveZenDesktop(
                                             Toast.makeText(context, "Cannot launch app", Toast.LENGTH_SHORT).show()
                                         }
                                     }
-                                    .padding(horizontal = 24.dp, vertical = 10.dp)
+                                    .padding(horizontal = 16.dp, vertical = 10.dp)
                             )
                         }
                     }

@@ -224,16 +224,30 @@ class TimeBlockRepository(private val context: Context) {
             if (routine.isEnabled && routine.daysOfWeek.contains(currentDay)) {
                 val startMins = routine.startHour * 60 + routine.startMinute
                 val endMins = routine.endHour * 60 + routine.endMinute
-                val isCurrentlyActive = if (startMins <= endMins) {
+                val isWithinTime = if (startMins <= endMins) {
                     currentDayMinutes in startMins until endMins
                 } else {
                     // Overnights (e.g. 22:00 to 06:00)
                     currentDayMinutes >= startMins || currentDayMinutes < endMins
                 }
-                if (isCurrentlyActive && activeRoutine == null) {
+
+                // Check if current time falls into any scheduled break
+                val isBreakActive = isWithinTime && routine.breaks.any { b ->
+                    if (!b.isEnabled) return@any false
+                    val bStart = b.startHour * 60 + b.startMinute
+                    val bEnd = b.endHour * 60 + b.endMinute
+                    if (bStart <= bEnd) {
+                        currentDayMinutes in bStart until bEnd
+                    } else {
+                        currentDayMinutes >= bStart || currentDayMinutes < bEnd
+                    }
+                }
+
+                val shouldEnforceRoutine = isWithinTime && !isBreakActive
+                if (shouldEnforceRoutine && activeRoutine == null) {
                     activeRoutine = routine
                 }
-                routine.copy(isActiveNow = isCurrentlyActive)
+                routine.copy(isActiveNow = shouldEnforceRoutine)
             } else {
                 routine.copy(isActiveNow = false)
             }

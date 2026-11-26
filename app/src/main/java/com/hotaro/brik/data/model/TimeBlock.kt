@@ -27,6 +27,17 @@ data class FocusMode(
 )
 
 @Serializable
+data class RoutineBreak(
+    val id: String = UUID.randomUUID().toString(),
+    val name: String = "Break",
+    val startHour: Int = 12,
+    val startMinute: Int = 0,
+    val endHour: Int = 12,
+    val endMinute: Int = 30,
+    val isEnabled: Boolean = true
+)
+
+@Serializable
 data class AutomatedRoutine(
     val id: String = UUID.randomUUID().toString(),
     val name: String,
@@ -36,6 +47,7 @@ data class AutomatedRoutine(
     val startMinute: Int = 0,
     val endHour: Int = 17,
     val endMinute: Int = 0,
+    val breaks: List<RoutineBreak> = emptyList(),
     val targetBagIds: List<String> = emptyList(),
     val targetPackageNames: List<String> = emptyList(),
     val enableDnsBlocking: Boolean = false,

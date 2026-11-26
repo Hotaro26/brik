@@ -50,7 +50,9 @@ fun KioskSettingsWindow(onBack: () -> Unit) {
     val allowIncomingCallsWindow by KioskPreferences.allowIncomingCallsWindow.collectAsState()
     val allowEmergencyDialer by KioskPreferences.allowEmergencyDialer.collectAsState()
     val autoResumeAfterCall by KioskPreferences.autoResumeAfterCall.collectAsState()
-    val lockdownNotificationShade by KioskPreferences.lockdownNotificationShade.collectAsState()
+    val allowControlPanelsStatusBar by KioskPreferences.allowControlPanelsStatusBar.collectAsState()
+    val showBatteryIndicator by KioskPreferences.showBatteryIndicator.collectAsState()
+    val appNamesAlignment by KioskPreferences.appNamesAlignment.collectAsState()
     val allowSystemGestures by KioskPreferences.allowSystemGestures.collectAsState()
     val exitHoldSeconds by KioskPreferences.exitHoldSeconds.collectAsState()
 
@@ -185,16 +187,16 @@ fun KioskSettingsWindow(onBack: () -> Unit) {
 
             val lockdownItems = listOf(
                 KioskToggleItem(
-                    title = "Lockdown Notification Shade",
-                    subtitle = "Block pulling down notifications and quick settings panel",
-                    iconRes = R.drawable.screen_lock_portrait_fill0,
-                    checked = lockdownNotificationShade,
-                    onToggle = { KioskPreferences.setLockdownNotificationShade(context, it) }
+                    title = "Control Panels & Status Bar",
+                    subtitle = "Allow pulling down status bar, notifications and control panels",
+                    iconRes = R.drawable.ic_status_bar_shade,
+                    checked = allowControlPanelsStatusBar,
+                    onToggle = { KioskPreferences.setAllowControlPanelsStatusBar(context, it) }
                 ),
                 KioskToggleItem(
                     title = "Allow System Gestures",
                     subtitle = "Permit system edge swipe gestures if supported by device admin",
-                    iconRes = R.drawable.tune_fill0,
+                    iconRes = R.drawable.screen_lock_portrait_fill0,
                     checked = allowSystemGestures,
                     onToggle = { KioskPreferences.setAllowSystemGestures(context, it) }
                 )
@@ -245,6 +247,149 @@ fun KioskSettingsWindow(onBack: () -> Unit) {
                             checked = item.checked,
                             onCheckedChange = item.onToggle
                         )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // SECTION 3: DISPLAY & BATTERY
+            TomatoSectionHeader(title = "DISPLAY & BATTERY")
+
+            val displayItems = listOf(
+                KioskToggleItem(
+                    title = "Show Battery Percentage",
+                    subtitle = "Display battery icon and percentage below date and time",
+                    iconRes = R.drawable.ic_battery_std,
+                    checked = showBatteryIndicator,
+                    onToggle = { KioskPreferences.setShowBatteryIndicator(context, it) }
+                )
+            )
+
+            displayItems.forEachIndexed { index, item ->
+                Surface(
+                    shape = segmentedItemShape(index, displayItems.size),
+                    color = colorScheme.surfaceContainerHigh,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (item.checked) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                            modifier = Modifier.size(38.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    painter = painterResource(item.iconRes),
+                                    contentDescription = item.title,
+                                    tint = if (item.checked) colorScheme.primary else colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = item.title,
+                                style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = colorScheme.onSurface
+                            )
+                            Text(
+                                text = item.subtitle,
+                                style = typography.bodySmall,
+                                color = colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Switch(
+                            checked = item.checked,
+                            onCheckedChange = item.onToggle
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = colorScheme.surfaceContainerHigh,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = colorScheme.primaryContainer,
+                            modifier = Modifier.size(38.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    painter = painterResource(R.drawable.dock_bottom_fill0),
+                                    contentDescription = null,
+                                    tint = colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "App Names Row Alignment",
+                                style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Align app names left, center, or right (default: center)",
+                                style = typography.bodySmall,
+                                color = colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf(
+                            "left" to "Left",
+                            "center" to "Center",
+                            "right" to "Right"
+                        ).forEach { (alignKey, label) ->
+                            val isSelected = appNamesAlignment == alignKey
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { KioskPreferences.setAppNamesAlignment(context, alignKey) },
+                                label = {
+                                    Text(
+                                        text = label,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                },
+                                modifier = Modifier.weight(1f),
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = colorScheme.primary,
+                                    selectedLabelColor = colorScheme.onPrimary,
+                                    containerColor = colorScheme.surfaceContainerLowest,
+                                    labelColor = colorScheme.onSurfaceVariant
+                                )
+                            )
+                        }
                     }
                 }
             }
