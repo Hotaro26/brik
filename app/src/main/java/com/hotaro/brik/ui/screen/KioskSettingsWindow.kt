@@ -121,13 +121,6 @@ fun KioskSettingsWindow(onBack: () -> Unit) {
                     onToggle = { KioskPreferences.setAllowIncomingCallsWindow(context, it) }
                 ),
                 KioskToggleItem(
-                    title = "Emergency Dialer Shortcut",
-                    subtitle = "Show emergency dialer button on kiosk screen for 911/112 calls",
-                    iconRes = R.drawable.shield_fill0,
-                    checked = allowEmergencyDialer,
-                    onToggle = { KioskPreferences.setAllowEmergencyDialer(context, it) }
-                ),
-                KioskToggleItem(
                     title = "Auto-Resume Kiosk Session",
                     subtitle = "Re-lock into focus mode immediately when call concludes",
                     iconRes = R.drawable.mode_fill0,

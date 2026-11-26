@@ -318,15 +318,22 @@ object PolicyBridgeManager {
     /**
      * Configure whether lock task mode allows system navigation gestures and panels or blocks them.
      */
-    fun setLockTaskFeatures(context: Context, disableSystemGestures: Boolean): Result<Boolean> {
+    fun setLockTaskFeatures(
+        context: Context,
+        disableSystemGestures: Boolean,
+        lockdownNotificationShade: Boolean = false
+    ): Result<Boolean> {
         val status = getBridgeStatus(context)
-        val flags = if (disableSystemGestures) {
-            DevicePolicyManager.LOCK_TASK_FEATURE_NONE
-        } else {
-            DevicePolicyManager.LOCK_TASK_FEATURE_SYSTEM_INFO or
-            DevicePolicyManager.LOCK_TASK_FEATURE_NOTIFICATIONS or
-            DevicePolicyManager.LOCK_TASK_FEATURE_HOME or
-            DevicePolicyManager.LOCK_TASK_FEATURE_OVERVIEW
+        var flags = DevicePolicyManager.LOCK_TASK_FEATURE_NONE
+        if (!disableSystemGestures) {
+            flags = flags or
+                DevicePolicyManager.LOCK_TASK_FEATURE_HOME or
+                DevicePolicyManager.LOCK_TASK_FEATURE_OVERVIEW
+        }
+        if (!lockdownNotificationShade) {
+            flags = flags or
+                DevicePolicyManager.LOCK_TASK_FEATURE_NOTIFICATIONS or
+                DevicePolicyManager.LOCK_TASK_FEATURE_SYSTEM_INFO
         }
         return runCatching {
             when (status.activeBridge) {

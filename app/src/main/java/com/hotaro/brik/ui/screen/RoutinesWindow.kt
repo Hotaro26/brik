@@ -18,6 +18,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -133,6 +134,7 @@ fun RoutinesWindow(
     val isWindDownNoApps by WindDownManager.isNoAppsMode.collectAsState()
     val windDownAllowedApps by WindDownManager.allowedPackages.collectAsState()
     val isWindDownActive by WindDownManager.isWindDownActive.collectAsState()
+    val use24Hour by com.hotaro.brik.ui.theme.ThemePreferences.use24HourClock.collectAsState()
 
     var isWindDownOpen by remember { mutableStateOf(false) }
     val animatedWindDownProgress = remember { Animatable(0f) }
@@ -859,73 +861,83 @@ fun RoutinesWindow(
                 Text("Time Schedule (24-hour):", style = typography.labelMedium, color = colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(
-                        value = String.format(Locale.US, "%02d:%02d", sheetStartHour, sheetStartMinute),
-                        onValueChange = { input ->
-                            val parts = input.split(":")
-                            if (parts.size == 2) {
-                                parts[0].toIntOrNull()?.let { if (it in 0..23) sheetStartHour = it }
-                                parts[1].toIntOrNull()?.let { if (it in 0..59) sheetStartMinute = it }
-                            }
-                        },
-                        label = { Text("Start (HH:MM)") },
-                        trailingIcon = {
-                            Surface(
-                                shape = CircleShape,
-                                color = colorScheme.primaryContainer,
-                                modifier = Modifier
-                                    .padding(end = 4.dp)
-                                    .size(34.dp),
-                                onClick = { showSheetStartTimePicker = true }
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.schedule_fill0),
-                                        contentDescription = "Pick start time",
-                                        tint = colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.size(18.dp)
-                                    )
+                    Box(modifier = Modifier.weight(1f)) {
+                        OutlinedTextField(
+                            value = com.hotaro.brik.ui.theme.ThemePreferences.formatTime(sheetStartHour, sheetStartMinute),
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Start Time") },
+                            trailingIcon = {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = colorScheme.primaryContainer,
+                                    modifier = Modifier
+                                        .padding(end = 4.dp)
+                                        .size(34.dp),
+                                    onClick = { showSheetStartTimePicker = true }
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.schedule_fill0),
+                                            contentDescription = "Pick start time",
+                                            tint = colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
                                 }
-                            }
-                        },
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.weight(1f)
-                    )
+                            },
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null
+                                ) { showSheetStartTimePicker = true }
+                        )
+                    }
 
-                    OutlinedTextField(
-                        value = String.format(Locale.US, "%02d:%02d", sheetEndHour, sheetEndMinute),
-                        onValueChange = { input ->
-                            val parts = input.split(":")
-                            if (parts.size == 2) {
-                                parts[0].toIntOrNull()?.let { if (it in 0..23) sheetEndHour = it }
-                                parts[1].toIntOrNull()?.let { if (it in 0..59) sheetEndMinute = it }
-                            }
-                        },
-                        label = { Text("End (HH:MM)") },
-                        trailingIcon = {
-                            Surface(
-                                shape = CircleShape,
-                                color = colorScheme.primaryContainer,
-                                modifier = Modifier
-                                    .padding(end = 4.dp)
-                                    .size(34.dp),
-                                onClick = { showSheetEndTimePicker = true }
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.schedule_fill0),
-                                        contentDescription = "Pick end time",
-                                        tint = colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.size(18.dp)
-                                    )
+                    Box(modifier = Modifier.weight(1f)) {
+                        OutlinedTextField(
+                            value = com.hotaro.brik.ui.theme.ThemePreferences.formatTime(sheetEndHour, sheetEndMinute),
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("End Time") },
+                            trailingIcon = {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = colorScheme.primaryContainer,
+                                    modifier = Modifier
+                                        .padding(end = 4.dp)
+                                        .size(34.dp),
+                                    onClick = { showSheetEndTimePicker = true }
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.schedule_fill0),
+                                            contentDescription = "Pick end time",
+                                            tint = colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
                                 }
-                            }
-                        },
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.weight(1f)
-                    )
+                            },
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null
+                                ) { showSheetEndTimePicker = true }
+                        )
+                    }
                 }
 
                 if (showSheetStartTimePicker) {
@@ -933,6 +945,7 @@ fun RoutinesWindow(
                         title = "Select Start Time",
                         initialHour = sheetStartHour,
                         initialMinute = sheetStartMinute,
+                        is24Hour = use24Hour,
                         onConfirm = { h, m ->
                             sheetStartHour = h
                             sheetStartMinute = m
@@ -946,6 +959,7 @@ fun RoutinesWindow(
                         title = "Select End Time",
                         initialHour = sheetEndHour,
                         initialMinute = sheetEndMinute,
+                        is24Hour = use24Hour,
                         onConfirm = { h, m ->
                             sheetEndHour = h
                             sheetEndMinute = m
@@ -1184,13 +1198,14 @@ fun BrikTimePickerDialog(
     title: String,
     initialHour: Int,
     initialMinute: Int,
+    is24Hour: Boolean = true,
     onConfirm: (hour: Int, minute: Int) -> Unit,
     onDismiss: () -> Unit
 ) {
     val timePickerState = rememberTimePickerState(
         initialHour = initialHour,
         initialMinute = initialMinute,
-        is24Hour = true
+        is24Hour = is24Hour
     )
 
     AlertDialog(
@@ -1240,6 +1255,7 @@ private fun RoutineDetailWindow(
     onSave: (AutomatedRoutine) -> Unit
 ) {
     val context = LocalContext.current
+    val use24Hour by com.hotaro.brik.ui.theme.ThemePreferences.use24HourClock.collectAsState()
     var nameInput by remember { mutableStateOf(routine.name) }
     var selectedDays by remember { mutableStateOf(routine.daysOfWeek.toSet()) }
     var startHour by remember { mutableStateOf(routine.startHour) }
@@ -1393,73 +1409,83 @@ private fun RoutineDetailWindow(
                         Spacer(Modifier.height(14.dp))
 
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            OutlinedTextField(
-                                value = String.format(Locale.US, "%02d:%02d", startHour, startMinute),
-                                onValueChange = { input ->
-                                    val parts = input.split(":")
-                                    if (parts.size == 2) {
-                                        parts[0].toIntOrNull()?.let { if (it in 0..23) startHour = it }
-                                        parts[1].toIntOrNull()?.let { if (it in 0..59) startMinute = it }
-                                    }
-                                },
-                                label = { Text("Start (HH:MM)") },
-                                trailingIcon = {
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = colorScheme.primaryContainer,
-                                        modifier = Modifier
-                                            .padding(end = 4.dp)
-                                            .size(34.dp),
-                                        onClick = { showDetailStartTimePicker = true }
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                painter = painterResource(R.drawable.schedule_fill0),
-                                                contentDescription = "Pick start time",
-                                                tint = colorScheme.onPrimaryContainer,
-                                                modifier = Modifier.size(18.dp)
-                                            )
+                            Box(modifier = Modifier.weight(1f)) {
+                                OutlinedTextField(
+                                    value = com.hotaro.brik.ui.theme.ThemePreferences.formatTime(startHour, startMinute),
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    label = { Text("Start Time") },
+                                    trailingIcon = {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = colorScheme.primaryContainer,
+                                            modifier = Modifier
+                                                .padding(end = 4.dp)
+                                                .size(34.dp),
+                                            onClick = { showDetailStartTimePicker = true }
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    painter = painterResource(R.drawable.schedule_fill0),
+                                                    contentDescription = "Pick start time",
+                                                    tint = colorScheme.onPrimaryContainer,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
                                         }
-                                    }
-                                },
-                                singleLine = true,
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.weight(1f)
-                            )
+                                    },
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .matchParentSize()
+                                        .clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null
+                                        ) { showDetailStartTimePicker = true }
+                                )
+                            }
 
-                            OutlinedTextField(
-                                value = String.format(Locale.US, "%02d:%02d", endHour, endMinute),
-                                onValueChange = { input ->
-                                    val parts = input.split(":")
-                                    if (parts.size == 2) {
-                                        parts[0].toIntOrNull()?.let { if (it in 0..23) endHour = it }
-                                        parts[1].toIntOrNull()?.let { if (it in 0..59) endMinute = it }
-                                    }
-                                },
-                                label = { Text("End (HH:MM)") },
-                                trailingIcon = {
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = colorScheme.primaryContainer,
-                                        modifier = Modifier
-                                            .padding(end = 4.dp)
-                                            .size(34.dp),
-                                        onClick = { showDetailEndTimePicker = true }
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                painter = painterResource(R.drawable.schedule_fill0),
-                                                contentDescription = "Pick end time",
-                                                tint = colorScheme.onPrimaryContainer,
-                                                modifier = Modifier.size(18.dp)
-                                            )
+                            Box(modifier = Modifier.weight(1f)) {
+                                OutlinedTextField(
+                                    value = com.hotaro.brik.ui.theme.ThemePreferences.formatTime(endHour, endMinute),
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    label = { Text("End Time") },
+                                    trailingIcon = {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = colorScheme.primaryContainer,
+                                            modifier = Modifier
+                                                .padding(end = 4.dp)
+                                                .size(34.dp),
+                                            onClick = { showDetailEndTimePicker = true }
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    painter = painterResource(R.drawable.schedule_fill0),
+                                                    contentDescription = "Pick end time",
+                                                    tint = colorScheme.onPrimaryContainer,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
                                         }
-                                    }
-                                },
-                                singleLine = true,
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.weight(1f)
-                            )
+                                    },
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .matchParentSize()
+                                        .clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null
+                                        ) { showDetailEndTimePicker = true }
+                                )
+                            }
                         }
 
                         if (showDetailStartTimePicker) {
@@ -1467,6 +1493,7 @@ private fun RoutineDetailWindow(
                                 title = "Select Start Time",
                                 initialHour = startHour,
                                 initialMinute = startMinute,
+                                is24Hour = use24Hour,
                                 onConfirm = { h, m ->
                                     startHour = h
                                     startMinute = m
@@ -1480,6 +1507,7 @@ private fun RoutineDetailWindow(
                                 title = "Select End Time",
                                 initialHour = endHour,
                                 initialMinute = endMinute,
+                                is24Hour = use24Hour,
                                 onConfirm = { h, m ->
                                     endHour = h
                                     endMinute = m

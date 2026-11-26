@@ -60,6 +60,7 @@ fun AssistiveSettingsWindow(onBack: () -> Unit) {
     val showFlashlight by AssistivePreferences.showFlashlight.collectAsState()
     val showBluetooth by AssistivePreferences.showBluetooth.collectAsState()
     val showDnd by AssistivePreferences.showDnd.collectAsState()
+    val showPhone by AssistivePreferences.showPhone.collectAsState()
     val showNotifications by AssistivePreferences.showNotifications.collectAsState()
     val notifPreviewMode by AssistivePreferences.notifPreviewMode.collectAsState()
 
@@ -262,6 +263,13 @@ fun AssistiveSettingsWindow(onBack: () -> Unit) {
                     iconRes = R.drawable.ic_dnd,
                     checked = showDnd,
                     onToggle = { AssistivePreferences.setShowDnd(context, it) }
+                ),
+                TileConfig(
+                    title = "Phone",
+                    subtitle = "Open phone caller app",
+                    iconRes = R.drawable.call_fill0,
+                    checked = showPhone,
+                    onToggle = { AssistivePreferences.setShowPhone(context, it) }
                 )
             )
 

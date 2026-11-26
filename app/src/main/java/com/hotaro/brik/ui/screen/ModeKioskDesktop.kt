@@ -402,45 +402,6 @@ fun ModeKioskDesktop(
                             )
                         }
                     }
-
-                    if (allowEmergencyDialer) {
-                        Spacer(Modifier.height(8.dp))
-                        Surface(
-                            onClick = {
-                                try {
-                                    val intent = Intent(Intent.ACTION_DIAL).apply {
-                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                    }
-                                    context.startActivity(intent)
-                                } catch (_: Exception) {}
-                            },
-                            shape = CircleShape,
-                            color = Color(0x22FF5252),
-                            border = BorderStroke(1.dp, Color(0x66FF5252)),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(44.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxSize(),
-                                horizontalArrangement = Arrangement.Center,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    painter = painterResource(R.drawable.call_fill0),
-                                    contentDescription = null,
-                                    tint = Color(0xFFFF8A80),
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                    text = "Emergency Dialer",
-                                    style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = Color(0xFFFF8A80)
-                                )
-                            }
-                        }
-                    }
                 }
             }
         }

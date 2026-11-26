@@ -15,6 +15,7 @@ object AssistivePreferences {
     private const val KEY_SHOW_FLASHLIGHT = "pref_assistive_show_flashlight"
     private const val KEY_SHOW_BLUETOOTH = "pref_assistive_show_bluetooth"
     private const val KEY_SHOW_DND = "pref_assistive_show_dnd"
+    private const val KEY_SHOW_PHONE = "pref_assistive_show_phone"
     private const val KEY_SHOW_NOTIFICATIONS = "pref_assistive_show_notifications"
     private const val KEY_NOTIF_PREVIEW_MODE = "pref_assistive_notif_preview_mode"
 
@@ -42,6 +43,9 @@ object AssistivePreferences {
     private val _showDnd = MutableStateFlow(false)
     val showDnd: StateFlow<Boolean> = _showDnd.asStateFlow()
 
+    private val _showPhone = MutableStateFlow(true)
+    val showPhone: StateFlow<Boolean> = _showPhone.asStateFlow()
+
     private val _showNotifications = MutableStateFlow(true)
     val showNotifications: StateFlow<Boolean> = _showNotifications.asStateFlow()
 
@@ -58,6 +62,7 @@ object AssistivePreferences {
         _showFlashlight.value = prefs.getBoolean(KEY_SHOW_FLASHLIGHT, true)
         _showBluetooth.value = prefs.getBoolean(KEY_SHOW_BLUETOOTH, true)
         _showDnd.value = prefs.getBoolean(KEY_SHOW_DND, false)
+        _showPhone.value = prefs.getBoolean(KEY_SHOW_PHONE, true)
         _showNotifications.value = prefs.getBoolean(KEY_SHOW_NOTIFICATIONS, true)
         _notifPreviewMode.value = prefs.getString(KEY_NOTIF_PREVIEW_MODE, "badge") ?: "badge"
     }
@@ -108,6 +113,12 @@ object AssistivePreferences {
         _showDnd.value = value
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit().putBoolean(KEY_SHOW_DND, value).apply()
+    }
+
+    fun setShowPhone(context: Context, value: Boolean) {
+        _showPhone.value = value
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().putBoolean(KEY_SHOW_PHONE, value).apply()
     }
 
     fun setShowNotifications(context: Context, value: Boolean) {

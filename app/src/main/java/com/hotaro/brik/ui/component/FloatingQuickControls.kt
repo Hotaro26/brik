@@ -96,6 +96,7 @@ fun FloatingQuickControls(
     val showFlashlight by AssistivePreferences.showFlashlight.collectAsState()
     val showBluetooth by AssistivePreferences.showBluetooth.collectAsState()
     val showDnd by AssistivePreferences.showDnd.collectAsState()
+    val showPhone by AssistivePreferences.showPhone.collectAsState()
     val showNotifications by AssistivePreferences.showNotifications.collectAsState()
     val notifPreviewMode by AssistivePreferences.notifPreviewMode.collectAsState()
 
@@ -191,7 +192,7 @@ fun FloatingQuickControls(
         val boxWidthDp = 290.dp
         val boxWidthPx = with(density) { boxWidthDp.toPx() }
 
-        val activeTiles = remember(showWifi, showData, showHotspot, showFlashlight, showBluetooth, showDnd, isWifiEnabled, isDataEnabled, isFlashlightOn) {
+        val activeTiles = remember(showWifi, showData, showHotspot, showFlashlight, showBluetooth, showDnd, showPhone, isWifiEnabled, isDataEnabled, isFlashlightOn) {
             val list = mutableListOf<QuickTileData>()
             if (showWifi) {
                 list.add(
@@ -207,10 +208,15 @@ fun FloatingQuickControls(
                                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                                     context.startActivity(Intent(Settings.Panel.ACTION_WIFI).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                                 } else {
-                                    context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                    val wm = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
+                                    wm?.let { it.isWifiEnabled = !it.isWifiEnabled }
                                 }
                             } catch (_: Exception) {
-                                context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                try {
+                                    context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                } catch (_: Exception) {
+                                    Toast.makeText(context, "Wi-Fi settings unavailable", Toast.LENGTH_SHORT).show()
+                                }
                             }
                         }
                     )
@@ -251,15 +257,19 @@ fun FloatingQuickControls(
                             lastInteractionTime = System.currentTimeMillis()
                             try {
                                 val tetherIntent = Intent().apply {
-                                    action = "android.settings.TETHER_SETTINGS"
+                                    setClassName("com.android.settings", "com.android.settings.TetherSettings")
                                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                 }
                                 context.startActivity(tetherIntent)
                             } catch (_: Exception) {
                                 try {
-                                    context.startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                    context.startActivity(Intent("android.settings.TETHER_SETTINGS").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                                 } catch (_: Exception) {
-                                    Toast.makeText(context, "Hotspot unavailable", Toast.LENGTH_SHORT).show()
+                                    try {
+                                        context.startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                    } catch (_: Exception) {
+                                        Toast.makeText(context, "Hotspot unavailable", Toast.LENGTH_SHORT).show()
+                                    }
                                 }
                             }
                         }
@@ -280,7 +290,8 @@ fun FloatingQuickControls(
             }
             if (showBluetooth) {
                 val isBtOn = try {
-                    android.bluetooth.BluetoothAdapter.getDefaultAdapter()?.isEnabled == true
+                    val bm = context.getSystemService(Context.BLUETOOTH_SERVICE) as? android.bluetooth.BluetoothManager
+                    bm?.adapter?.isEnabled == true
                 } catch (_: Exception) { false }
                 list.add(
                     QuickTileData(
@@ -291,10 +302,31 @@ fun FloatingQuickControls(
                         activeColor = Color(0xFF00B0FF),
                         onClick = {
                             lastInteractionTime = System.currentTimeMillis()
-                            try {
-                                context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                            } catch (_: Exception) {
-                                Toast.makeText(context, "Bluetooth settings unavailable", Toast.LENGTH_SHORT).show()
+                            val btAdapter = try {
+                                val bm = context.getSystemService(Context.BLUETOOTH_SERVICE) as? android.bluetooth.BluetoothManager
+                                bm?.adapter
+                            } catch (_: Exception) { null }
+
+                            if (btAdapter != null) {
+                                try {
+                                    if (btAdapter.isEnabled) {
+                                        btAdapter.disable()
+                                    } else {
+                                        btAdapter.enable()
+                                    }
+                                } catch (_: Exception) {
+                                    try {
+                                        context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                    } catch (_: Exception) {
+                                        Toast.makeText(context, "Bluetooth settings unavailable", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            } else {
+                                try {
+                                    context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                } catch (_: Exception) {
+                                    Toast.makeText(context, "Bluetooth unavailable", Toast.LENGTH_SHORT).show()
+                                }
                             }
                         }
                     )
@@ -332,6 +364,36 @@ fun FloatingQuickControls(
                                 try {
                                     context.startActivity(Intent(Settings.ACTION_SOUND_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                                 } catch (_: Exception) {}
+                            }
+                        }
+                    )
+                )
+            }
+            if (showPhone) {
+                list.add(
+                    QuickTileData(
+                        iconRes = R.drawable.call_fill0,
+                        title = "Phone",
+                        statusText = "Caller",
+                        isActive = false,
+                        activeColor = Color(0xFF00E676),
+                        onClick = {
+                            lastInteractionTime = System.currentTimeMillis()
+                            try {
+                                val intent = Intent(Intent.ACTION_DIAL).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                context.startActivity(intent)
+                            } catch (_: Exception) {
+                                try {
+                                    val defaultDialer = (context.getSystemService(Context.TELECOM_SERVICE) as? android.telecom.TelecomManager)?.defaultDialerPackage
+                                    if (defaultDialer != null) {
+                                        val pmIntent = context.packageManager.getLaunchIntentForPackage(defaultDialer)
+                                        if (pmIntent != null) context.startActivity(pmIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                    }
+                                } catch (_: Exception) {
+                                    Toast.makeText(context, "Phone caller unavailable", Toast.LENGTH_SHORT).show()
+                                }
                             }
                         }
                     )
@@ -687,17 +749,7 @@ fun FloatingQuickControls(
                                     previewMode = notifPreviewMode,
                                     onClick = {
                                         lastInteractionTime = System.currentTimeMillis()
-                                        try {
-                                            context.startActivity(
-                                                Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
-                                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                            )
-                                        } catch (_: Exception) {
-                                            context.startActivity(
-                                                Intent(Settings.ACTION_SETTINGS)
-                                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                            )
-                                        }
+                                        expandNotificationShade(context)
                                     }
                                 )
                                 Spacer(Modifier.height(10.dp))
@@ -786,7 +838,7 @@ private fun NotificationControlPill(
                         color = Color.White
                     )
                     Text(
-                        text = "Focus lockdown active • Tap to open notification settings",
+                        text = "Focus lockdown active • Tap to expand notification shade",
                         style = typography.bodySmall.copy(fontSize = 10.sp),
                         color = Color(0xBBFFFFFF),
                         maxLines = 1,
@@ -823,12 +875,37 @@ private fun NotificationControlPill(
                     color = Color(0x33FFFFFF)
                 ) {
                     Text(
-                        text = "Active",
+                        text = "Expand",
                         style = typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
                         color = Color.White,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                     )
                 }
+            }
+        }
+    }
+}
+
+private fun expandNotificationShade(context: Context) {
+    try {
+        val sbservice = context.getSystemService("statusbar")
+        val statusbarManager = Class.forName("android.app.StatusBarManager")
+        val showsb = statusbarManager.getMethod("expandNotificationsPanel")
+        showsb.invoke(sbservice)
+    } catch (_: Exception) {
+        try {
+            val sbservice = context.getSystemService("statusbar")
+            val statusbarManager = Class.forName("android.app.StatusBarManager")
+            val showsb = statusbarManager.getMethod("expand")
+            showsb.invoke(sbservice)
+        } catch (_: Exception) {
+            try {
+                context.startActivity(
+                    Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+            } catch (_: Exception) {
+                Toast.makeText(context, "Notification shade unavailable", Toast.LENGTH_SHORT).show()
             }
         }
     }

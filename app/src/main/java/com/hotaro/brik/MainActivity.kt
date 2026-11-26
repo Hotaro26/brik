@@ -127,9 +127,23 @@ class MainActivity : ComponentActivity() {
                 androidx.compose.runtime.LaunchedEffect(isWindDownActive, isZenActive, activeKioskFocusMode) {
                     if (activeKioskFocusMode != null) {
                         try {
-                            val packagesToAllow = (activeKioskFocusMode.kioskAllowedPackages + packageName).toList()
+                            val defaultDialer = (getSystemService(android.content.Context.TELECOM_SERVICE) as? android.telecom.TelecomManager)?.defaultDialerPackage
+                            val systemPackages = listOfNotNull(
+                                packageName,
+                                "com.android.settings",
+                                defaultDialer,
+                                "com.google.android.dialer",
+                                "com.android.dialer",
+                                "com.samsung.android.dialer"
+                            )
+                            val packagesToAllow = (activeKioskFocusMode.kioskAllowedPackages + systemPackages).distinct()
                             com.hotaro.brik.policy.PolicyBridgeManager.setLockTaskPackages(this@MainActivity, packagesToAllow)
-                            com.hotaro.brik.policy.PolicyBridgeManager.setLockTaskFeatures(this@MainActivity, activeKioskFocusMode.kioskDisableSystemGestures)
+                            val lockdownNotifs = com.hotaro.brik.util.KioskPreferences.lockdownNotificationShade.value
+                            com.hotaro.brik.policy.PolicyBridgeManager.setLockTaskFeatures(
+                                this@MainActivity,
+                                activeKioskFocusMode.kioskDisableSystemGestures,
+                                lockdownNotifs
+                            )
                             startLockTask()
                         } catch (e: Exception) {
                             e.printStackTrace()
@@ -421,8 +435,29 @@ fun BrikMainScreen() {
                 )
             }
 
-            // Top layer: Sub-screen (KeysWindow, AppManagerWindow, BagsWindow, RoutinesWindow, ModesWindow) with predictive slide transition
-            if (isSubScreenVisible) {
+            // Background layer for nested sub-screen (e.g., MiscWindow behind AssistiveSettingsWindow)
+            val previousSubScreen = subScreenHistory.lastOrNull()
+            if (isSubScreenVisible && previousSubScreen != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            translationX = (-screenWidthPx / 4f) * (1f - p)
+                            alpha = 0.75f + (p * 0.25f)
+                        }
+                        .background(appBackground)
+                ) {
+                    RenderSubScreen(
+                        screen = previousSubScreen,
+                        isZenActive = isZenActive,
+                        onBack = onBackFromSubScreen,
+                        onNavigate = onNavigateToSubScreen
+                    )
+                }
+            }
+
+            // Top layer: Sub-screen with predictive slide transition
+            if (isSubScreenVisible && currentSubScreen != null) {
                 val keyOffsetX = screenWidthPx * p
                 val keyScale = 1f - (p * 0.05f)
                 val keyCorners = (p * 24).dp
@@ -446,26 +481,41 @@ fun BrikMainScreen() {
                             indication = null
                         ) { /* Absorb blank space clicks */ }
                 ) {
-                    when (currentSubScreen) {
-                        "keys" -> KeysWindow(onBack = onBackFromSubScreen)
-                        "app_manager" -> AppManagerWindow(onBack = onBackFromSubScreen)
-                        "bags" -> BagsWindow(onBack = onBackFromSubScreen)
-                        "routines" -> RoutinesWindow(onBack = onBackFromSubScreen)
-                        "modes" -> ModesWindow(onBack = onBackFromSubScreen)
-                        "zen" -> ZenWindow(onBack = { if (!isZenActive) onBackFromSubScreen() })
-                        "grayscale" -> GrayscaleWindow(onBack = onBackFromSubScreen)
-                        "about" -> AboutWindow(onBack = onBackFromSubScreen)
-                        "emergency" -> EmergencyModeWindow(onBack = onBackFromSubScreen)
-                        "misc" -> MiscWindow(
-                            onBack = onBackFromSubScreen,
-                            onNavigateToAssistiveSettings = { onNavigateToSubScreen("assistive_settings") },
-                            onNavigateToKioskSettings = { onNavigateToSubScreen("kiosk_settings") }
-                        )
-                        "assistive_settings" -> AssistiveSettingsWindow(onBack = onBackFromSubScreen)
-                        "kiosk_settings" -> KioskSettingsWindow(onBack = onBackFromSubScreen)
-                    }
+                    RenderSubScreen(
+                        screen = currentSubScreen!!,
+                        isZenActive = isZenActive,
+                        onBack = onBackFromSubScreen,
+                        onNavigate = onNavigateToSubScreen
+                    )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun RenderSubScreen(
+    screen: String,
+    isZenActive: Boolean,
+    onBack: () -> Unit,
+    onNavigate: (String) -> Unit
+) {
+    when (screen) {
+        "keys" -> KeysWindow(onBack = onBack)
+        "app_manager" -> AppManagerWindow(onBack = onBack)
+        "bags" -> BagsWindow(onBack = onBack)
+        "routines" -> RoutinesWindow(onBack = onBack)
+        "modes" -> ModesWindow(onBack = onBack)
+        "zen" -> ZenWindow(onBack = { if (!isZenActive) onBack() })
+        "grayscale" -> GrayscaleWindow(onBack = onBack)
+        "about" -> AboutWindow(onBack = onBack)
+        "emergency" -> EmergencyModeWindow(onBack = onBack)
+        "misc" -> MiscWindow(
+            onBack = onBack,
+            onNavigateToAssistiveSettings = { onNavigate("assistive_settings") },
+            onNavigateToKioskSettings = { onNavigate("kiosk_settings") }
+        )
+        "assistive_settings" -> AssistiveSettingsWindow(onBack = onBack)
+        "kiosk_settings" -> KioskSettingsWindow(onBack = onBack)
     }
 }
