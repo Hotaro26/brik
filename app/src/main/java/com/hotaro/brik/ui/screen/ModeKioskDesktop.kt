@@ -11,8 +11,13 @@ import android.os.BatteryManager
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -377,14 +382,25 @@ fun ModeKioskDesktop(
                     }
                 }
 
-                LazyColumn(
+                var isAppListExpanded by remember { mutableStateOf(false) }
+                val visibleApps = remember(permittedApps, isAppListExpanded) {
+                    if (isAppListExpanded || permittedApps.size <= 5) permittedApps else permittedApps.take(5)
+                }
+
+                Column(
                     modifier = Modifier
                         .weight(1f)
-                        .fillMaxWidth(),
+                        .fillMaxWidth()
+                        .animateContentSize(
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                stiffness = Spring.StiffnessLow
+                            )
+                        ),
                     horizontalAlignment = columnAlignment,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    items(permittedApps, key = { it.packageName }) { app ->
+                    visibleApps.forEach { app ->
                         Text(
                             text = app.label,
                             style = typography.titleMedium.copy(
@@ -408,9 +424,37 @@ fun ModeKioskDesktop(
                                         }
                                     }
                                 }
-                                .padding(vertical = 10.dp),
+                                .padding(vertical = 6.dp),
                             textAlign = textAlignment
                         )
+                    }
+
+                    if (permittedApps.size > 5) {
+                        val moreCount = permittedApps.size - 5
+                        Row(
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .clickable { isAppListExpanded = !isAppListExpanded }
+                                .padding(horizontal = 14.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = if (isAppListExpanded) "less" else "more ($moreCount)",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                letterSpacing = 0.5.sp,
+                                color = Color.White.copy(alpha = 0.5f)
+                            )
+                            Icon(
+                                painter = painterResource(R.drawable.arrow_forward_big),
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.5f),
+                                modifier = Modifier
+                                    .size(12.dp)
+                                    .graphicsLayer { rotationZ = if (isAppListExpanded) -90f else 90f }
+                            )
+                        }
                     }
                 }
             }

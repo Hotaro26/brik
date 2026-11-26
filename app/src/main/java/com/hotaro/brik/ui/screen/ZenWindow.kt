@@ -5,17 +5,24 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
+import android.view.HapticFeedbackConstants
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalView
 import com.hotaro.brik.ui.component.TomatoSectionHeader
 import com.hotaro.brik.ui.component.TomatoSettingsItem
+import com.hotaro.brik.ui.component.drawBorderProgress
+import com.hotaro.brik.ui.component.holdToProgress
 import com.hotaro.brik.ui.component.segmentedItemShape
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -219,9 +226,11 @@ private fun InactiveZenConfigScreen(
     val context = LocalContext.current
     val isDark = colorScheme.surface.luminance() < 0.5f
     val appBackground = if (isDark) Color.Black else colorScheme.surface
+    val view = LocalView.current
 
-    var selectedDurationMinutes by remember { mutableIntStateOf(30) }
-    var isInfiniteSelected by remember { mutableStateOf(false) }
+    var selectedDurationMinutes by remember { mutableIntStateOf(ZenManager.getConfiguredDuration(context)) }
+    var isInfiniteSelected by remember { mutableStateOf(ZenManager.isConfiguredInfinite(context)) }
+    var enterZenProgress by remember { mutableFloatStateOf(0f) }
     var showAppPickerSheet by remember { mutableStateOf(false) }
 
     var isDurationExpanded by remember { mutableStateOf(false) }
@@ -438,7 +447,10 @@ private fun InactiveZenConfigScreen(
                                     }
                                     Switch(
                                         checked = isInfiniteSelected,
-                                        onCheckedChange = { isInfiniteSelected = it },
+                                        onCheckedChange = {
+                                            isInfiniteSelected = it
+                                            ZenManager.setConfiguredInfinite(context, it)
+                                        },
                                         colors = SwitchDefaults.colors(
                                             checkedThumbColor = colorScheme.onPrimary,
                                             checkedTrackColor = colorScheme.primary
@@ -465,7 +477,10 @@ private fun InactiveZenConfigScreen(
                                             val label = if (minutes >= 60) "${minutes / 60}h" else "${minutes}m"
                                             FilterChip(
                                                 selected = isSelected,
-                                                onClick = { selectedDurationMinutes = minutes },
+                                                onClick = {
+                                                    selectedDurationMinutes = minutes
+                                                    ZenManager.setConfiguredDuration(context, minutes)
+                                                },
                                                 label = { Text(label, fontWeight = FontWeight.SemiBold) },
                                                 colors = FilterChipDefaults.filterChipColors(
                                                     selectedContainerColor = colorScheme.primaryContainer,
@@ -484,7 +499,11 @@ private fun InactiveZenConfigScreen(
                                     )
                                     Slider(
                                         value = selectedDurationMinutes.toFloat(),
-                                        onValueChange = { selectedDurationMinutes = it.toInt() },
+                                        onValueChange = {
+                                            val m = it.toInt()
+                                            selectedDurationMinutes = m
+                                            ZenManager.setConfiguredDuration(context, m)
+                                        },
                                         valueRange = 5f..480f,
                                         steps = 94
                                     )
@@ -858,7 +877,6 @@ private fun InactiveZenConfigScreen(
 
             // Floating Pill Button: Lotus icon + "Enter Zen" in soft-edged rectangle at bottom right
             Surface(
-                onClick = { onStartZen(selectedDurationMinutes, isInfiniteSelected) },
                 shape = RoundedCornerShape(16.dp),
                 color = colorScheme.primary,
                 contentColor = colorScheme.onPrimary,
@@ -867,6 +885,23 @@ private fun InactiveZenConfigScreen(
                     .align(Alignment.BottomEnd)
                     .navigationBarsPadding()
                     .padding(end = 20.dp, bottom = 20.dp)
+                    .holdToProgress(
+                        durationMillis = 5000L,
+                        onProgressUpdate = { enterZenProgress = it },
+                        onCompleted = {
+                            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                            onStartZen(selectedDurationMinutes, isInfiniteSelected)
+                        },
+                        onTap = {
+                            onStartZen(selectedDurationMinutes, isInfiniteSelected)
+                        }
+                    )
+                    .drawBorderProgress(
+                        progress = enterZenProgress,
+                        shape = RoundedCornerShape(16.dp),
+                        color = colorScheme.onPrimary,
+                        strokeWidth = 3.dp
+                    )
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
@@ -1345,22 +1380,34 @@ private fun ActiveZenDesktop(
                         }
                     }
 
-                    LazyColumn(
-                        modifier = Modifier.fillMaxWidth(0.85f),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                        horizontalAlignment = columnAlignment
+                    var isAppListExpanded by remember { mutableStateOf(false) }
+                    val visibleApps = remember(permittedApps, isAppListExpanded) {
+                        if (isAppListExpanded || permittedApps.size <= 5) permittedApps else permittedApps.take(5)
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth(0.85f)
+                            .animateContentSize(
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                                    stiffness = Spring.StiffnessLow
+                                )
+                            ),
+                        horizontalAlignment = columnAlignment,
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        items(permittedApps, key = { it.packageName }) { app ->
+                        visibleApps.forEach { app ->
                             Text(
                                 text = app.label,
-                                fontSize = 22.sp,
+                                fontSize = 21.sp,
                                 fontWeight = FontWeight.Medium,
                                 letterSpacing = 0.5.sp,
                                 color = Color(0xFFE8E8EC),
                                 textAlign = textAlignment,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(14.dp))
+                                    .clip(RoundedCornerShape(12.dp))
                                     .clickable {
                                         val launchIntent = pm.getLaunchIntentForPackage(app.packageName)
                                         if (launchIntent != null) {
@@ -1369,8 +1416,36 @@ private fun ActiveZenDesktop(
                                             Toast.makeText(context, "Cannot launch app", Toast.LENGTH_SHORT).show()
                                         }
                                     }
-                                    .padding(horizontal = 16.dp, vertical = 10.dp)
+                                    .padding(horizontal = 14.dp, vertical = 6.dp)
                             )
+                        }
+
+                        if (permittedApps.size > 5) {
+                            val moreCount = permittedApps.size - 5
+                            Row(
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .clickable { isAppListExpanded = !isAppListExpanded }
+                                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = if (isAppListExpanded) "less" else "more ($moreCount)",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    letterSpacing = 0.5.sp,
+                                    color = Color(0xFF9E9EA4)
+                                )
+                                Icon(
+                                    painter = painterResource(R.drawable.arrow_forward_big),
+                                    contentDescription = null,
+                                    tint = Color(0xFF9E9EA4),
+                                    modifier = Modifier
+                                        .size(12.dp)
+                                        .graphicsLayer { rotationZ = if (isAppListExpanded) -90f else 90f }
+                                )
+                            }
                         }
                     }
                 }

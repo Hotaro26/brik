@@ -480,8 +480,8 @@ fun SettingsScreen(
             }
 
             val navBarSubtitle = when (currentNavBarStyle) {
-                NavBarStyle.FLOATING -> "Floating (Default)"
-                NavBarStyle.GLASS -> "Glass Navigation"
+                NavBarStyle.GLASS -> "Glass Navigation (Default)"
+                NavBarStyle.FLOATING -> "Floating Navbar"
                 NavBarStyle.CLASSIC -> "Classic Sticky"
             }
 
@@ -1540,8 +1540,8 @@ fun SettingsScreen(
                 )
 
                 val navBarOptions = listOf(
-                    Triple("Floating Navbar", NavBarStyle.FLOATING, "Modern floating pill navigation bar (Default)"),
-                    Triple("Glass Navigation", NavBarStyle.GLASS, "Liquid glass floating navigation bar"),
+                    Triple("Glass Navigation", NavBarStyle.GLASS, "Liquid glass floating navigation bar (Default)"),
+                    Triple("Floating Navbar", NavBarStyle.FLOATING, "Modern floating pill navigation bar"),
                     Triple("Classic Sticky Navbar", NavBarStyle.CLASSIC, "Traditional bottom docked navigation bar")
                 )
 

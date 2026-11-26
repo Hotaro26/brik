@@ -1,6 +1,8 @@
 package com.hotaro.brik.ui.screen
 
+import android.app.Activity
 import android.content.Context
+import android.view.HapticFeedbackConstants
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
@@ -65,6 +67,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -77,6 +80,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -92,6 +96,8 @@ import com.hotaro.brik.data.model.KeyType
 import com.hotaro.brik.ui.component.BridgeSetupSheet
 import com.hotaro.brik.ui.component.QrScannerView
 import com.hotaro.brik.ui.component.RoundedPullRefreshPage
+import com.hotaro.brik.ui.component.drawBorderProgress
+import com.hotaro.brik.ui.component.holdToProgress
 import com.hotaro.brik.ui.viewmodel.KeyViewModel
 import com.hotaro.brik.ui.viewmodel.SettingsViewModel
 import com.hotaro.brik.ui.viewmodel.ToolsViewModel
@@ -169,6 +175,33 @@ fun KeyScreen(
     val bridgeStatus by settingsViewModel.bridgeStatus.collectAsState()
     val isZenActive by ZenManager.isZenActive.collectAsState()
     var showBridgeSetupSheet by remember { mutableStateOf(false) }
+
+    val view = LocalView.current
+    val activity = context as? Activity
+    var lotusProgress by remember { mutableFloatStateOf(0f) }
+    var zenPillProgress by remember { mutableFloatStateOf(0f) }
+
+    val onStartZenDirectly = {
+        if (!ZenManager.hasKey(context)) {
+            Toast.makeText(context, "Configure a security key in Zen settings first", Toast.LENGTH_SHORT).show()
+            onNavigateToZen()
+        } else {
+            val duration = ZenManager.getConfiguredDuration(context)
+            val isInfinite = ZenManager.isConfiguredInfinite(context)
+            val allowed = ZenManager.allowedPackages.value
+            val useKiosk = ZenManager.useKiosk.value
+            ZenManager.startZenSession(
+                context = context,
+                activity = activity,
+                isInfinite = isInfinite,
+                durationMinutes = duration,
+                allowedPackages = allowed,
+                useKiosk = useKiosk
+            )
+            Toast.makeText(context, "Zen Mode activated", Toast.LENGTH_SHORT).show()
+            onNavigateToZen()
+        }
+    }
 
     // Tap bounce scale
     val scale by animateFloatAsState(
@@ -390,20 +423,33 @@ fun KeyScreen(
                                 }
                             } else {
                                 // --- ZEN MODE CONTENT ---
+                                val zenCookieShape = remember { cookieShape(sides = 9, indentFactor = 0.86f) }
                                 Surface(
-                                    shape = cookieShape(sides = 9, indentFactor = 0.86f),
+                                    shape = zenCookieShape,
                                     color = if (isZenActive) colorScheme.primary else colorScheme.surfaceContainerHigh,
                                     shadowElevation = 8.dp,
                                     modifier = Modifier
                                         .scale(scale)
                                         .size(112.dp)
                                         .graphicsLayer { rotationZ = cookieRotation }
-                                        .clickable(
-                                            interactionSource = remember { MutableInteractionSource() },
-                                            indication = null
-                                        ) {
-                                            onNavigateToZen()
-                                        }
+                                        .holdToProgress(
+                                            durationMillis = 5000L,
+                                            enabled = !isZenActive,
+                                            onProgressUpdate = { lotusProgress = it },
+                                            onCompleted = {
+                                                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                                onStartZenDirectly()
+                                            },
+                                            onTap = {
+                                                onNavigateToZen()
+                                            }
+                                        )
+                                        .drawBorderProgress(
+                                            progress = lotusProgress,
+                                            shape = zenCookieShape,
+                                            color = colorScheme.primary,
+                                            strokeWidth = 3.5.dp
+                                        )
                                 ) {
                                     Box(
                                         contentAlignment = Alignment.Center,
@@ -429,7 +475,7 @@ fun KeyScreen(
                                 )
 
                                 Text(
-                                    text = if (isZenActive) "Active lockdown session • Tap to view" else "Minimalist digital detox • Tap to enter",
+                                    text = if (isZenActive) "Active lockdown session • Tap to view" else "Hold 5s to enter directly • Tap to configure",
                                     style = typography.bodyMedium,
                                     color = if (isZenActive) colorScheme.primary else colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(top = 6.dp)
@@ -438,11 +484,29 @@ fun KeyScreen(
                                 Spacer(Modifier.height(24.dp))
 
                                 Surface(
-                                    onClick = onNavigateToZen,
                                     shape = CircleShape,
                                     color = if (isZenActive) colorScheme.primaryContainer else colorScheme.primary,
                                     shadowElevation = 8.dp,
-                                    modifier = Modifier.height(52.dp)
+                                    modifier = Modifier
+                                        .height(52.dp)
+                                        .holdToProgress(
+                                            durationMillis = 5000L,
+                                            enabled = !isZenActive,
+                                            onProgressUpdate = { zenPillProgress = it },
+                                            onCompleted = {
+                                                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                                onStartZenDirectly()
+                                            },
+                                            onTap = {
+                                                onNavigateToZen()
+                                            }
+                                        )
+                                        .drawBorderProgress(
+                                            progress = zenPillProgress,
+                                            shape = CircleShape,
+                                            color = if (isZenActive) colorScheme.primary else colorScheme.onPrimary,
+                                            strokeWidth = 3.dp
+                                        )
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),

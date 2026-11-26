@@ -36,7 +36,7 @@ object ThemePreferences {
     private val _colorPalette = MutableStateFlow("dynamic")
     val colorPalette: StateFlow<String> = _colorPalette.asStateFlow()
 
-    private val _navBarStyle = MutableStateFlow(NavBarStyle.FLOATING)
+    private val _navBarStyle = MutableStateFlow(NavBarStyle.GLASS)
     val navBarStyle: StateFlow<NavBarStyle> = _navBarStyle.asStateFlow()
 
     private val _appIcon = MutableStateFlow("dynamic")
@@ -53,9 +53,9 @@ object ThemePreferences {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         _themeMode.value = prefs.getInt(KEY_THEME_MODE, 0)
         _colorPalette.value = prefs.getString(KEY_COLOR_PALETTE, "dynamic") ?: "dynamic"
-        val navStyleStr = prefs.getString(KEY_NAVBAR_STYLE, NavBarStyle.FLOATING.name)
-        _navBarStyle.value = runCatching { NavBarStyle.valueOf(navStyleStr ?: NavBarStyle.FLOATING.name) }
-            .getOrDefault(NavBarStyle.FLOATING)
+        val navStyleStr = prefs.getString(KEY_NAVBAR_STYLE, NavBarStyle.GLASS.name)
+        _navBarStyle.value = runCatching { NavBarStyle.valueOf(navStyleStr ?: NavBarStyle.GLASS.name) }
+            .getOrDefault(NavBarStyle.GLASS)
         val savedIcon = prefs.getString(KEY_APP_ICON, "dynamic") ?: "dynamic"
         _appIcon.value = if (savedIcon == "default") "dynamic" else savedIcon
         _use24HourClock.value = prefs.getBoolean(KEY_CLOCK_FORMAT, false)

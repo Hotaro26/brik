@@ -24,6 +24,8 @@ object ZenManager {
     private const val KEY_ZEN_SECRET_HASH = "pref_zen_secret_hash"
     private const val KEY_ZEN_QR_TOKEN = "pref_zen_qr_token"
     private const val KEY_ZEN_HOLD_DURATION_SECONDS = "pref_zen_hold_duration_seconds"
+    private const val KEY_ZEN_CONFIGURED_DURATION = "pref_zen_configured_duration"
+    private const val KEY_ZEN_CONFIGURED_INFINITE = "pref_zen_configured_infinite"
 
     private val _isZenActive = MutableStateFlow(false)
     val isZenActive: StateFlow<Boolean> = _isZenActive.asStateFlow()
@@ -125,6 +127,26 @@ object ZenManager {
         prefs.edit().putInt(KEY_ZEN_HOLD_DURATION_SECONDS, seconds).apply()
     }
 
+    fun getConfiguredDuration(context: Context): Int {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getInt(KEY_ZEN_CONFIGURED_DURATION, 30)
+    }
+
+    fun setConfiguredDuration(context: Context, duration: Int) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putInt(KEY_ZEN_CONFIGURED_DURATION, duration).apply()
+    }
+
+    fun isConfiguredInfinite(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_ZEN_CONFIGURED_INFINITE, false)
+    }
+
+    fun setConfiguredInfinite(context: Context, isInfinite: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_ZEN_CONFIGURED_INFINITE, isInfinite).apply()
+    }
+
     fun startZenSession(
         context: Context,
         activity: Activity?,
@@ -144,6 +166,8 @@ object ZenManager {
             .putBoolean(KEY_ZEN_IS_INFINITE, isInfinite)
             .putStringSet(KEY_ZEN_ALLOWED_PACKAGES, allowedPackages)
             .putBoolean(KEY_ZEN_USE_KIOSK, useKiosk)
+            .putInt(KEY_ZEN_CONFIGURED_DURATION, durationMinutes)
+            .putBoolean(KEY_ZEN_CONFIGURED_INFINITE, isInfinite)
             .apply()
 
         _isZenActive.value = true
