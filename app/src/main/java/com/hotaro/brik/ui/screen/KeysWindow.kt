@@ -584,8 +584,8 @@ fun KeysWindow(
                                     Spacer(Modifier.width(8.dp))
                                 }
 
-                                // Clear key is ONLY displayed in Emergency Mode for system keys!
-                                if (!lock.isSystemKey || isEmergencyActive) {
+                                // Emergency Unlock or Clear Key is ONLY displayed in Emergency Mode!
+                                if (isEmergencyActive) {
                                     Button(
                                         onClick = { emergencyUnlockLock = lock },
                                         colors = ButtonDefaults.buttonColors(containerColor = colorScheme.errorContainer),
@@ -1705,9 +1705,20 @@ fun KeysWindow(
     }
 
     if (showVerifyEmergencyKeyDialog) {
+        val keyType = remember(context) { EmergencyManager.getKeyType(context) }
         VerifyEmergencyKeyDialog(
+            title = "Emergency Override",
+            subtitle = if (keyType == KeyType.QR_CODE) {
+                "Scan your Device Owner / Emergency QR code to activate Emergency Mode."
+            } else {
+                "Enter your Device Owner password or Emergency Key to activate Emergency Mode."
+            },
+            keyTypeOverride = keyType,
             onDismiss = { showVerifyEmergencyKeyDialog = false },
-            onVerified = { showVerifyEmergencyKeyDialog = false }
+            onVerified = {
+                showVerifyEmergencyKeyDialog = false
+                Toast.makeText(context, "Emergency Mode activated!", Toast.LENGTH_SHORT).show()
+            }
         )
     }
 

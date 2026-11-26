@@ -82,6 +82,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.accompanist.drawablepainter.rememberDrawablePainter
+import androidx.compose.runtime.mutableStateListOf
 import com.hotaro.brik.R
 import com.hotaro.brik.data.model.AppBag
 import com.hotaro.brik.data.model.AppInfo
@@ -90,6 +91,8 @@ import com.hotaro.brik.data.model.KeyType
 import com.hotaro.brik.data.model.SavedKey
 import com.hotaro.brik.ui.component.QrScannerView
 import com.hotaro.brik.ui.component.RoundedPullRefreshPage
+import com.hotaro.brik.ui.component.SetEmergencyKeyDialog
+import com.hotaro.brik.ui.component.VerifyEmergencyKeyDialog
 import com.hotaro.brik.ui.viewmodel.KeyViewModel
 import com.hotaro.brik.ui.viewmodel.ToolsViewModel
 import com.hotaro.brik.util.EmergencyManager
@@ -111,6 +114,10 @@ fun BagsWindow(
     val installedApps by viewModel.installedApps.collectAsState()
 
     var isRefreshing by remember { mutableStateOf(false) }
+    val isEmergencyActive by EmergencyManager.isEmergencyModeActive.collectAsState()
+    val pullTimestamps = remember { mutableStateListOf<Long>() }
+    var showVerifyEmergencyKeyDialog by remember { mutableStateOf(false) }
+    var showSetEmergencyKeyDialog by remember { mutableStateOf(false) }
 
     // Selected bag for the detail bottom sheet
     var selectedBagForSheet by remember { mutableStateOf<AppBag?>(null) }
@@ -132,6 +139,21 @@ fun BagsWindow(
         onRefresh = {
             coroutineScope.launch {
                 isRefreshing = true
+                val now = System.currentTimeMillis()
+                pullTimestamps.removeAll { now - it > 5000L }
+                pullTimestamps.add(now)
+
+                if (pullTimestamps.size >= 3) {
+                    pullTimestamps.clear()
+                    if (isEmergencyActive) {
+                        Toast.makeText(context, "Emergency Mode is already active", Toast.LENGTH_SHORT).show()
+                    } else if (EmergencyManager.hasKey(context)) {
+                        showVerifyEmergencyKeyDialog = true
+                    } else {
+                        showSetEmergencyKeyDialog = true
+                    }
+                }
+
                 viewModel.loadInstalledApps()
                 kotlinx.coroutines.delay(650)
                 isRefreshing = false
@@ -348,9 +370,21 @@ fun BagsWindow(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        val isEmergencyActive by EmergencyManager.isEmergencyModeActive.collectAsState()
                         if (isLocked && isEmergencyActive) {
                             Surface(
+                                onClick = {
+                                    val lock = keyViewModel.activeLocks.value.find { it.bagId == activeBag.id }
+                                    if (lock != null) {
+                                        keyViewModel.emergencyUnlock(context, lock) { ok, err ->
+                                            if (ok) {
+                                                Toast.makeText(context, "'${activeBag.name}' emergency unlocked!", Toast.LENGTH_SHORT).show()
+                                                selectedBagForSheet = null
+                                            } else {
+                                                Toast.makeText(context, err ?: "Failed to unlock", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    }
+                                },
                                 shape = CircleShape,
                                 color = colorScheme.errorContainer,
                                 modifier = Modifier.height(38.dp)
@@ -360,14 +394,14 @@ fun BagsWindow(
                                     modifier = Modifier.padding(horizontal = 10.dp)
                                 ) {
                                     Icon(
-                                        painter = painterResource(R.drawable.shield_fill0),
+                                        painter = painterResource(R.drawable.delete_fill0),
                                         contentDescription = null,
                                         tint = colorScheme.onErrorContainer,
                                         modifier = Modifier.size(14.dp)
                                     )
                                     Spacer(Modifier.width(4.dp))
                                     Text(
-                                        text = "EMERGENCY",
+                                        text = "EMERGENCY UNLOCK",
                                         style = typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold, fontSize = 9.sp),
                                         color = colorScheme.onErrorContainer
                                     )
@@ -1505,6 +1539,32 @@ fun BagsWindow(
                 shape = RoundedCornerShape(24.dp)
             )
         }
+    }
+
+    if (showSetEmergencyKeyDialog) {
+        SetEmergencyKeyDialog(
+            savedKeys = emptyList(),
+            onDismiss = { showSetEmergencyKeyDialog = false },
+            onKeySet = { showSetEmergencyKeyDialog = false }
+        )
+    }
+
+    if (showVerifyEmergencyKeyDialog) {
+        val keyType = remember(context) { EmergencyManager.getKeyType(context) }
+        VerifyEmergencyKeyDialog(
+            title = "Emergency Override",
+            subtitle = if (keyType == KeyType.QR_CODE) {
+                "Scan your Device Owner / Emergency QR code to activate Emergency Mode."
+            } else {
+                "Enter your Device Owner password or Emergency Key to activate Emergency Mode."
+            },
+            keyTypeOverride = keyType,
+            onDismiss = { showVerifyEmergencyKeyDialog = false },
+            onVerified = {
+                showVerifyEmergencyKeyDialog = false
+                Toast.makeText(context, "Emergency Mode activated!", Toast.LENGTH_SHORT).show()
+            }
+        )
     }
 }
 

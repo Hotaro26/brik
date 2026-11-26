@@ -32,22 +32,48 @@ object EmergencyManager {
     fun init(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         _isEmergencyModeActive.value = prefs.getBoolean(KEY_EMERGENCY_ACTIVE, false)
-        val hash = prefs.getString(KEY_EMERGENCY_SECRET_HASH, null)
-        _hasEmergencyKey.value = !hash.isNullOrBlank()
         _autoDeactivateOnScreenLock.value = prefs.getBoolean(KEY_AUTO_DEACTIVATE_SCREEN_LOCK, true)
         _allowCommonKeyDpm.value = prefs.getBoolean(KEY_ALLOW_COMMON_KEY_DPM, true)
+        _hasEmergencyKey.value = hasKey(context)
     }
 
     fun hasKey(context: Context): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val hash = prefs.getString(KEY_EMERGENCY_SECRET_HASH, null)
-        return !hash.isNullOrBlank()
+        if (!hash.isNullOrBlank()) return true
+        if (_allowCommonKeyDpm.value) {
+            val dpmLock = KeyRepository(context).getDpmUninstallLock()
+            if (dpmLock != null && !dpmLock.secretHash.isNullOrBlank()) {
+                return true
+            }
+            val dpmPrefs = context.getSharedPreferences("brik_admin_pref", Context.MODE_PRIVATE)
+            val dpmHash = dpmPrefs.getString("pref_dpm_uninstall_secret_hash", null)
+            if (!dpmHash.isNullOrBlank()) {
+                return true
+            }
+        }
+        return false
     }
 
     fun getKeyType(context: Context): KeyType {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val typeStr = prefs.getString(KEY_EMERGENCY_KEY_TYPE, KeyType.PASSWORD.name)
-        return runCatching { KeyType.valueOf(typeStr ?: KeyType.PASSWORD.name) }.getOrDefault(KeyType.PASSWORD)
+        val hash = prefs.getString(KEY_EMERGENCY_SECRET_HASH, null)
+        if (!hash.isNullOrBlank()) {
+            val typeStr = prefs.getString(KEY_EMERGENCY_KEY_TYPE, KeyType.PASSWORD.name)
+            return runCatching { KeyType.valueOf(typeStr ?: KeyType.PASSWORD.name) }.getOrDefault(KeyType.PASSWORD)
+        }
+        if (_allowCommonKeyDpm.value) {
+            val dpmLock = KeyRepository(context).getDpmUninstallLock()
+            if (dpmLock != null) {
+                return dpmLock.keyType
+            }
+            val dpmPrefs = context.getSharedPreferences("brik_admin_pref", Context.MODE_PRIVATE)
+            val dpmType = dpmPrefs.getString("pref_dpm_uninstall_key_type", null)
+            if (dpmType != null) {
+                return runCatching { KeyType.valueOf(dpmType) }.getOrDefault(KeyType.PASSWORD)
+            }
+        }
+        return KeyType.PASSWORD
     }
 
     fun setEmergencyKey(context: Context, keyType: KeyType, secret: String) {
@@ -73,7 +99,12 @@ object EmergencyManager {
             if (dpmLock != null && dpmLock.secretHash.equals(inputHash, ignoreCase = true)) {
                 return true
             }
-            val zenPrefs = context.getSharedPreferences("brik_zen_prefs", Context.MODE_PRIVATE)
+            val dpmPrefs = context.getSharedPreferences("brik_admin_pref", Context.MODE_PRIVATE)
+            val dpmHash = dpmPrefs.getString("pref_dpm_uninstall_secret_hash", null)
+            if (!dpmHash.isNullOrBlank() && dpmHash.equals(inputHash, ignoreCase = true)) {
+                return true
+            }
+            val zenPrefs = context.getSharedPreferences("brik_zen_pref", Context.MODE_PRIVATE)
             val zenHash = zenPrefs.getString("pref_zen_secret_hash", null)
             if (!zenHash.isNullOrBlank() && zenHash.equals(inputHash, ignoreCase = true)) {
                 return true
