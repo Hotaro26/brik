@@ -18,6 +18,8 @@ object ZenManager {
     private const val KEY_ZEN_IS_INFINITE = "pref_zen_is_infinite"
     private const val KEY_ZEN_ALLOWED_PACKAGES = "pref_zen_allowed_packages"
     private const val KEY_ZEN_USE_KIOSK = "pref_zen_use_kiosk"
+    private const val KEY_ZEN_FLOATING_CONTROLS = "pref_zen_floating_controls"
+    private const val KEY_ZEN_FLOATING_AUTOHIDE_SECONDS = "pref_zen_floating_autohide_seconds"
     private const val KEY_ZEN_KEY_TYPE = "pref_zen_key_type"
     private const val KEY_ZEN_SECRET_HASH = "pref_zen_secret_hash"
     private const val KEY_ZEN_QR_TOKEN = "pref_zen_qr_token"
@@ -37,6 +39,12 @@ object ZenManager {
 
     private val _useKiosk = MutableStateFlow(true)
     val useKiosk: StateFlow<Boolean> = _useKiosk.asStateFlow()
+
+    private val _floatingControlsEnabled = MutableStateFlow(true)
+    val floatingControlsEnabled: StateFlow<Boolean> = _floatingControlsEnabled.asStateFlow()
+
+    private val _floatingControlsAutoHideSeconds = MutableStateFlow(3)
+    val floatingControlsAutoHideSeconds: StateFlow<Int> = _floatingControlsAutoHideSeconds.asStateFlow()
 
     private val _hasSecurityKey = MutableStateFlow(false)
     val hasSecurityKey: StateFlow<Boolean> = _hasSecurityKey.asStateFlow()
@@ -63,6 +71,8 @@ object ZenManager {
         val savedAllowed = prefs.getStringSet(KEY_ZEN_ALLOWED_PACKAGES, null)
         _allowedPackages.value = if (!savedAllowed.isNullOrEmpty()) savedAllowed else getDefaultEssentialPackages(context)
         _useKiosk.value = prefs.getBoolean(KEY_ZEN_USE_KIOSK, true)
+        _floatingControlsEnabled.value = prefs.getBoolean(KEY_ZEN_FLOATING_CONTROLS, true)
+        _floatingControlsAutoHideSeconds.value = prefs.getInt(KEY_ZEN_FLOATING_AUTOHIDE_SECONDS, 3)
         val hash = prefs.getString(KEY_ZEN_SECRET_HASH, null)
         _hasSecurityKey.value = !hash.isNullOrBlank() || EmergencyManager.hasKey(context)
         _holdDurationSeconds.value = prefs.getInt(KEY_ZEN_HOLD_DURATION_SECONDS, 3)
@@ -95,6 +105,18 @@ object ZenManager {
         _useKiosk.value = useKiosk
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putBoolean(KEY_ZEN_USE_KIOSK, useKiosk).apply()
+    }
+
+    fun setFloatingControlsEnabled(context: Context, enabled: Boolean) {
+        _floatingControlsEnabled.value = enabled
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_ZEN_FLOATING_CONTROLS, enabled).apply()
+    }
+
+    fun setFloatingControlsAutoHideSeconds(context: Context, seconds: Int) {
+        _floatingControlsAutoHideSeconds.value = seconds
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putInt(KEY_ZEN_FLOATING_AUTOHIDE_SECONDS, seconds).apply()
     }
 
     fun setHoldDurationSeconds(context: Context, seconds: Int) {

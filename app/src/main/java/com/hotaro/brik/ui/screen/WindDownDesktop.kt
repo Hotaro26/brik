@@ -107,7 +107,8 @@ fun WindDownDesktop() {
     }
 
     val use24Hour by com.hotaro.brik.ui.theme.ThemePreferences.use24HourClock.collectAsState()
-    val timeFormat = remember(use24Hour) { SimpleDateFormat(if (use24Hour) "HH:mm" else "h:mm a", Locale.getDefault()) }
+    val timeDigitsFormat = remember(use24Hour) { SimpleDateFormat(if (use24Hour) "HH:mm" else "h:mm", Locale.getDefault()) }
+    val amPmFormat = remember(use24Hour) { if (use24Hour) null else SimpleDateFormat("a", Locale.getDefault()) }
     val dateFormat = remember { SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()) }
 
     val launcherApps = remember(context) { loadLauncherApps(pm, context.packageName) }
@@ -138,14 +139,29 @@ fun WindDownDesktop() {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.padding(top = 32.dp)
             ) {
-                Text(
-                    text = timeFormat.format(currentTime),
-                    fontSize = 76.sp,
-                    fontWeight = FontWeight.Light,
-                    fontFamily = FontFamily.SansSerif,
-                    color = Color.White,
-                    letterSpacing = (-2).sp
-                )
+                Row(
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = timeDigitsFormat.format(currentTime),
+                        fontSize = 76.sp,
+                        fontWeight = FontWeight.Light,
+                        fontFamily = FontFamily.SansSerif,
+                        color = Color.White,
+                        letterSpacing = (-2).sp
+                    )
+                    if (!use24Hour) {
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = amPmFormat?.format(currentTime)?.uppercase() ?: "",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White.copy(alpha = 0.75f),
+                            modifier = Modifier.padding(bottom = 14.dp)
+                        )
+                    }
+                }
 
                 Text(
                     text = dateFormat.format(currentTime),
@@ -325,6 +341,15 @@ fun WindDownDesktop() {
                     }
                 }
             }
+        }
+
+        val floatingControlsEnabled by WindDownManager.floatingControlsEnabled.collectAsState()
+        val floatingAutoHideSeconds by WindDownManager.floatingControlsAutoHideSeconds.collectAsState()
+        if (floatingControlsEnabled) {
+            com.hotaro.brik.ui.component.FloatingQuickControls(
+                autoHideDelaySeconds = floatingAutoHideSeconds,
+                modifier = Modifier.fillMaxSize()
+            )
         }
     }
 

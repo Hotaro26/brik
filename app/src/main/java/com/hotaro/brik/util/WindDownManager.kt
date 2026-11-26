@@ -25,9 +25,17 @@ object WindDownManager {
     private const val KEY_SECRET_HASH = "pref_wd_secret_hash"
     private const val KEY_QR_TOKEN = "pref_wd_qr_token"
     private const val KEY_IS_PREVIEW = "pref_wd_is_preview"
+    private const val KEY_FLOATING_CONTROLS = "pref_wd_floating_controls"
+    private const val KEY_FLOATING_AUTOHIDE_SECONDS = "pref_wd_floating_autohide_seconds"
 
     private val _isEnabled = MutableStateFlow(false)
     val isEnabled: StateFlow<Boolean> = _isEnabled.asStateFlow()
+
+    private val _floatingControlsEnabled = MutableStateFlow(true)
+    val floatingControlsEnabled: StateFlow<Boolean> = _floatingControlsEnabled.asStateFlow()
+
+    private val _floatingControlsAutoHideSeconds = MutableStateFlow(3)
+    val floatingControlsAutoHideSeconds: StateFlow<Int> = _floatingControlsAutoHideSeconds.asStateFlow()
 
     private val _sleepHour = MutableStateFlow(23)
     val sleepHour: StateFlow<Int> = _sleepHour.asStateFlow()
@@ -68,6 +76,8 @@ object WindDownManager {
         _wakeMinute.value = prefs.getInt(KEY_WAKE_MINUTE, 0)
         _isNoAppsMode.value = prefs.getBoolean(KEY_NO_APPS_MODE, false)
         _allowEmergencyUnlock.value = prefs.getBoolean(KEY_ALLOW_EMERGENCY, true)
+        _floatingControlsEnabled.value = prefs.getBoolean(KEY_FLOATING_CONTROLS, true)
+        _floatingControlsAutoHideSeconds.value = prefs.getInt(KEY_FLOATING_AUTOHIDE_SECONDS, 3)
 
         val hash = prefs.getString(KEY_SECRET_HASH, null)
         _hasSecurityKey.value = !hash.isNullOrBlank() || ZenManager.hasKey(context) || EmergencyManager.hasKey(context)
@@ -123,6 +133,18 @@ object WindDownManager {
         _allowEmergencyUnlock.value = allow
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putBoolean(KEY_ALLOW_EMERGENCY, allow).apply()
+    }
+
+    fun setFloatingControlsEnabled(context: Context, enabled: Boolean) {
+        _floatingControlsEnabled.value = enabled
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_FLOATING_CONTROLS, enabled).apply()
+    }
+
+    fun setFloatingControlsAutoHideSeconds(context: Context, seconds: Int) {
+        _floatingControlsAutoHideSeconds.value = seconds
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putInt(KEY_FLOATING_AUTOHIDE_SECONDS, seconds).apply()
     }
 
     fun setSecurityKey(context: Context, keyType: KeyType, secret: String) {

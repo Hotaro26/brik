@@ -654,10 +654,88 @@ private fun InactiveZenConfigScreen(
                                 )
                             )
                         },
-                        shape = segmentedItemShape(0, 2)
+                        shape = segmentedItemShape(0, 3)
                     )
 
-                    // 2. Security Key Protection Item
+                    // 2. Assistive Quick Controls Item
+                    val floatingControlsEnabled by ZenManager.floatingControlsEnabled.collectAsState()
+                    val floatingAutoHideSeconds by ZenManager.floatingControlsAutoHideSeconds.collectAsState()
+
+                    Column(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        TomatoSettingsItem(
+                            title = "Assistive Quick Controls",
+                            subtitle = "Floating ball for Data, Wi-Fi, Hotspot & Torch",
+                            leadingIcon = R.drawable.ic_assistive_touch,
+                            iconContainerColor = colorScheme.tertiaryContainer,
+                            iconTint = colorScheme.onTertiaryContainer,
+                            trailingContent = {
+                                Switch(
+                                    checked = floatingControlsEnabled,
+                                    onCheckedChange = { ZenManager.setFloatingControlsEnabled(context, it) },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = colorScheme.onPrimary,
+                                        checkedTrackColor = colorScheme.primary
+                                    )
+                                )
+                            },
+                            shape = if (floatingControlsEnabled) {
+                                RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 0.dp, bottomEnd = 0.dp)
+                            } else {
+                                segmentedItemShape(1, 3)
+                            }
+                        )
+
+                        if (floatingControlsEnabled) {
+                            Surface(
+                                shape = RoundedCornerShape(bottomStart = 4.dp, bottomEnd = 4.dp),
+                                color = colorScheme.surfaceContainerHigh,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 2.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = "Auto-hide after",
+                                        style = typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                                        color = colorScheme.onSurfaceVariant
+                                    )
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        listOf(2 to "2s", 3 to "3s", 5 to "5s", 0 to "Off").forEach { (sec, label) ->
+                                            val isSelected = floatingAutoHideSeconds == sec
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = if (isSelected) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                                border = BorderStroke(
+                                                    1.dp,
+                                                    if (isSelected) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.4f)
+                                                ),
+                                                modifier = Modifier.clickable {
+                                                    ZenManager.setFloatingControlsAutoHideSeconds(context, sec)
+                                                }
+                                            ) {
+                                                Text(
+                                                    text = label,
+                                                    style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                    color = if (isSelected) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 3. Security Key Protection Item
                     TomatoSettingsItem(
                         title = if (hasKey) "Security Key Active" else "Security Key Required",
                         subtitle = if (hasKey) "Guards early exit (${ZenManager.getKeyType(context).name})" else "Configure key to enable Zen Mode",
@@ -673,7 +751,7 @@ private fun InactiveZenConfigScreen(
                                 Text(if (hasKey) "Change" else "Configure", style = typography.labelSmall)
                             }
                         },
-                        shape = segmentedItemShape(1, 2),
+                        shape = segmentedItemShape(2, 3),
                         onClick = onSetKeyRequested
                     )
                 }
@@ -1031,7 +1109,8 @@ private fun ActiveZenDesktop(
     }
 
     val use24Hour by com.hotaro.brik.ui.theme.ThemePreferences.use24HourClock.collectAsState()
-    val timeFormat = remember(use24Hour) { SimpleDateFormat(if (use24Hour) "HH:mm" else "h:mm a", Locale.getDefault()) }
+    val timeDigitsFormat = remember(use24Hour) { SimpleDateFormat(if (use24Hour) "HH:mm" else "h:mm", Locale.getDefault()) }
+    val amPmFormat = remember(use24Hour) { if (use24Hour) null else SimpleDateFormat("a", Locale.getDefault()) }
     val dateFormat = remember { SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()) }
 
     val launcherApps = remember(context) { loadLauncherApps(pm, context.packageName) }
@@ -1046,7 +1125,7 @@ private fun ActiveZenDesktop(
             .pointerInput(holdDurationSeconds) {
                 val holdMillis = (holdDurationSeconds.coerceAtLeast(1)) * 1000L
                 awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val down = awaitFirstDown(requireUnconsumed = true)
                     val start = System.currentTimeMillis()
 
                     val job = coroutineScope.launch {
@@ -1071,6 +1150,11 @@ private fun ActiveZenDesktop(
 
                     do {
                         val event = awaitPointerEvent()
+                        if (event.changes.any { it.isConsumed }) {
+                            job.cancel()
+                            holdProgress = 0f
+                            break
+                        }
                     } while (event.changes.any { it.pressed })
 
                     job.cancel()
@@ -1092,14 +1176,29 @@ private fun ActiveZenDesktop(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.padding(top = 32.dp)
             ) {
-                Text(
-                    text = timeFormat.format(currentTime),
-                    fontSize = 76.sp,
-                    fontWeight = FontWeight.Light,
-                    fontFamily = FontFamily.SansSerif,
-                    color = Color.White,
-                    letterSpacing = (-2).sp
-                )
+                Row(
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = timeDigitsFormat.format(currentTime),
+                        fontSize = 76.sp,
+                        fontWeight = FontWeight.Light,
+                        fontFamily = FontFamily.SansSerif,
+                        color = Color.White,
+                        letterSpacing = (-2).sp
+                    )
+                    if (!use24Hour) {
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = amPmFormat?.format(currentTime)?.uppercase() ?: "",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White.copy(alpha = 0.75f),
+                            modifier = Modifier.padding(bottom = 14.dp)
+                        )
+                    }
+                }
 
                 Text(
                     text = dateFormat.format(currentTime),
@@ -1274,6 +1373,15 @@ private fun ActiveZenDesktop(
                     }
                 }
             }
+        }
+
+        val floatingControlsEnabled by ZenManager.floatingControlsEnabled.collectAsState()
+        val floatingAutoHideSeconds by ZenManager.floatingControlsAutoHideSeconds.collectAsState()
+        if (floatingControlsEnabled) {
+            com.hotaro.brik.ui.component.FloatingQuickControls(
+                autoHideDelaySeconds = floatingAutoHideSeconds,
+                modifier = Modifier.fillMaxSize()
+            )
         }
     }
 }

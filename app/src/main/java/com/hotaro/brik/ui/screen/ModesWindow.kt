@@ -1111,6 +1111,8 @@ private fun ModeDetailWindow(
     var isKioskMode by remember { mutableStateOf(mode.enableKioskMode) }
     var kioskPackages by remember { mutableStateOf(mode.kioskAllowedPackages.toSet()) }
     var disableSystemGestures by remember { mutableStateOf(mode.kioskDisableSystemGestures) }
+    var enableFloatingControls by remember { mutableStateOf(mode.kioskEnableFloatingControls) }
+    var floatingAutoHideSeconds by remember { mutableIntStateOf(mode.kioskFloatingAutoHideSeconds) }
     var showKioskAppPickerSheet by remember { mutableStateOf(false) }
 
     var isKioskAppsExpanded by remember { mutableStateOf(false) }
@@ -1179,7 +1181,9 @@ private fun ModeDetailWindow(
                                 savedKeyId = selectedSavedKeyId,
                                 enableKioskMode = isKioskMode,
                                 kioskAllowedPackages = if (isKioskMode) kioskPackages.toList() else emptyList(),
-                                kioskDisableSystemGestures = disableSystemGestures
+                                kioskDisableSystemGestures = disableSystemGestures,
+                                kioskEnableFloatingControls = enableFloatingControls,
+                                kioskFloatingAutoHideSeconds = floatingAutoHideSeconds
                             )
                             onSave(updated)
                         },
@@ -1667,7 +1671,7 @@ private fun ModeDetailWindow(
                                 shape = if (isKioskAppsExpanded) {
                                     RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
                                 } else {
-                                    segmentedItemShape(0, 2)
+                                    segmentedItemShape(0, 3)
                                 },
                                 onClick = { isKioskAppsExpanded = !isKioskAppsExpanded }
                             )
@@ -1785,7 +1789,7 @@ private fun ModeDetailWindow(
                                 shape = if (isKioskPolicyExpanded) {
                                     RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
                                 } else {
-                                    segmentedItemShape(1, 2)
+                                    segmentedItemShape(1, 3)
                                 },
                                 onClick = { isKioskPolicyExpanded = !isKioskPolicyExpanded }
                             )
@@ -1797,7 +1801,7 @@ private fun ModeDetailWindow(
                             ) {
                                 Surface(
                                     color = colorScheme.surfaceContainerHigh,
-                                    shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 22.dp, bottomEnd = 22.dp),
+                                    shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 4.dp, bottomEnd = 4.dp),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Column(
@@ -1876,6 +1880,76 @@ private fun ModeDetailWindow(
                                                         tint = colorScheme.onPrimaryContainer,
                                                         modifier = Modifier.size(20.dp)
                                                     )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // 3. Assistive Quick Controls
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                TomatoSettingsItem(
+                                    title = "Assistive Quick Controls",
+                                    subtitle = "Floating ball for Data, Wi-Fi, Hotspot & Torch",
+                                    leadingIcon = R.drawable.ic_assistive_touch,
+                                    iconContainerColor = colorScheme.secondaryContainer,
+                                    iconTint = colorScheme.onSecondaryContainer,
+                                    trailingContent = {
+                                        Switch(
+                                            checked = enableFloatingControls,
+                                            onCheckedChange = { enableFloatingControls = it }
+                                        )
+                                    },
+                                    shape = if (enableFloatingControls) {
+                                        RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 0.dp, bottomEnd = 0.dp)
+                                    } else {
+                                        segmentedItemShape(2, 3)
+                                    },
+                                    onClick = { enableFloatingControls = !enableFloatingControls }
+                                )
+
+                                if (enableFloatingControls) {
+                                    Surface(
+                                        shape = RoundedCornerShape(bottomStart = 4.dp, bottomEnd = 4.dp),
+                                        color = colorScheme.surfaceContainerHigh,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(bottom = 2.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                text = "Auto-hide after",
+                                                style = typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                                                color = colorScheme.onSurfaceVariant
+                                            )
+                                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                listOf(2 to "2s", 3 to "3s", 5 to "5s", 0 to "Off").forEach { (sec, label) ->
+                                                    val isSelected = floatingAutoHideSeconds == sec
+                                                    Surface(
+                                                        shape = CircleShape,
+                                                        color = if (isSelected) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                                        border = BorderStroke(
+                                                            1.dp,
+                                                            if (isSelected) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.4f)
+                                                        ),
+                                                        modifier = Modifier.clickable {
+                                                            floatingAutoHideSeconds = sec
+                                                        }
+                                                    ) {
+                                                        Text(
+                                                            text = label,
+                                                            style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                            color = if (isSelected) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }

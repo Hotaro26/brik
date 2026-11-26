@@ -581,11 +581,88 @@ fun WindDownWindow(
                             }
                         )
                     },
-                    shape = segmentedItemShape(0, 2),
+                    shape = segmentedItemShape(0, 3),
                     onClick = {
                         WindDownManager.setAllowEmergencyUnlock(context, !allowEmergencyUnlock)
                     }
                 )
+
+                // Assistive Quick Controls
+                val floatingControlsEnabled by WindDownManager.floatingControlsEnabled.collectAsState()
+                val floatingAutoHideSeconds by WindDownManager.floatingControlsAutoHideSeconds.collectAsState()
+
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    TomatoSettingsItem(
+                        title = "Assistive Quick Controls",
+                        subtitle = "Floating ball for Data, Wi-Fi, Hotspot & Torch",
+                        leadingIcon = R.drawable.ic_assistive_touch,
+                        iconContainerColor = colorScheme.tertiaryContainer,
+                        iconTint = colorScheme.onTertiaryContainer,
+                        trailingContent = {
+                            Switch(
+                                checked = floatingControlsEnabled,
+                                onCheckedChange = {
+                                    WindDownManager.setFloatingControlsEnabled(context, it)
+                                }
+                            )
+                        },
+                        shape = if (floatingControlsEnabled) {
+                            RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 0.dp, bottomEnd = 0.dp)
+                        } else {
+                            segmentedItemShape(1, 3)
+                        },
+                        onClick = {
+                            WindDownManager.setFloatingControlsEnabled(context, !floatingControlsEnabled)
+                        }
+                    )
+
+                    if (floatingControlsEnabled) {
+                        Surface(
+                            shape = RoundedCornerShape(bottomStart = 4.dp, bottomEnd = 4.dp),
+                            color = colorScheme.surfaceContainerHigh,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 2.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Auto-hide after",
+                                    style = typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                                    color = colorScheme.onSurfaceVariant
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    listOf(2 to "2s", 3 to "3s", 5 to "5s", 0 to "Off").forEach { (sec, label) ->
+                                        val isSelected = floatingAutoHideSeconds == sec
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = if (isSelected) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                            border = BorderStroke(
+                                                1.dp,
+                                                if (isSelected) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.4f)
+                                            ),
+                                            modifier = Modifier.clickable {
+                                                WindDownManager.setFloatingControlsAutoHideSeconds(context, sec)
+                                            }
+                                        ) {
+                                            Text(
+                                                text = label,
+                                                style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = if (isSelected) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
 
                 // Protection Key
                 TomatoSettingsItem(
@@ -611,7 +688,7 @@ fun WindDownWindow(
                             )
                         }
                     },
-                    shape = segmentedItemShape(1, 2),
+                    shape = segmentedItemShape(2, 3),
                     onClick = {
                         showSetKeyDialog = true
                     }

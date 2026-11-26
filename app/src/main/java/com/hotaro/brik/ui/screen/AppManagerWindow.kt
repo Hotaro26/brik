@@ -110,8 +110,6 @@ fun AppManagerWindow(
     val isLoadingApps by viewModel.isLoadingApps.collectAsState()
     val appLimits by viewModel.appLimits.collectAsState()
 
-    var showManageDialog by remember { mutableStateOf(false) }
-    var showCreateBagSheet by remember { mutableStateOf(false) }
     var isRefreshing by remember { mutableStateOf(false) }
     var expandedPackage by remember { mutableStateOf<String?>(null) }
 
@@ -120,8 +118,15 @@ fun AppManagerWindow(
         onRefresh = {
             coroutineScope.launch {
                 isRefreshing = true
+                val nextState = !showSystemApps
+                viewModel.setShowSystemApps(nextState)
+                Toast.makeText(
+                    context,
+                    if (nextState) "System apps revealed" else "System apps hidden",
+                    Toast.LENGTH_SHORT
+                ).show()
                 viewModel.loadInstalledApps()
-                kotlinx.coroutines.delay(650)
+                kotlinx.coroutines.delay(450)
                 isRefreshing = false
             }
         },
@@ -199,82 +204,45 @@ fun AppManagerWindow(
             Column(modifier = Modifier.fillMaxSize()) {
                 Spacer(Modifier.height(10.dp))
 
-                // Expressive Search & Filter Row
-                Row(
+                // Expressive Search Field (Full Width - Pull down to show/hide system apps)
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { viewModel.searchQuery.value = it },
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // Cylindrical Pill Search Bar
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { viewModel.searchQuery.value = it },
-                        modifier = Modifier.weight(1f),
-                        placeholder = {
-                            Text(
-                                "Search apps...",
-                                style = typography.bodyMedium,
-                                color = colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                            )
-                        },
-                        leadingIcon = {
-                            Icon(
-                                painter = painterResource(R.drawable.search_fill0),
-                                contentDescription = null,
-                                tint = colorScheme.onSurfaceVariant
-                            )
-                        },
-                        trailingIcon = {
-                            if (searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { viewModel.searchQuery.value = "" }) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.close_fill0),
-                                        contentDescription = "Clear search",
-                                        tint = colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        },
-                        singleLine = true,
-                        shape = CircleShape,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = colorScheme.surfaceContainerHigh,
-                            unfocusedContainerColor = colorScheme.surfaceContainerLow,
-                            focusedBorderColor = colorScheme.primary,
-                            unfocusedBorderColor = colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    placeholder = {
+                        Text(
+                            "Search apps...",
+                            style = typography.bodyMedium,
+                            color = colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                         )
-                    )
-
-                    // Visibility Toggle Pill
-                    Surface(
-                        onClick = { showManageDialog = true },
-                        shape = CircleShape,
-                        color = if (showSystemApps) colorScheme.primaryContainer else colorScheme.surfaceContainerHigh,
-                        contentColor = if (showSystemApps) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
-                        tonalElevation = if (showSystemApps) 4.dp else 0.dp,
-                        modifier = Modifier.size(52.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                painter = painterResource(
-                                    if (showSystemApps) R.drawable.visibility_fill0 else R.drawable.visibility_off_fill0
-                                ),
-                                contentDescription = "Manage app visibility",
-                                modifier = Modifier.size(24.dp)
-                            )
-                            if (showSystemApps) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = colorScheme.primary,
-                                    modifier = Modifier
-                                        .align(Alignment.TopEnd)
-                                        .padding(top = 10.dp, end = 10.dp)
-                                        .size(8.dp)
-                                ) {}
+                    },
+                    leadingIcon = {
+                        Icon(
+                            painter = painterResource(R.drawable.search_fill0),
+                            contentDescription = null,
+                            tint = colorScheme.onSurfaceVariant
+                        )
+                    },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { viewModel.searchQuery.value = "" }) {
+                                Icon(
+                                    painter = painterResource(R.drawable.close_fill0),
+                                    contentDescription = "Clear search",
+                                    tint = colorScheme.onSurfaceVariant
+                                )
                             }
                         }
-                    }
-                }
+                    },
+                    singleLine = true,
+                    shape = CircleShape,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = colorScheme.surfaceContainerHigh,
+                        unfocusedContainerColor = colorScheme.surfaceContainerLow,
+                        focusedBorderColor = colorScheme.primary,
+                        unfocusedBorderColor = colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    )
+                )
 
                 Spacer(Modifier.height(14.dp))
 
@@ -361,128 +329,7 @@ fun AppManagerWindow(
                     }
                 }
             }
-
-            // Floating Plus Icon at Bottom Right Corner to create bags
-            FloatingActionButton(
-                onClick = { showCreateBagSheet = true },
-                containerColor = colorScheme.primary,
-                contentColor = colorScheme.onPrimary,
-                shape = CircleShape,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(bottom = 28.dp, end = 4.dp)
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.add_fill0),
-                    contentDescription = "Create Bag",
-                    modifier = Modifier.size(24.dp)
-                )
-            }
         }
-    }
-
-    // --- Bottom Sheet: Create Bag with App Selection ---
-    if (showCreateBagSheet) {
-        CreateBagBottomSheet(
-            installedApps = installedApps,
-            onDismiss = { showCreateBagSheet = false },
-            onSaveBag = { name, selectedPkgs ->
-                val success = viewModel.createBagFromPackages(name, selectedPkgs)
-                if (success) {
-                    Toast.makeText(context, "Bag '$name' created with ${selectedPkgs.size} apps!", Toast.LENGTH_SHORT).show()
-                    showCreateBagSheet = false
-                }
-            }
-        )
-    }
-
-    // --- Manage Pop-up Dialog (System Apps Toggle) ---
-    if (showManageDialog) {
-        AlertDialog(
-            onDismissRequest = { showManageDialog = false },
-            title = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = colorScheme.primaryContainer,
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                painter = painterResource(R.drawable.tune_fill0),
-                                contentDescription = null,
-                                tint = colorScheme.onPrimaryContainer,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-                    Text(
-                        text = "App Visibility",
-                        fontWeight = FontWeight.Bold,
-                        style = typography.titleLarge,
-                        color = colorScheme.onSurface
-                    )
-                }
-            },
-            text = {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = "Customize which categories of apps appear in the manager:",
-                        style = typography.bodySmall,
-                        color = colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(Modifier.height(16.dp))
-
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = colorScheme.surfaceContainerHighest,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Include System Apps",
-                                    style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "Show pre-installed Android OS applications and OEM system packages",
-                                    style = typography.bodySmall.copy(fontSize = 11.sp),
-                                    color = colorScheme.onSurfaceVariant
-                                )
-                            }
-
-                            Spacer(Modifier.width(12.dp))
-
-                            Switch(
-                                checked = showSystemApps,
-                                onCheckedChange = { viewModel.setShowSystemApps(it) }
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = { showManageDialog = false },
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text("Done")
-                }
-            },
-            shape = RoundedCornerShape(24.dp),
-            containerColor = colorScheme.surfaceContainerHigh
-        )
     }
 }
 
@@ -745,58 +592,57 @@ fun ExpressiveAppCard(
 
                     Spacer(Modifier.height(10.dp))
 
-                    // Preset Chips
-                    val presets = listOf(15, 30, 45, 60, 90, 120, 180, 240)
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        items(presets) { preset ->
-                            val isSelected = limitMinutes == preset
-                            val label = when {
-                                preset >= 60 && preset % 60 == 0 -> "${preset / 60}h"
-                                preset >= 60 -> "${preset / 60}h ${preset % 60}m"
-                                else -> "${preset}m"
-                            }
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = { limitMinutes = preset },
-                                label = {
-                                    Text(
-                                        text = label,
-                                        style = typography.labelSmall.copy(
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                        )
-                                    )
-                                },
-                                shape = RoundedCornerShape(10.dp),
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = colorScheme.primary,
-                                    selectedLabelColor = colorScheme.onPrimary,
-                                    containerColor = colorScheme.surfaceContainerHighest,
-                                    labelColor = colorScheme.onSurface
-                                )
-                            )
-                        }
+                    // Custom Limit Input Field Placeholder
+                    var customLimitText by remember(limitMinutes) {
+                        mutableStateOf(if (limitMinutes > 0) limitMinutes.toString() else "")
                     }
 
-                    Spacer(Modifier.height(6.dp))
-
-                    // Slider for fine tuning (15m to 360m)
-                    Slider(
-                        value = limitMinutes.toFloat(),
-                        onValueChange = { limitMinutes = (it / 15).toInt() * 15 },
-                        valueRange = 15f..360f,
-                        steps = 22,
-                        colors = SliderDefaults.colors(
-                            thumbColor = colorScheme.primary,
-                            activeTrackColor = colorScheme.primary,
-                            inactiveTrackColor = colorScheme.surfaceContainerHighest
+                    OutlinedTextField(
+                        value = customLimitText,
+                        onValueChange = { input ->
+                            val filtered = input.filter { it.isDigit() }.take(4)
+                            customLimitText = filtered
+                            val parsed = filtered.toIntOrNull() ?: 0
+                            limitMinutes = parsed.coerceIn(0, 1440)
+                        },
+                        placeholder = {
+                            Text(
+                                "Enter custom limit (e.g. 45)",
+                                style = typography.bodyMedium,
+                                color = colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            )
+                        },
+                        trailingIcon = {
+                            Text(
+                                text = "minutes",
+                                style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = colorScheme.primary,
+                                modifier = Modifier.padding(end = 12.dp)
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                painter = painterResource(R.drawable.schedule_fill0),
+                                contentDescription = null,
+                                tint = colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                        ),
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = colorScheme.surfaceContainerHighest,
+                            unfocusedContainerColor = colorScheme.surfaceContainerHigh,
+                            focusedBorderColor = colorScheme.primary,
+                            unfocusedBorderColor = colorScheme.outlineVariant.copy(alpha = 0.5f)
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(12.dp))
 
                     // Block Mode Selection: Suspension vs Hiding
                     Text(
@@ -919,267 +765,6 @@ fun ExpressiveAppCard(
                     }
                 }
             }
-        }
-    }
-}
-
-/**
- * Bottom Sheet to create bags with app selection.
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun CreateBagBottomSheet(
-    installedApps: List<AppInfo>,
-    onDismiss: () -> Unit,
-    onSaveBag: (name: String, selectedPackages: Set<String>) -> Unit
-) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
-    var bagName by remember { mutableStateOf("") }
-    var searchQuery by remember { mutableStateOf("") }
-    var selectedPackages by remember { mutableStateOf<Set<String>>(emptySet()) }
-
-    val filteredApps = remember(installedApps, searchQuery) {
-        if (searchQuery.isBlank()) {
-            installedApps
-        } else {
-            val q = searchQuery.trim().lowercase()
-            installedApps.filter {
-                it.label.lowercase().contains(q) || it.packageName.lowercase().contains(q)
-            }
-        }
-    }
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = colorScheme.surfaceContainerHigh,
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 8.dp)
-                .navigationBarsPadding()
-        ) {
-            // Header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    Text(
-                        text = "New App Bag",
-                        style = typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = colorScheme.onSurface
-                    )
-                    Text(
-                        text = "Pack selected apps into a bundle",
-                        style = typography.bodySmall,
-                        color = colorScheme.onSurfaceVariant
-                    )
-                }
-
-                if (selectedPackages.isNotEmpty()) {
-                    Surface(
-                        shape = CircleShape,
-                        color = colorScheme.primaryContainer
-                    ) {
-                        Text(
-                            text = "${selectedPackages.size} selected",
-                            style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                            color = colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(14.dp))
-
-            // Bag Name Input
-            OutlinedTextField(
-                value = bagName,
-                onValueChange = { bagName = it },
-                label = { Text("Bag Name") },
-                placeholder = { Text("e.g. Socials, Study, Games") },
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = colorScheme.surfaceContainerLowest,
-                    unfocusedContainerColor = colorScheme.surfaceContainerLowest
-                )
-            )
-
-            Spacer(Modifier.height(10.dp))
-
-            // Search Bar & Selection Controls
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    placeholder = { Text("Filter apps...") },
-                    leadingIcon = {
-                        Icon(
-                            painter = painterResource(R.drawable.search_fill0),
-                            contentDescription = null,
-                            tint = colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    },
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchQuery = "" }) {
-                                Icon(
-                                    painter = painterResource(R.drawable.close_fill0),
-                                    contentDescription = null,
-                                    tint = colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        }
-                    },
-                    singleLine = true,
-                    shape = CircleShape,
-                    modifier = Modifier.weight(1f),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = colorScheme.surfaceContainerLowest,
-                        unfocusedContainerColor = colorScheme.surfaceContainerLowest
-                    )
-                )
-
-                if (selectedPackages.isNotEmpty()) {
-                    TextButton(onClick = { selectedPackages = emptySet() }) {
-                        Text("Clear", color = colorScheme.error, style = typography.labelMedium)
-                    }
-                } else {
-                    TextButton(onClick = { selectedPackages = filteredApps.map { it.packageName }.toSet() }) {
-                        Text("All", color = colorScheme.primary, style = typography.labelMedium)
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(10.dp))
-
-            // App list with checkboxes
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(300.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                items(filteredApps, key = { it.packageName }) { app ->
-                    val isChecked = selectedPackages.contains(app.packageName)
-
-                    Surface(
-                        onClick = {
-                            selectedPackages = if (isChecked) {
-                                selectedPackages - app.packageName
-                            } else {
-                                selectedPackages + app.packageName
-                            }
-                        },
-                        shape = RoundedCornerShape(14.dp),
-                        color = if (isChecked) colorScheme.primaryContainer.copy(alpha = 0.45f) else colorScheme.surfaceContainerLow,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = colorScheme.surfaceContainerHighest,
-                                modifier = Modifier.size(38.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    if (app.icon != null) {
-                                        Image(
-                                            painter = rememberDrawablePainter(drawable = app.icon),
-                                            contentDescription = app.label,
-                                            modifier = Modifier
-                                                .size(32.dp)
-                                                .clip(RoundedCornerShape(8.dp))
-                                        )
-                                    } else {
-                                        Icon(
-                                            painter = painterResource(R.drawable.apps_fill0),
-                                            contentDescription = null,
-                                            tint = colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                }
-                            }
-
-                            Spacer(Modifier.width(12.dp))
-
-                            Column(Modifier.weight(1f)) {
-                                Text(
-                                    text = app.label,
-                                    style = typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
-                                    color = colorScheme.onSurface,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text = app.packageName,
-                                    style = typography.bodySmall.copy(fontSize = 10.sp),
-                                    color = colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-
-                            Checkbox(
-                                checked = isChecked,
-                                onCheckedChange = {
-                                    selectedPackages = if (isChecked) {
-                                        selectedPackages - app.packageName
-                                    } else {
-                                        selectedPackages + app.packageName
-                                    }
-                                },
-                                colors = CheckboxDefaults.colors(
-                                    checkedColor = colorScheme.primary,
-                                    uncheckedColor = colorScheme.outline.copy(alpha = 0.6f)
-                                )
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(14.dp))
-
-            // Save Bag Button
-            Button(
-                onClick = { onSaveBag(bagName, selectedPackages) },
-                enabled = bagName.isNotBlank() && selectedPackages.isNotEmpty(),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = colorScheme.primary,
-                    contentColor = colorScheme.onPrimary
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp)
-            ) {
-                Text(
-                    text = if (selectedPackages.isEmpty()) "Select apps to pack" else "Save Bag (${selectedPackages.size})",
-                    style = typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                )
-            }
-
-            Spacer(Modifier.height(8.dp))
         }
     }
 }

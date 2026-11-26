@@ -113,7 +113,8 @@ fun ModeKioskDesktop(
     }
 
     val use24Hour by com.hotaro.brik.ui.theme.ThemePreferences.use24HourClock.collectAsState()
-    val timeFormat = remember(use24Hour) { SimpleDateFormat(if (use24Hour) "HH:mm" else "h:mm a", Locale.getDefault()) }
+    val timeDigitsFormat = remember(use24Hour) { SimpleDateFormat(if (use24Hour) "HH:mm" else "h:mm", Locale.getDefault()) }
+    val amPmFormat = remember(use24Hour) { if (use24Hour) null else SimpleDateFormat("a", Locale.getDefault()) }
     val dateFormat = remember { SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()) }
 
     val launcherApps = remember(context) { loadLauncherApps(pm, context.packageName) }
@@ -128,7 +129,7 @@ fun ModeKioskDesktop(
             .pointerInput(Unit) {
                 val holdMillis = 3000L
                 awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val down = awaitFirstDown(requireUnconsumed = true)
                     val start = System.currentTimeMillis()
 
                     val job = coroutineScope.launch {
@@ -153,6 +154,11 @@ fun ModeKioskDesktop(
 
                     do {
                         val event = awaitPointerEvent()
+                        if (event.changes.any { it.isConsumed }) {
+                            job.cancel()
+                            holdProgress = 0f
+                            break
+                        }
                     } while (event.changes.any { it.pressed })
 
                     job.cancel()
@@ -201,16 +207,32 @@ fun ModeKioskDesktop(
             Spacer(Modifier.height(28.dp))
 
             // Clock & Date
-            Text(
-                text = timeFormat.format(currentTime),
-                style = typography.displayLarge.copy(
-                    fontSize = 72.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = (-2).sp,
-                    fontFamily = FontFamily.Monospace
-                ),
-                color = Color.White
-            )
+            Row(
+                verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = timeDigitsFormat.format(currentTime),
+                    style = typography.displayLarge.copy(
+                        fontSize = 72.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = (-2).sp,
+                        fontFamily = FontFamily.Monospace
+                    ),
+                    color = Color.White
+                )
+                if (!use24Hour) {
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = amPmFormat?.format(currentTime)?.uppercase() ?: "",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        color = Color.White.copy(alpha = 0.75f),
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                }
+            }
 
             Spacer(Modifier.height(4.dp))
 
@@ -376,6 +398,13 @@ fun ModeKioskDesktop(
                     }
                 }
             }
+        }
+
+        if (mode.kioskEnableFloatingControls) {
+            com.hotaro.brik.ui.component.FloatingQuickControls(
+                autoHideDelaySeconds = mode.kioskFloatingAutoHideSeconds,
+                modifier = Modifier.fillMaxSize()
+            )
         }
     }
 

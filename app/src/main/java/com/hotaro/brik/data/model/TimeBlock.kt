@@ -21,7 +21,9 @@ data class FocusMode(
     val sessionEndsAt: Long? = null,
     val enableKioskMode: Boolean = false,
     val kioskAllowedPackages: List<String> = emptyList(),
-    val kioskDisableSystemGestures: Boolean = true
+    val kioskDisableSystemGestures: Boolean = true,
+    val kioskEnableFloatingControls: Boolean = true,
+    val kioskFloatingAutoHideSeconds: Int = 3
 )
 
 @Serializable
@@ -60,5 +62,7 @@ data class ActiveTimeBlockState(
     val keySecret: String?,
     val enableKioskMode: Boolean = false,
     val kioskAllowedPackages: List<String> = emptyList(),
-    val kioskDisableSystemGestures: Boolean = true
+    val kioskDisableSystemGestures: Boolean = true,
+    val kioskEnableFloatingControls: Boolean = true,
+    val kioskFloatingAutoHideSeconds: Int = 3
 )
