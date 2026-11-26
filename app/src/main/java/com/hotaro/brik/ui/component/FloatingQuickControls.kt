@@ -74,6 +74,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hotaro.brik.R
+import com.hotaro.brik.admin.BrikAdminReceiver
 import com.hotaro.brik.util.AssistivePreferences
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -338,27 +339,43 @@ fun FloatingQuickControls(
         if (shellSuccess) {
             isBtEnabled = target
         } else {
-            var direct = false
-            if (bluetoothAdapter != null) {
+            val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? android.app.admin.DevicePolicyManager
+            val dar = BrikAdminReceiver.getComponentName(context)
+            var handledByDpm = false
+            if (dpm != null && dpm.isDeviceOwnerApp(context.packageName)) {
                 try {
-                    direct = if (target) {
-                        @Suppress("DEPRECATION")
-                        bluetoothAdapter.enable()
+                    if (!target) {
+                        dpm.addUserRestriction(dar, android.os.UserManager.DISALLOW_BLUETOOTH)
+                        isBtEnabled = false
+                        handledByDpm = true
                     } else {
-                        @Suppress("DEPRECATION")
-                        bluetoothAdapter.disable()
+                        dpm.clearUserRestriction(dar, android.os.UserManager.DISALLOW_BLUETOOTH)
                     }
-                } catch (_: Exception) {
-                    direct = false
-                }
+                } catch (_: Exception) {}
             }
-            if (direct) {
-                isBtEnabled = target
-            } else {
-                try {
-                    context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                } catch (_: Exception) {
-                    Toast.makeText(context, "Bluetooth settings unavailable", Toast.LENGTH_SHORT).show()
+            if (!handledByDpm) {
+                var direct = false
+                if (bluetoothAdapter != null) {
+                    try {
+                        direct = if (target) {
+                            @Suppress("DEPRECATION")
+                            bluetoothAdapter.enable()
+                        } else {
+                            @Suppress("DEPRECATION")
+                            bluetoothAdapter.disable()
+                        }
+                    } catch (_: Exception) {
+                        direct = false
+                    }
+                }
+                if (direct) {
+                    isBtEnabled = target
+                } else {
+                    try {
+                        context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    } catch (_: Exception) {
+                        Toast.makeText(context, "Bluetooth settings unavailable", Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
         }
@@ -376,22 +393,38 @@ fun FloatingQuickControls(
         if (shellSuccess) {
             isHotspotEnabled = target
         } else {
-            val tetherIntents = listOf(
-                Intent().setClassName("com.android.settings", "com.android.settings.TetherSettings"),
-                Intent("android.settings.TETHER_SETTINGS"),
-                Intent("android.settings.WIFI_TETHERING_SETTINGS"),
-                Intent(Settings.ACTION_WIRELESS_SETTINGS)
-            )
-            var launched = false
-            for (tIntent in tetherIntents) {
+            val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? android.app.admin.DevicePolicyManager
+            val dar = BrikAdminReceiver.getComponentName(context)
+            var handledByDpm = false
+            if (dpm != null && dpm.isDeviceOwnerApp(context.packageName)) {
                 try {
-                    context.startActivity(tIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                    launched = true
-                    break
+                    if (!target) {
+                        dpm.addUserRestriction(dar, android.os.UserManager.DISALLOW_CONFIG_TETHERING)
+                        isHotspotEnabled = false
+                        handledByDpm = true
+                    } else {
+                        dpm.clearUserRestriction(dar, android.os.UserManager.DISALLOW_CONFIG_TETHERING)
+                    }
                 } catch (_: Exception) {}
             }
-            if (!launched) {
-                Toast.makeText(context, "Hotspot settings unavailable", Toast.LENGTH_SHORT).show()
+            if (!handledByDpm) {
+                val tetherIntents = listOf(
+                    Intent().setClassName("com.android.settings", "com.android.settings.TetherSettings"),
+                    Intent("android.settings.TETHER_SETTINGS"),
+                    Intent("android.settings.WIFI_TETHERING_SETTINGS"),
+                    Intent(Settings.ACTION_WIRELESS_SETTINGS)
+                )
+                var launched = false
+                for (tIntent in tetherIntents) {
+                    try {
+                        context.startActivity(tIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                        launched = true
+                        break
+                    } catch (_: Exception) {}
+                }
+                if (!launched) {
+                    Toast.makeText(context, "Hotspot settings unavailable", Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }
@@ -446,16 +479,34 @@ fun FloatingQuickControls(
                         activeColor = Color(0xFF00E676),
                         onClick = {
                             lastInteractionTime = System.currentTimeMillis()
-                            try {
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                                    context.startActivity(Intent(Settings.Panel.ACTION_INTERNET_CONNECTIVITY).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                                } else {
-                                    context.startActivity(Intent(Settings.ACTION_DATA_ROAMING_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                            val target = !isDataEnabled
+                            val shellCmd = if (target) "svc data enable" else "svc data disable"
+                            if (executePrivilegedCommand(shellCmd)) {
+                                isDataEnabled = target
+                            } else {
+                                val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? android.app.admin.DevicePolicyManager
+                                val dar = BrikAdminReceiver.getComponentName(context)
+                                var handledByDpm = false
+                                if (dpm != null && dpm.isDeviceOwnerApp(context.packageName)) {
+                                    try {
+                                        dpm.setGlobalSetting(dar, "mobile_data", if (target) "1" else "0")
+                                        isDataEnabled = target
+                                        handledByDpm = true
+                                    } catch (_: Exception) {}
                                 }
-                            } catch (_: Exception) {
-                                try {
-                                    context.startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                                } catch (_: Exception) {}
+                                if (!handledByDpm) {
+                                    try {
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                            context.startActivity(Intent(Settings.Panel.ACTION_INTERNET_CONNECTIVITY).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                        } else {
+                                            context.startActivity(Intent(Settings.ACTION_DATA_ROAMING_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                        }
+                                    } catch (_: Exception) {
+                                        try {
+                                            context.startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                        } catch (_: Exception) {}
+                                    }
+                                }
                             }
                         }
                     )

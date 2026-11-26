@@ -1605,7 +1605,7 @@ fun SettingsScreen(
 
     // --- APP ICONS BOTTOM SHEET ---
     if (showIconSheet) {
-        val iconSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+        val iconSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ModalBottomSheet(
             onDismissRequest = { showIconSheet = false },
             sheetState = iconSheetState,
@@ -1617,9 +1617,8 @@ fun SettingsScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .fillMaxHeight(0.5f)
                     .padding(horizontal = 20.dp, vertical = 8.dp)
-                    .navigationBarsPadding()
+                    .padding(bottom = 16.dp)
             ) {
                 Text(
                     text = "App Icon",
@@ -1636,7 +1635,10 @@ fun SettingsScreen(
                 )
 
                 Column(
-                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 380.dp)
+                        .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     AppIconManager.icons.forEach { iconOption ->
@@ -1734,7 +1736,7 @@ fun SettingsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 8.dp)
-                    .padding(bottom = 36.dp)
+                    .padding(bottom = 16.dp)
             ) {
                 Text(
                     text = "Theme Mode",
@@ -1829,7 +1831,7 @@ fun SettingsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 8.dp)
-                    .navigationBarsPadding()
+                    .padding(bottom = 16.dp)
             ) {
                 Text(
                     text = "Colour Scheme",

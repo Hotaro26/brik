@@ -1659,7 +1659,7 @@ fun CreateBagWizardSheet(
     onDismiss: () -> Unit,
     onSaveBag: (name: String, selectedPackages: Set<String>) -> Unit
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var currentStep by remember { mutableIntStateOf(0) }
     var bagName by remember { mutableStateOf("") }
     var searchQuery by remember { mutableStateOf("") }
@@ -1689,7 +1689,7 @@ fun CreateBagWizardSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp, vertical = 8.dp)
-                .navigationBarsPadding()
+                .padding(bottom = 16.dp)
         ) {
             if (currentStep == 0) {
                 // STEP 1: Apps Section
@@ -1794,7 +1794,7 @@ fun CreateBagWizardSheet(
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(300.dp),
+                        .heightIn(min = 160.dp, max = 340.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     items(filteredApps, key = { it.packageName }) { app ->
