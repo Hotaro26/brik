@@ -44,13 +44,18 @@ import androidx.compose.ui.unit.sp
 import com.hotaro.brik.R
 import com.hotaro.brik.ui.component.PullRefreshIndicatorDispatcher
 import com.hotaro.brik.ui.component.TomatoSectionHeader
+import com.hotaro.brik.ui.component.TomatoSettingsItem
 import com.hotaro.brik.ui.component.segmentedItemShape
 import com.hotaro.brik.ui.theme.PullRefreshAnimStyle
 import com.hotaro.brik.ui.theme.ThemePreferences
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MiscWindow(onBack: () -> Unit) {
+fun MiscWindow(
+    onBack: () -> Unit,
+    onNavigateToAssistiveSettings: () -> Unit = {},
+    onNavigateToKioskSettings: () -> Unit = {}
+) {
     val context = LocalContext.current
     val use24Hour by ThemePreferences.use24HourClock.collectAsState()
 
@@ -203,7 +208,44 @@ fun MiscWindow(onBack: () -> Unit) {
 
             Spacer(Modifier.height(18.dp))
 
-            // SECTION 2: PULL-DOWN ANIMATION
+            // SECTION 2: CONTROLS & KIOSK
+            TomatoSectionHeader(title = "CONTROLS & KIOSK")
+
+            TomatoSettingsItem(
+                title = "Assistive Quick Controls",
+                subtitle = "Floating ball, tile selection & notifications",
+                leadingIcon = R.drawable.ic_assistive_touch,
+                shape = segmentedItemShape(0, 2),
+                trailingContent = {
+                    Icon(
+                        painter = painterResource(R.drawable.arrow_forward_big),
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = colorScheme.onSurfaceVariant
+                    )
+                },
+                onClick = onNavigateToAssistiveSettings
+            )
+
+            TomatoSettingsItem(
+                title = "Kiosk Launcher Settings",
+                subtitle = "Incoming calls window, emergency & lockdown",
+                leadingIcon = R.drawable.screen_lock_portrait_fill0,
+                shape = segmentedItemShape(1, 2),
+                trailingContent = {
+                    Icon(
+                        painter = painterResource(R.drawable.arrow_forward_big),
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = colorScheme.onSurfaceVariant
+                    )
+                },
+                onClick = onNavigateToKioskSettings
+            )
+
+            Spacer(Modifier.height(18.dp))
+
+            // SECTION 3: PULL-DOWN ANIMATION
             TomatoSectionHeader(title = "PULL-DOWN ANIMATION")
 
             val currentAnimStyle by ThemePreferences.pullRefreshAnim.collectAsState()

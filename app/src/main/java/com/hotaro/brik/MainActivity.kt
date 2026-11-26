@@ -77,6 +77,8 @@ import com.hotaro.brik.ui.screen.GrayscaleWindow
 import com.hotaro.brik.ui.screen.AboutWindow
 import com.hotaro.brik.ui.screen.EmergencyModeWindow
 import com.hotaro.brik.ui.screen.MiscWindow
+import com.hotaro.brik.ui.screen.AssistiveSettingsWindow
+import com.hotaro.brik.ui.screen.KioskSettingsWindow
 import com.hotaro.brik.util.EmergencyManager
 import com.hotaro.brik.ui.theme.ThemePreferences
 import com.hotaro.brik.ui.theme.BrikTheme
@@ -178,6 +180,7 @@ class MainActivity : ComponentActivity() {
 fun BrikMainScreen() {
     val isZenActive by com.hotaro.brik.util.ZenManager.isZenActive.collectAsState()
     var selectedIndex by remember { mutableIntStateOf(0) }
+    val subScreenHistory = remember { androidx.compose.runtime.mutableStateListOf<String>() }
     var currentSubScreen by remember { mutableStateOf<String?>(if (com.hotaro.brik.util.ZenManager.isZenActive.value) "zen" else null) }
     val animatedBackProgress = remember { Animatable(0f) }
     var isPredictiveBackActive by remember { mutableStateOf(false) }
@@ -217,7 +220,11 @@ fun BrikMainScreen() {
                 targetValue = 1f,
                 animationSpec = tween(durationMillis = 180)
             )
-            currentSubScreen = null
+            if (subScreenHistory.isNotEmpty()) {
+                currentSubScreen = subScreenHistory.removeAt(subScreenHistory.lastIndex)
+            } else {
+                currentSubScreen = null
+            }
         } catch (e: CancellationException) {
             // Swipe cancelled: spring smoothly back into place
             animatedBackProgress.animateTo(
@@ -232,6 +239,7 @@ fun BrikMainScreen() {
 
     val onNavigateToSubScreen: (String) -> Unit = { screen ->
         coroutineScope.launch {
+            currentSubScreen?.let { subScreenHistory.add(it) }
             animatedBackProgress.snapTo(1f)
             currentSubScreen = screen
             animatedBackProgress.animateTo(0f, tween(durationMillis = 260))
@@ -241,7 +249,11 @@ fun BrikMainScreen() {
     val onBackFromSubScreen: () -> Unit = {
         coroutineScope.launch {
             animatedBackProgress.animateTo(1f, tween(durationMillis = 200))
-            currentSubScreen = null
+            if (subScreenHistory.isNotEmpty()) {
+                currentSubScreen = subScreenHistory.removeAt(subScreenHistory.lastIndex)
+            } else {
+                currentSubScreen = null
+            }
             animatedBackProgress.snapTo(0f)
         }
     }
@@ -444,7 +456,13 @@ fun BrikMainScreen() {
                         "grayscale" -> GrayscaleWindow(onBack = onBackFromSubScreen)
                         "about" -> AboutWindow(onBack = onBackFromSubScreen)
                         "emergency" -> EmergencyModeWindow(onBack = onBackFromSubScreen)
-                        "misc" -> MiscWindow(onBack = onBackFromSubScreen)
+                        "misc" -> MiscWindow(
+                            onBack = onBackFromSubScreen,
+                            onNavigateToAssistiveSettings = { onNavigateToSubScreen("assistive_settings") },
+                            onNavigateToKioskSettings = { onNavigateToSubScreen("kiosk_settings") }
+                        )
+                        "assistive_settings" -> AssistiveSettingsWindow(onBack = onBackFromSubScreen)
+                        "kiosk_settings" -> KioskSettingsWindow(onBack = onBackFromSubScreen)
                     }
                 }
             }

@@ -1,0 +1,319 @@
+package com.hotaro.brik.ui.screen
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme.colorScheme
+import androidx.compose.material3.MaterialTheme.typography
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.hotaro.brik.R
+import com.hotaro.brik.ui.component.TomatoSectionHeader
+import com.hotaro.brik.ui.component.segmentedItemShape
+import com.hotaro.brik.util.KioskPreferences
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun KioskSettingsWindow(onBack: () -> Unit) {
+    val context = LocalContext.current
+
+    val allowIncomingCallsWindow by KioskPreferences.allowIncomingCallsWindow.collectAsState()
+    val allowEmergencyDialer by KioskPreferences.allowEmergencyDialer.collectAsState()
+    val autoResumeAfterCall by KioskPreferences.autoResumeAfterCall.collectAsState()
+    val lockdownNotificationShade by KioskPreferences.lockdownNotificationShade.collectAsState()
+    val allowSystemGestures by KioskPreferences.allowSystemGestures.collectAsState()
+    val exitHoldSeconds by KioskPreferences.exitHoldSeconds.collectAsState()
+
+    Column(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        TopAppBar(
+            title = {
+                Column {
+                    Text(
+                        text = "Kiosk Mode",
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 22.sp,
+                        letterSpacing = (-0.5).sp,
+                        color = colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Calls window & lockdown behaviors",
+                        style = typography.bodySmall,
+                        color = colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            navigationIcon = {
+                Surface(
+                    shape = CircleShape,
+                    color = colorScheme.secondaryContainer,
+                    modifier = Modifier
+                        .padding(start = 12.dp)
+                        .size(40.dp),
+                    onClick = onBack
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            painter = painterResource(R.drawable.arrow_back_fill0),
+                            contentDescription = "Back",
+                            tint = colorScheme.onSecondaryContainer,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = Color.Transparent,
+                scrolledContainerColor = Color.Transparent
+            ),
+            modifier = Modifier.statusBarsPadding()
+        )
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Spacer(Modifier.height(10.dp))
+
+            // SECTION 1: PHONE & CALL HANDLING
+            TomatoSectionHeader(title = "PHONE & CALLS")
+
+            val callItems = listOf(
+                KioskToggleItem(
+                    title = "Incoming Calls Window",
+                    subtitle = "Allow incoming call overlay window without breaking kiosk lockdown",
+                    iconRes = R.drawable.call_fill0,
+                    checked = allowIncomingCallsWindow,
+                    onToggle = { KioskPreferences.setAllowIncomingCallsWindow(context, it) }
+                ),
+                KioskToggleItem(
+                    title = "Emergency Dialer Shortcut",
+                    subtitle = "Show emergency dialer button on kiosk screen for 911/112 calls",
+                    iconRes = R.drawable.shield_fill0,
+                    checked = allowEmergencyDialer,
+                    onToggle = { KioskPreferences.setAllowEmergencyDialer(context, it) }
+                ),
+                KioskToggleItem(
+                    title = "Auto-Resume Kiosk Session",
+                    subtitle = "Re-lock into focus mode immediately when call concludes",
+                    iconRes = R.drawable.mode_fill0,
+                    checked = autoResumeAfterCall,
+                    onToggle = { KioskPreferences.setAutoResumeAfterCall(context, it) }
+                )
+            )
+
+            callItems.forEachIndexed { index, item ->
+                Surface(
+                    shape = segmentedItemShape(index, callItems.size),
+                    color = colorScheme.surfaceContainerHigh,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (item.checked) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                            modifier = Modifier.size(38.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    painter = painterResource(item.iconRes),
+                                    contentDescription = item.title,
+                                    tint = if (item.checked) colorScheme.primary else colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = item.title,
+                                style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = colorScheme.onSurface
+                            )
+                            Text(
+                                text = item.subtitle,
+                                style = typography.bodySmall,
+                                color = colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Switch(
+                            checked = item.checked,
+                            onCheckedChange = item.onToggle
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // SECTION 2: SYSTEM LOCKDOWN & GESTURES
+            TomatoSectionHeader(title = "SYSTEM LOCKDOWN & NAVIGATION")
+
+            val lockdownItems = listOf(
+                KioskToggleItem(
+                    title = "Lockdown Notification Shade",
+                    subtitle = "Block pulling down notifications and quick settings panel",
+                    iconRes = R.drawable.screen_lock_portrait_fill0,
+                    checked = lockdownNotificationShade,
+                    onToggle = { KioskPreferences.setLockdownNotificationShade(context, it) }
+                ),
+                KioskToggleItem(
+                    title = "Allow System Gestures",
+                    subtitle = "Permit system edge swipe gestures if supported by device admin",
+                    iconRes = R.drawable.tune_fill0,
+                    checked = allowSystemGestures,
+                    onToggle = { KioskPreferences.setAllowSystemGestures(context, it) }
+                )
+            )
+
+            lockdownItems.forEachIndexed { index, item ->
+                Surface(
+                    shape = segmentedItemShape(index, lockdownItems.size),
+                    color = colorScheme.surfaceContainerHigh,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (item.checked) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                            modifier = Modifier.size(38.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    painter = painterResource(item.iconRes),
+                                    contentDescription = item.title,
+                                    tint = if (item.checked) colorScheme.primary else colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = item.title,
+                                style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = colorScheme.onSurface
+                            )
+                            Text(
+                                text = item.subtitle,
+                                style = typography.bodySmall,
+                                color = colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Switch(
+                            checked = item.checked,
+                            onCheckedChange = item.onToggle
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // SECTION 3: EXIT TIMING
+            TomatoSectionHeader(title = "EXIT PRESS DURATION")
+
+            Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = colorScheme.surfaceContainerLow,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "Hold time required on kiosk background to reveal the exit button",
+                        style = typography.bodySmall,
+                        color = colorScheme.onSurfaceVariant
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val holdOptions = listOf(
+                            1 to "1 sec",
+                            2 to "2 sec",
+                            3 to "3 sec",
+                            5 to "5 sec"
+                        )
+                        holdOptions.forEach { (sec, label) ->
+                            val isSelected = exitHoldSeconds == sec
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { KioskPreferences.setExitHoldSeconds(context, sec) },
+                                label = { Text(text = label, fontWeight = FontWeight.SemiBold) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = colorScheme.primaryContainer,
+                                    selectedLabelColor = colorScheme.onPrimaryContainer
+                                ),
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(100.dp))
+        }
+    }
+}
+
+private data class KioskToggleItem(
+    val title: String,
+    val subtitle: String,
+    val iconRes: Int,
+    val checked: Boolean,
+    val onToggle: (Boolean) -> Unit
+)

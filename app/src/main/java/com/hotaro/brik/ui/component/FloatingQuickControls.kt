@@ -46,6 +46,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -66,6 +67,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hotaro.brik.R
+import com.hotaro.brik.util.AssistivePreferences
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -87,6 +89,15 @@ fun FloatingQuickControls(
     val context = LocalContext.current
     val density = LocalDensity.current
     val coroutineScope = rememberCoroutineScope()
+
+    val showWifi by AssistivePreferences.showWifi.collectAsState()
+    val showData by AssistivePreferences.showData.collectAsState()
+    val showHotspot by AssistivePreferences.showHotspot.collectAsState()
+    val showFlashlight by AssistivePreferences.showFlashlight.collectAsState()
+    val showBluetooth by AssistivePreferences.showBluetooth.collectAsState()
+    val showDnd by AssistivePreferences.showDnd.collectAsState()
+    val showNotifications by AssistivePreferences.showNotifications.collectAsState()
+    val notifPreviewMode by AssistivePreferences.notifPreviewMode.collectAsState()
 
     var isExpanded by remember { mutableStateOf(false) }
     var isDraggingBall by remember { mutableStateOf(false) }
@@ -179,7 +190,159 @@ fun FloatingQuickControls(
         val circleSizePx = with(density) { circleSizeDp.toPx() }
         val boxWidthDp = 290.dp
         val boxWidthPx = with(density) { boxWidthDp.toPx() }
-        val boxHeightDp = 266.dp
+
+        val activeTiles = remember(showWifi, showData, showHotspot, showFlashlight, showBluetooth, showDnd, isWifiEnabled, isDataEnabled, isFlashlightOn) {
+            val list = mutableListOf<QuickTileData>()
+            if (showWifi) {
+                list.add(
+                    QuickTileData(
+                        iconRes = R.drawable.ic_wifi,
+                        title = "Wi-Fi",
+                        statusText = if (isWifiEnabled) "Connected" else "Off",
+                        isActive = isWifiEnabled,
+                        activeColor = Color(0xFF2979FF),
+                        onClick = {
+                            lastInteractionTime = System.currentTimeMillis()
+                            try {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                    context.startActivity(Intent(Settings.Panel.ACTION_WIFI).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                } else {
+                                    context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                }
+                            } catch (_: Exception) {
+                                context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                            }
+                        }
+                    )
+                )
+            }
+            if (showData) {
+                list.add(
+                    QuickTileData(
+                        iconRes = R.drawable.ic_mobile_data,
+                        title = "Mobile Data",
+                        statusText = if (isDataEnabled) "Active" else "Off",
+                        isActive = isDataEnabled,
+                        activeColor = Color(0xFF00E676),
+                        onClick = {
+                            lastInteractionTime = System.currentTimeMillis()
+                            try {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                    context.startActivity(Intent(Settings.Panel.ACTION_INTERNET_CONNECTIVITY).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                } else {
+                                    context.startActivity(Intent(Settings.ACTION_DATA_ROAMING_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                }
+                            } catch (_: Exception) {
+                                context.startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                            }
+                        }
+                    )
+                )
+            }
+            if (showHotspot) {
+                list.add(
+                    QuickTileData(
+                        iconRes = R.drawable.ic_hotspot,
+                        title = "Hotspot",
+                        statusText = "Tethering",
+                        isActive = false,
+                        activeColor = Color(0xFFFF9100),
+                        onClick = {
+                            lastInteractionTime = System.currentTimeMillis()
+                            try {
+                                val tetherIntent = Intent().apply {
+                                    action = "android.settings.TETHER_SETTINGS"
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                context.startActivity(tetherIntent)
+                            } catch (_: Exception) {
+                                try {
+                                    context.startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                } catch (_: Exception) {
+                                    Toast.makeText(context, "Hotspot unavailable", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                    )
+                )
+            }
+            if (showFlashlight) {
+                list.add(
+                    QuickTileData(
+                        iconRes = R.drawable.ic_flashlight,
+                        title = "Flashlight",
+                        statusText = if (isFlashlightOn) "Torch ON" else "Off",
+                        isActive = isFlashlightOn,
+                        activeColor = Color(0xFFFFD54F),
+                        onClick = { toggleFlashlight() }
+                    )
+                )
+            }
+            if (showBluetooth) {
+                val isBtOn = try {
+                    android.bluetooth.BluetoothAdapter.getDefaultAdapter()?.isEnabled == true
+                } catch (_: Exception) { false }
+                list.add(
+                    QuickTileData(
+                        iconRes = R.drawable.ic_bluetooth,
+                        title = "Bluetooth",
+                        statusText = if (isBtOn) "Connected" else "Off",
+                        isActive = isBtOn,
+                        activeColor = Color(0xFF00B0FF),
+                        onClick = {
+                            lastInteractionTime = System.currentTimeMillis()
+                            try {
+                                context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                            } catch (_: Exception) {
+                                Toast.makeText(context, "Bluetooth settings unavailable", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    )
+                )
+            }
+            if (showDnd) {
+                val isDndOn = try {
+                    val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
+                    val filter = nm?.currentInterruptionFilter ?: android.app.NotificationManager.INTERRUPTION_FILTER_ALL
+                    filter != android.app.NotificationManager.INTERRUPTION_FILTER_ALL && filter != android.app.NotificationManager.INTERRUPTION_FILTER_UNKNOWN
+                } catch (_: Exception) { false }
+                list.add(
+                    QuickTileData(
+                        iconRes = R.drawable.ic_dnd,
+                        title = "Do Not Disturb",
+                        statusText = if (isDndOn) "Active" else "Off",
+                        isActive = isDndOn,
+                        activeColor = Color(0xFFE040FB),
+                        onClick = {
+                            lastInteractionTime = System.currentTimeMillis()
+                            try {
+                                val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
+                                if (nm != null && nm.isNotificationPolicyAccessGranted) {
+                                    val cur = nm.currentInterruptionFilter
+                                    val target = if (cur == android.app.NotificationManager.INTERRUPTION_FILTER_ALL) {
+                                        android.app.NotificationManager.INTERRUPTION_FILTER_PRIORITY
+                                    } else {
+                                        android.app.NotificationManager.INTERRUPTION_FILTER_ALL
+                                    }
+                                    nm.setInterruptionFilter(target)
+                                } else {
+                                    context.startActivity(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                }
+                            } catch (_: Exception) {
+                                try {
+                                    context.startActivity(Intent(Settings.ACTION_SOUND_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                } catch (_: Exception) {}
+                            }
+                        }
+                    )
+                )
+            }
+            list
+        }
+
+        val tileRows = ((activeTiles.size + 1) / 2).coerceAtLeast(1)
+        val notifHeight = if (showNotifications) (if (notifPreviewMode == "preview") 56.dp else 40.dp) else 0.dp
+        val boxHeightDp = (68.dp + (tileRows * 92).dp + notifHeight).coerceIn(200.dp, 460.dp)
         val boxHeightPx = with(density) { boxHeightDp.toPx() }
 
         val edgeMarginPx = with(density) { 12.dp.toPx() }
@@ -517,103 +680,154 @@ fun FloatingQuickControls(
                                 }
                             }
 
-                            Spacer(Modifier.height(14.dp))
+                            Spacer(Modifier.height(12.dp))
 
-                            // Bento 2x2 Tiles
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                // Wi-Fi Tile
-                                ExpressiveQuickTile(
-                                    iconRes = R.drawable.ic_wifi,
-                                    title = "Wi-Fi",
-                                    statusText = if (isWifiEnabled) "Connected" else "Off",
-                                    isActive = isWifiEnabled,
-                                    activeColor = Color(0xFF2979FF),
-                                    modifier = Modifier.weight(1f),
+                            if (showNotifications) {
+                                NotificationControlPill(
+                                    previewMode = notifPreviewMode,
                                     onClick = {
                                         lastInteractionTime = System.currentTimeMillis()
                                         try {
-                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                                                context.startActivity(Intent(Settings.Panel.ACTION_WIFI).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                                            } else {
-                                                context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                                            }
+                                            context.startActivity(
+                                                Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            )
                                         } catch (_: Exception) {
-                                            context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                            context.startActivity(
+                                                Intent(Settings.ACTION_SETTINGS)
+                                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            )
                                         }
                                     }
                                 )
-
-                                // Mobile Data Tile
-                                ExpressiveQuickTile(
-                                    iconRes = R.drawable.ic_mobile_data,
-                                    title = "Mobile Data",
-                                    statusText = if (isDataEnabled) "Active" else "Off",
-                                    isActive = isDataEnabled,
-                                    activeColor = Color(0xFF00E676),
-                                    modifier = Modifier.weight(1f),
-                                    onClick = {
-                                        lastInteractionTime = System.currentTimeMillis()
-                                        try {
-                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                                                context.startActivity(Intent(Settings.Panel.ACTION_INTERNET_CONNECTIVITY).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                                            } else {
-                                                context.startActivity(Intent(Settings.ACTION_DATA_ROAMING_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                                            }
-                                        } catch (_: Exception) {
-                                            context.startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                                        }
-                                    }
-                                )
+                                Spacer(Modifier.height(10.dp))
                             }
 
-                            Spacer(Modifier.height(10.dp))
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                // Hotspot Tile
-                                ExpressiveQuickTile(
-                                    iconRes = R.drawable.ic_hotspot,
-                                    title = "Hotspot",
-                                    statusText = "Tethering",
-                                    isActive = false,
-                                    activeColor = Color(0xFFFF9100),
-                                    modifier = Modifier.weight(1f),
-                                    onClick = {
-                                        lastInteractionTime = System.currentTimeMillis()
-                                        try {
-                                            val tetherIntent = Intent().apply {
-                                                action = "android.settings.TETHER_SETTINGS"
-                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                            }
-                                            context.startActivity(tetherIntent)
-                                        } catch (_: Exception) {
-                                            try {
-                                                context.startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                                            } catch (_: Exception) {
-                                                Toast.makeText(context, "Hotspot unavailable", Toast.LENGTH_SHORT).show()
-                                            }
-                                        }
+                            // Dynamic Tiles in rows of 2
+                            activeTiles.chunked(2).forEachIndexed { rowIndex, rowTiles ->
+                                if (rowIndex > 0) {
+                                    Spacer(Modifier.height(10.dp))
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    rowTiles.forEach { tile ->
+                                        ExpressiveQuickTile(
+                                            iconRes = tile.iconRes,
+                                            title = tile.title,
+                                            statusText = tile.statusText,
+                                            isActive = tile.isActive,
+                                            activeColor = tile.activeColor,
+                                            modifier = Modifier.weight(1f),
+                                            onClick = tile.onClick
+                                        )
                                     }
-                                )
-
-                                // Flashlight Tile (Instant Toggle)
-                                ExpressiveQuickTile(
-                                    iconRes = R.drawable.ic_flashlight,
-                                    title = "Flashlight",
-                                    statusText = if (isFlashlightOn) "Torch ON" else "Off",
-                                    isActive = isFlashlightOn,
-                                    activeColor = Color(0xFFFFD54F),
-                                    modifier = Modifier.weight(1f),
-                                    onClick = { toggleFlashlight() }
-                                )
+                                    if (rowTiles.size == 1) {
+                                        Spacer(Modifier.weight(1f))
+                                    }
+                                }
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+private data class QuickTileData(
+    val iconRes: Int,
+    val title: String,
+    val statusText: String,
+    val isActive: Boolean,
+    val activeColor: Color,
+    val onClick: () -> Unit
+)
+
+@Composable
+private fun NotificationControlPill(
+    previewMode: String,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        color = Color(0x22FFFFFF),
+        border = BorderStroke(1.dp, Color(0x33FFFFFF)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        if (previewMode == "preview") {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = Color(0x33FFFFFF),
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_notifications),
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Notifications Muted",
+                        style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        color = Color.White
+                    )
+                    Text(
+                        text = "Focus lockdown active • Tap to open notification settings",
+                        style = typography.bodySmall.copy(fontSize = 10.sp),
+                        color = Color(0xBBFFFFFF),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_notifications),
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = "Notification Shade",
+                        style = typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = Color.White
+                    )
+                }
+                Surface(
+                    shape = CircleShape,
+                    color = Color(0x33FFFFFF)
+                ) {
+                    Text(
+                        text = "Active",
+                        style = typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                    )
                 }
             }
         }

@@ -6,8 +6,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import com.hotaro.brik.ui.theme.ThemePreferences
+import com.hotaro.brik.util.AssistivePreferences
 import com.hotaro.brik.util.EmergencyManager
 import com.hotaro.brik.util.GrayscaleManager
+import com.hotaro.brik.util.KioskPreferences
 import com.hotaro.brik.util.WindDownManager
 import com.hotaro.brik.util.ZenManager
 
@@ -15,6 +17,8 @@ class BrikApp : Application() {
     override fun onCreate() {
         super.onCreate()
         ThemePreferences.init(this)
+        AssistivePreferences.init(this)
+        KioskPreferences.init(this)
         EmergencyManager.init(this)
         ZenManager.init(this)
         WindDownManager.init(this)

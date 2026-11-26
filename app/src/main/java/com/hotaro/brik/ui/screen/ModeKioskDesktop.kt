@@ -10,6 +10,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -117,6 +118,11 @@ fun ModeKioskDesktop(
     val amPmFormat = remember(use24Hour) { if (use24Hour) null else SimpleDateFormat("a", Locale.getDefault()) }
     val dateFormat = remember { SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()) }
 
+    val assistiveEnabled by com.hotaro.brik.util.AssistivePreferences.enabled.collectAsState()
+    val assistiveAutoHide by com.hotaro.brik.util.AssistivePreferences.autoHideSeconds.collectAsState()
+    val exitHoldSec by com.hotaro.brik.util.KioskPreferences.exitHoldSeconds.collectAsState()
+    val allowEmergencyDialer by com.hotaro.brik.util.KioskPreferences.allowEmergencyDialer.collectAsState()
+
     val launcherApps = remember(context) { loadLauncherApps(pm, context.packageName) }
     val permittedApps = remember(mode.kioskAllowedPackages, launcherApps) {
         launcherApps.filter { mode.kioskAllowedPackages.contains(it.packageName) }
@@ -126,8 +132,8 @@ fun ModeKioskDesktop(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF0C0D10))
-            .pointerInput(Unit) {
-                val holdMillis = 3000L
+            .pointerInput(exitHoldSec) {
+                val holdMillis = (exitHoldSec * 1000L).coerceAtLeast(1000L)
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = true)
                     val start = System.currentTimeMillis()
@@ -396,13 +402,52 @@ fun ModeKioskDesktop(
                             )
                         }
                     }
+
+                    if (allowEmergencyDialer) {
+                        Spacer(Modifier.height(8.dp))
+                        Surface(
+                            onClick = {
+                                try {
+                                    val intent = Intent(Intent.ACTION_DIAL).apply {
+                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                    }
+                                    context.startActivity(intent)
+                                } catch (_: Exception) {}
+                            },
+                            shape = CircleShape,
+                            color = Color(0x22FF5252),
+                            border = BorderStroke(1.dp, Color(0x66FF5252)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(44.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxSize(),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    painter = painterResource(R.drawable.call_fill0),
+                                    contentDescription = null,
+                                    tint = Color(0xFFFF8A80),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = "Emergency Dialer",
+                                    style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = Color(0xFFFF8A80)
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
 
-        if (mode.kioskEnableFloatingControls) {
+        if (mode.kioskEnableFloatingControls && assistiveEnabled) {
             com.hotaro.brik.ui.component.FloatingQuickControls(
-                autoHideDelaySeconds = mode.kioskFloatingAutoHideSeconds,
+                autoHideDelaySeconds = assistiveAutoHide,
                 modifier = Modifier.fillMaxSize()
             )
         }
