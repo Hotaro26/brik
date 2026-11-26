@@ -1,12 +1,15 @@
 package com.hotaro.brik.util
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.provider.Settings
 import com.hotaro.brik.data.model.KeyType
 import com.topjohnwu.superuser.Shell
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import rikka.shizuku.Shizuku
 
 object GrayscaleManager {
     private const val PREFS_NAME = "brik_grayscale_preferences"
@@ -181,8 +184,47 @@ object GrayscaleManager {
         _hasSecurityKey.value = EmergencyManager.hasKey(context)
     }
 
+    fun hasPermission(context: Context): Boolean {
+        return context.checkSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS) == PackageManager.PERMISSION_GRANTED
+    }
+
+    fun tryGrantPermissionViaPrivileged(context: Context): Boolean {
+        if (hasPermission(context)) return true
+        val cmd = "pm grant ${context.packageName} android.permission.WRITE_SECURE_SETTINGS"
+        return executePrivilegedCommand(cmd) && hasPermission(context)
+    }
+
+    private fun executePrivilegedCommand(cmd: String): Boolean {
+        return try {
+            if (Shell.isAppGrantedRoot() == true) {
+                Shell.cmd(cmd).exec().isSuccess
+            } else if (Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
+                val method = Shizuku::class.java.getDeclaredMethod(
+                    "newProcess",
+                    Array<String>::class.java,
+                    Array<String>::class.java,
+                    String::class.java
+                )
+                method.isAccessible = true
+                val process = method.invoke(null, arrayOf("sh", "-c", cmd), null, null) as Process
+                process.waitFor() == 0
+            } else {
+                false
+            }
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
     fun applyGrayscale(context: Context, enable: Boolean): Boolean {
         val value = if (enable) 1 else 0
+
+        // Attempt to auto-grant WRITE_SECURE_SETTINGS via privileged bridge if missing
+        if (!hasPermission(context)) {
+            tryGrantPermissionViaPrivileged(context)
+        }
+
+        // Direct Settings.Secure write if permission is present
         val directSuccess = runCatching {
             Settings.Secure.putInt(context.contentResolver, "accessibility_display_daltonizer_enabled", value)
             if (enable) {
@@ -193,14 +235,13 @@ object GrayscaleManager {
 
         if (directSuccess) return true
 
-        if (Shell.isAppGrantedRoot() == true) {
-            val cmd1 = "settings put secure accessibility_display_daltonizer_enabled $value"
-            val cmd2 = if (enable) "settings put secure accessibility_display_daltonizer 0" else ""
-            val res = Shell.cmd(cmd1, cmd2).exec()
-            if (res.isSuccess) return true
+        // Fallback: Privileged shell command (Root or Shizuku)
+        val cmd = if (enable) {
+            "settings put secure accessibility_display_daltonizer_enabled 1 && settings put secure accessibility_display_daltonizer 0"
+        } else {
+            "settings put secure accessibility_display_daltonizer_enabled 0"
         }
-
-        return false
+        return executePrivilegedCommand(cmd)
     }
 
     fun isSystemGrayscaleActive(context: Context): Boolean {

@@ -2,6 +2,7 @@ package com.hotaro.brik.ui.screen
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
 import android.provider.Settings
@@ -114,6 +115,7 @@ fun GrayscaleWindow(
     val hasSecurityKey by GrayscaleManager.hasSecurityKey.collectAsState()
 
     var isAccessibilityServiceEnabled by remember { mutableStateOf(BrikAccessibilityService.isEnabled(context)) }
+    var hasWritePermission by remember { mutableStateOf(GrayscaleManager.hasPermission(context)) }
 
     // Expandable card states
     var isSystemwideExpanded by remember { mutableStateOf(false) }
@@ -154,9 +156,10 @@ fun GrayscaleWindow(
         launcherApps.filter { appSpecificApps.contains(it.packageName) }
     }
 
-    // Refresh accessibility service status
+    // Refresh accessibility service status & write permission
     LaunchedEffect(Unit) {
         isAccessibilityServiceEnabled = BrikAccessibilityService.isEnabled(context)
+        hasWritePermission = GrayscaleManager.hasPermission(context)
     }
 
     // Guard actions with Key Guard
@@ -338,6 +341,72 @@ fun GrayscaleWindow(
                 }
             }
 
+            // Permission Banner (if WRITE_SECURE_SETTINGS not granted)
+            if (!hasWritePermission) {
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = colorScheme.errorContainer.copy(alpha = 0.65f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.contrast_fill0),
+                                contentDescription = null,
+                                tint = colorScheme.onErrorContainer,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "Permission Required",
+                                    style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = colorScheme.onErrorContainer
+                                )
+                                Text(
+                                    text = "WRITE_SECURE_SETTINGS is needed to apply grayscale.",
+                                    style = typography.bodySmall,
+                                    color = colorScheme.onErrorContainer.copy(alpha = 0.85f)
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.width(8.dp))
+
+                        Button(
+                            onClick = {
+                                val granted = GrayscaleManager.tryGrantPermissionViaPrivileged(context)
+                                if (granted) {
+                                    hasWritePermission = true
+                                    Toast.makeText(context, "Permission granted", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    val cmd = "adb shell pm grant ${context.packageName} android.permission.WRITE_SECURE_SETTINGS"
+                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("ADB Command", cmd))
+                                    Toast.makeText(context, "Command copied to clipboard", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            shape = CircleShape,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = colorScheme.onErrorContainer,
+                                contentColor = colorScheme.errorContainer
+                            )
+                        ) {
+                            Text("Grant", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+
             // --- SECTION 1: SYSTEM DISPLAY FILTER ---
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 TomatoSectionHeader(title = "SYSTEM DISPLAY FILTER")
@@ -356,6 +425,14 @@ fun GrayscaleWindow(
                             Switch(
                                 checked = isSystemwideEnabled,
                                 onCheckedChange = { targetState ->
+                                    if (targetState && !hasWritePermission) {
+                                        val granted = GrayscaleManager.tryGrantPermissionViaPrivileged(context)
+                                        if (granted) {
+                                            hasWritePermission = true
+                                        } else {
+                                            Toast.makeText(context, "Grant WRITE_SECURE_SETTINGS first", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
                                     if (!targetState && isKeyGuardEnabled) {
                                         performGuardedAction {
                                             GrayscaleManager.setSystemwideEnabled(context, false)
@@ -502,6 +579,14 @@ fun GrayscaleWindow(
                             Switch(
                                 checked = isAppSpecificEnabled,
                                 onCheckedChange = { targetState ->
+                                    if (targetState && !hasWritePermission) {
+                                        val granted = GrayscaleManager.tryGrantPermissionViaPrivileged(context)
+                                        if (granted) {
+                                            hasWritePermission = true
+                                        } else {
+                                            Toast.makeText(context, "Grant WRITE_SECURE_SETTINGS first", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
                                     if (!targetState && isKeyGuardEnabled) {
                                         performGuardedAction {
                                             GrayscaleManager.setAppSpecificEnabled(context, false)
@@ -770,9 +855,11 @@ fun GrayscaleWindow(
         var searchQuery by remember { mutableStateOf("") }
         var tempSelected by remember { mutableStateOf(systemwideExceptions) }
         var tempEnabled by remember { mutableStateOf(isSystemwideEnabled) }
+        var showSystemAppsInExceptions by remember { mutableStateOf(false) }
 
-        val filteredApps = remember(launcherApps, searchQuery) {
-            if (searchQuery.isBlank()) launcherApps else launcherApps.filter {
+        val filteredApps = remember(launcherApps, searchQuery, showSystemAppsInExceptions) {
+            val baseList = if (showSystemAppsInExceptions) launcherApps else launcherApps.filter { !it.isSystemApp }
+            if (searchQuery.isBlank()) baseList else baseList.filter {
                 it.label.contains(searchQuery, ignoreCase = true) || it.packageName.contains(searchQuery, ignoreCase = true)
             }
         }
@@ -841,24 +928,47 @@ fun GrayscaleWindow(
 
                 Spacer(Modifier.height(14.dp))
 
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    placeholder = { Text("Search apps...") },
-                    leadingIcon = {
-                        Icon(painter = painterResource(R.drawable.search_fill0), contentDescription = null, modifier = Modifier.size(18.dp))
-                    },
-                    trailingIcon = if (searchQuery.isNotEmpty()) {
-                        {
-                            IconButton(onClick = { searchQuery = "" }) {
-                                Icon(painter = painterResource(R.drawable.close_fill0), contentDescription = "Clear")
-                            }
-                        }
-                    } else null,
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    singleLine = true
-                )
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = { Text("Search apps...") },
+                        leadingIcon = {
+                            Icon(painter = painterResource(R.drawable.search_fill0), contentDescription = null, modifier = Modifier.size(18.dp))
+                        },
+                        trailingIcon = if (searchQuery.isNotEmpty()) {
+                            {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(painter = painterResource(R.drawable.close_fill0), contentDescription = "Clear")
+                                }
+                            }
+                        } else null,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(16.dp),
+                        singleLine = true
+                    )
+
+                    Surface(
+                        shape = CircleShape,
+                        color = if (showSystemAppsInExceptions) colorScheme.primaryContainer else colorScheme.surfaceContainerHighest,
+                        border = BorderStroke(1.dp, if (showSystemAppsInExceptions) colorScheme.primary.copy(alpha = 0.5f) else Color.Transparent),
+                        modifier = Modifier.size(42.dp),
+                        onClick = { showSystemAppsInExceptions = !showSystemAppsInExceptions }
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                painter = painterResource(if (showSystemAppsInExceptions) R.drawable.visibility_fill0 else R.drawable.visibility_off_fill0),
+                                contentDescription = if (showSystemAppsInExceptions) "Hide System Apps" else "Show System Apps",
+                                tint = if (showSystemAppsInExceptions) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
 
                 Spacer(Modifier.height(12.dp))
 
@@ -936,9 +1046,11 @@ fun GrayscaleWindow(
         var searchQuery by remember { mutableStateOf("") }
         var tempSelected by remember { mutableStateOf(appSpecificApps) }
         var tempEnabled by remember { mutableStateOf(isAppSpecificEnabled) }
+        var showSystemAppsInSpecific by remember { mutableStateOf(false) }
 
-        val filteredApps = remember(launcherApps, searchQuery) {
-            if (searchQuery.isBlank()) launcherApps else launcherApps.filter {
+        val filteredApps = remember(launcherApps, searchQuery, showSystemAppsInSpecific) {
+            val baseList = if (showSystemAppsInSpecific) launcherApps else launcherApps.filter { !it.isSystemApp }
+            if (searchQuery.isBlank()) baseList else baseList.filter {
                 it.label.contains(searchQuery, ignoreCase = true) || it.packageName.contains(searchQuery, ignoreCase = true)
             }
         }
@@ -1007,24 +1119,47 @@ fun GrayscaleWindow(
 
                 Spacer(Modifier.height(14.dp))
 
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    placeholder = { Text("Search apps...") },
-                    leadingIcon = {
-                        Icon(painter = painterResource(R.drawable.search_fill0), contentDescription = null, modifier = Modifier.size(18.dp))
-                    },
-                    trailingIcon = if (searchQuery.isNotEmpty()) {
-                        {
-                            IconButton(onClick = { searchQuery = "" }) {
-                                Icon(painter = painterResource(R.drawable.close_fill0), contentDescription = "Clear")
-                            }
-                        }
-                    } else null,
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    singleLine = true
-                )
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = { Text("Search apps...") },
+                        leadingIcon = {
+                            Icon(painter = painterResource(R.drawable.search_fill0), contentDescription = null, modifier = Modifier.size(18.dp))
+                        },
+                        trailingIcon = if (searchQuery.isNotEmpty()) {
+                            {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(painter = painterResource(R.drawable.close_fill0), contentDescription = "Clear")
+                                }
+                            }
+                        } else null,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(16.dp),
+                        singleLine = true
+                    )
+
+                    Surface(
+                        shape = CircleShape,
+                        color = if (showSystemAppsInSpecific) colorScheme.primaryContainer else colorScheme.surfaceContainerHighest,
+                        border = BorderStroke(1.dp, if (showSystemAppsInSpecific) colorScheme.primary.copy(alpha = 0.5f) else Color.Transparent),
+                        modifier = Modifier.size(42.dp),
+                        onClick = { showSystemAppsInSpecific = !showSystemAppsInSpecific }
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                painter = painterResource(if (showSystemAppsInSpecific) R.drawable.visibility_fill0 else R.drawable.visibility_off_fill0),
+                                contentDescription = if (showSystemAppsInSpecific) "Hide System Apps" else "Show System Apps",
+                                tint = if (showSystemAppsInSpecific) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
 
                 Spacer(Modifier.height(12.dp))
 
@@ -1175,12 +1310,14 @@ private fun loadLauncherApps(pm: PackageManager, currentPackageName: String): Li
             } catch (_: Exception) {
                 null
             }
+            val isSystem = (info.activityInfo.applicationInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0 ||
+                    (info.activityInfo.applicationInfo.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
             result.add(
                 AppInfo(
                     packageName = pkg,
                     label = label,
                     icon = icon,
-                    isSystemApp = false
+                    isSystemApp = isSystem
                 )
             )
         }
