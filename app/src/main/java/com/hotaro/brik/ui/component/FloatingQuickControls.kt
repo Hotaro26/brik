@@ -913,31 +913,27 @@ fun FloatingQuickControls(
                     label = "morphContent"
                 ) { expanded ->
                     if (!expanded) {
-                        // Concentric disc inside the 56dp circle
+                        // Lotus Icon inside the floating 56dp assistive ball
                         Box(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
                         ) {
                             Surface(
                                 shape = CircleShape,
-                                color = colorScheme.surfaceContainerHighest.copy(alpha = 0.5f),
-                                modifier = Modifier.size(36.dp)
+                                color = if (isFlashlightOn) Color(0xFFFFC107).copy(alpha = 0.25f) else primaryColor.copy(alpha = 0.16f),
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (isFlashlightOn) Color(0xFFFFC107).copy(alpha = 0.6f) else primaryColor.copy(alpha = 0.35f)
+                                ),
+                                modifier = Modifier.size(40.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = colorScheme.surfaceContainerHighest.copy(alpha = 0.85f),
-                                        border = BorderStroke(0.8.dp, colorScheme.outlineVariant.copy(alpha = 0.6f)),
-                                        modifier = Modifier.size(24.dp)
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Surface(
-                                                shape = CircleShape,
-                                                color = if (isFlashlightOn) Color(0xFFFFC107) else primaryColor,
-                                                modifier = Modifier.size(13.dp)
-                                            ) {}
-                                        }
-                                    }
+                                    Icon(
+                                        painter = painterResource(R.drawable.self_improvement_fill0),
+                                        contentDescription = "Assistive Ball",
+                                        tint = if (isFlashlightOn) Color(0xFFFFC107) else primaryColor,
+                                        modifier = Modifier.size(22.dp)
+                                    )
                                 }
                             }
                         }

@@ -39,6 +39,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
@@ -48,7 +49,9 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FloatingActionButton
+import com.hotaro.brik.ui.component.rememberFloatingActionButtonExpanded
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
@@ -251,6 +254,9 @@ fun RoutinesWindow(
     val isDark = colorScheme.surface.luminance() < 0.5f
     val appBackground = if (isDark) Color.Black else colorScheme.surface
 
+    val listState = rememberLazyListState()
+    val isFabExpanded by rememberFloatingActionButtonExpanded(listState)
+
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
@@ -283,7 +289,7 @@ fun RoutinesWindow(
                     }
                 },
                 floatingActionButton = {
-                    FloatingActionButton(
+                    ExtendedFloatingActionButton(
                         onClick = {
                             sheetRoutineName = "Routine ${routines.size + 1}"
                             sheetDaysOfWeek = setOf(2, 3, 4, 5, 6)
@@ -293,26 +299,25 @@ fun RoutinesWindow(
                             sheetEndMinute = 0
                             showCreateSheet = true
                         },
-                        containerColor = colorScheme.primary,
-                        contentColor = colorScheme.onPrimary,
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
+                        expanded = isFabExpanded,
+                        icon = {
                             Icon(
                                 painter = painterResource(R.drawable.add_fill0),
                                 contentDescription = "Add Routine",
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(22.dp)
                             )
+                        },
+                        text = {
                             Text(
                                 text = "Add",
-                                style = typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
+                                fontWeight = FontWeight.Bold,
+                                style = typography.labelLarge
                             )
-                        }
-                    }
+                        },
+                        containerColor = colorScheme.primary,
+                        contentColor = colorScheme.onPrimary,
+                        shape = CircleShape
+                    )
                 },
                 topBar = {
                     TopAppBar(
@@ -359,6 +364,7 @@ fun RoutinesWindow(
                 }
             ) { innerPadding ->
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 16.dp),
@@ -2631,6 +2637,9 @@ private fun RoutineBreaksWindow(
     var editingBreak by remember { mutableStateOf<RoutineBreak?>(null) }
     var breakToDelete by remember { mutableStateOf<RoutineBreak?>(null) }
 
+    val breaksListState = rememberLazyListState()
+    val isBreaksFabExpanded by rememberFloatingActionButtonExpanded(breaksListState)
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -2677,35 +2686,35 @@ private fun RoutineBreaksWindow(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
+            ExtendedFloatingActionButton(
                 onClick = {
                     editingBreak = null
                     showAddEditDialog = true
                 },
-                containerColor = colorScheme.primary,
-                contentColor = colorScheme.onPrimary,
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+                expanded = isBreaksFabExpanded,
+                icon = {
                     Icon(
                         painter = painterResource(R.drawable.add_fill0),
                         contentDescription = "Add Break",
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(22.dp)
                     )
+                },
+                text = {
                     Text(
                         text = "Add Break",
-                        style = typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
+                        fontWeight = FontWeight.Bold,
+                        style = typography.labelLarge
                     )
-                }
-            }
+                },
+                containerColor = colorScheme.primary,
+                contentColor = colorScheme.onPrimary,
+                shape = CircleShape
+            )
         },
         containerColor = colorScheme.surface
     ) { innerPadding ->
         LazyColumn(
+            state = breaksListState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)

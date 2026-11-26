@@ -4,14 +4,18 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
@@ -35,13 +39,29 @@ fun Modifier.holdToProgress(
     onProgressUpdate: (Float) -> Unit,
     onCompleted: () -> Unit,
     onTap: () -> Unit
+): Modifier = holdToProgress(
+    durationMillis = durationMillis,
+    enabled = enabled,
+    onProgressUpdate = { progress, _ -> onProgressUpdate(progress) },
+    onCompleted = onCompleted,
+    onTap = onTap
+)
+
+@Composable
+fun Modifier.holdToProgress(
+    durationMillis: Long = 5000L,
+    enabled: Boolean = true,
+    onProgressUpdate: (progress: Float, isPressed: Boolean) -> Unit,
+    onCompleted: () -> Unit,
+    onTap: () -> Unit
 ): Modifier {
     val coroutineScope = rememberCoroutineScope()
     var animJob by remember { mutableStateOf<Job?>(null) }
     val progress = remember { Animatable(0f) }
+    var isPressed by remember { mutableStateOf(false) }
 
-    LaunchedEffect(progress.value) {
-        onProgressUpdate(progress.value)
+    LaunchedEffect(progress.value, isPressed) {
+        onProgressUpdate(progress.value, isPressed)
     }
 
     return this.pointerInput(enabled) {
@@ -52,6 +72,7 @@ fun Modifier.holdToProgress(
         detectTapGestures(
             onPress = {
                 var completed = false
+                isPressed = true
                 val startTime = System.currentTimeMillis()
                 animJob = coroutineScope.launch {
                     progress.snapTo(0f)
@@ -64,6 +85,7 @@ fun Modifier.holdToProgress(
                 }
                 val released = tryAwaitRelease()
                 val pressDuration = System.currentTimeMillis() - startTime
+                isPressed = false
                 if (!completed) {
                     animJob?.cancel()
                     coroutineScope.launch {
@@ -110,4 +132,70 @@ fun Modifier.drawBorderProgress(
             )
         )
     }
+}
+
+@Composable
+fun rememberFloatingActionButtonExpanded(
+    listState: LazyListState,
+    initialExpanded: Boolean = true
+): State<Boolean> {
+    val expanded = remember { mutableStateOf(initialExpanded) }
+    LaunchedEffect(listState) {
+        var prevIndex = listState.firstVisibleItemIndex
+        var prevOffset = listState.firstVisibleItemScrollOffset
+        snapshotFlow { Pair(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) }
+            .collect { (currIndex, currOffset) ->
+                if (currIndex == 0 && currOffset <= 20) {
+                    expanded.value = true
+                    prevIndex = 0
+                    prevOffset = currOffset
+                } else if (currIndex > prevIndex) {
+                    expanded.value = false
+                    prevIndex = currIndex
+                    prevOffset = currOffset
+                } else if (currIndex < prevIndex) {
+                    expanded.value = true
+                    prevIndex = currIndex
+                    prevOffset = currOffset
+                } else {
+                    val delta = currOffset - prevOffset
+                    if (delta > 8) {
+                        expanded.value = false
+                        prevOffset = currOffset
+                    } else if (delta < -8) {
+                        expanded.value = true
+                        prevOffset = currOffset
+                    }
+                }
+            }
+    }
+    return expanded
+}
+
+@Composable
+fun rememberScrollStateExpanded(
+    scrollState: ScrollState,
+    initialExpanded: Boolean = true
+): State<Boolean> {
+    val expanded = remember { mutableStateOf(initialExpanded) }
+    LaunchedEffect(scrollState) {
+        var prevValue = scrollState.value
+        snapshotFlow { scrollState.value }
+            .collect { currValue ->
+                if (currValue <= 20) {
+                    expanded.value = true
+                    prevValue = currValue
+                } else {
+                    val delta = currValue - prevValue
+                    if (delta > 8) {
+                        expanded.value = false
+                        prevValue = currValue
+                    } else if (delta < -8) {
+                        expanded.value = true
+                        prevValue = currValue
+                    }
+                }
+            }
+    }
+    return expanded
 }

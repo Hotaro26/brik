@@ -18,6 +18,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import com.hotaro.brik.ui.component.RealFillBatteryIcon
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -313,42 +314,31 @@ fun ModeKioskDesktop(
 
             if (showBatteryIndicator) {
                 Spacer(Modifier.height(8.dp))
-                Surface(
-                    shape = CircleShape,
-                    color = Color.White.copy(alpha = 0.08f),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
+                val batteryColor = when {
+                    isCharging -> colorScheme.primary
+                    batteryLevel <= 15 -> Color(0xFFFF5252)
+                    batteryLevel <= 20 -> Color(0xFFFFAB40)
+                    else -> Color.White.copy(alpha = 0.85f)
+                }
+                Row(
+                    modifier = Modifier.padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(
-                            painter = painterResource(if (isCharging) R.drawable.ic_battery_charging else R.drawable.ic_battery_std),
-                            contentDescription = "Battery",
-                            tint = when {
-                                isCharging -> colorScheme.primary
-                                batteryLevel <= 15 -> Color(0xFFFF5252)
-                                batteryLevel <= 20 -> Color(0xFFFFAB40)
-                                else -> Color.White.copy(alpha = 0.85f)
-                            },
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Text(
-                            text = "$batteryLevel%${if (isCharging) " • Charging" else ""}",
-                            style = typography.labelSmall.copy(
-                                fontWeight = FontWeight.SemiBold,
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 11.sp
-                            ),
-                            color = when {
-                                isCharging -> colorScheme.primary
-                                batteryLevel <= 15 -> Color(0xFFFF5252)
-                                batteryLevel <= 20 -> Color(0xFFFFAB40)
-                                else -> Color.White.copy(alpha = 0.85f)
-                            }
-                        )
-                    }
+                    RealFillBatteryIcon(
+                        batteryLevel = batteryLevel,
+                        isCharging = isCharging,
+                        tint = batteryColor
+                    )
+                    Text(
+                        text = "$batteryLevel%${if (isCharging) " • Charging" else ""}",
+                        style = typography.labelSmall.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp
+                        ),
+                        color = batteryColor
+                    )
                 }
             }
 

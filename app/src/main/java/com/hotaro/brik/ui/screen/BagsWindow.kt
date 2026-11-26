@@ -27,8 +27,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import com.hotaro.brik.ui.component.rememberFloatingActionButtonExpanded
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -119,6 +121,9 @@ fun BagsWindow(
     // Attempted to edit a running bag
     var bagLockedEditAttempt by remember { mutableStateOf<AppBag?>(null) }
     var showCreateBagSheet by remember { mutableStateOf(false) }
+
+    val listState = rememberLazyListState()
+    val isFabExpanded by rememberFloatingActionButtonExpanded(listState)
 
     RoundedPullRefreshPage(
         isRefreshing = isRefreshing,
@@ -227,6 +232,7 @@ fun BagsWindow(
                     }
                 } else {
                     LazyColumn(
+                        state = listState,
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),
@@ -256,11 +262,12 @@ fun BagsWindow(
             // Floating Plus Icon as rectangle with round edges and "Add" word written beside it
             ExtendedFloatingActionButton(
                 onClick = { showCreateBagSheet = true },
+                expanded = isFabExpanded,
                 icon = {
                     Icon(
                         painter = painterResource(R.drawable.add_fill0),
                         contentDescription = "Add Bag",
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(22.dp)
                     )
                 },
                 text = {
@@ -272,7 +279,7 @@ fun BagsWindow(
                 },
                 containerColor = colorScheme.primary,
                 contentColor = colorScheme.onPrimary,
-                shape = RoundedCornerShape(16.dp),
+                shape = CircleShape,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(bottom = 28.dp, end = 4.dp)

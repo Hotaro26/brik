@@ -37,6 +37,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
@@ -46,7 +47,9 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FloatingActionButton
+import com.hotaro.brik.ui.component.rememberFloatingActionButtonExpanded
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
@@ -204,6 +207,9 @@ fun ModesWindow(
     val isDark = colorScheme.surface.luminance() < 0.5f
     val appBackground = if (isDark) Color.Black else colorScheme.surface
 
+    val listState = rememberLazyListState()
+    val isFabExpanded by rememberFloatingActionButtonExpanded(listState)
+
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
@@ -235,21 +241,31 @@ fun ModesWindow(
                     }
                 },
                 floatingActionButton = {
-                    FloatingActionButton(
+                    ExtendedFloatingActionButton(
                         onClick = {
                             sheetModeName = ""
                             sheetSelectedIcon = "mode_fill0"
                             showCreateSheet = true
                         },
+                        expanded = isFabExpanded,
+                        icon = {
+                            Icon(
+                                painter = painterResource(R.drawable.add_fill0),
+                                contentDescription = "New Focus Mode",
+                                modifier = Modifier.size(22.dp)
+                            )
+                        },
+                        text = {
+                            Text(
+                                text = "Add",
+                                fontWeight = FontWeight.Bold,
+                                style = typography.labelLarge
+                            )
+                        },
                         containerColor = colorScheme.primary,
                         contentColor = colorScheme.onPrimary,
                         shape = CircleShape
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.add_fill0),
-                            contentDescription = "New Focus Mode"
-                        )
-                    }
+                    )
                 },
                 topBar = {
                     TopAppBar(
@@ -296,6 +312,7 @@ fun ModesWindow(
                 }
             ) { innerPadding ->
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 16.dp),

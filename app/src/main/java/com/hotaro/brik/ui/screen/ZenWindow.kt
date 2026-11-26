@@ -10,19 +10,29 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import com.hotaro.brik.ui.component.RealFillBatteryIcon
 import com.hotaro.brik.ui.component.TomatoSectionHeader
 import com.hotaro.brik.ui.component.TomatoSettingsItem
 import com.hotaro.brik.ui.component.drawBorderProgress
 import com.hotaro.brik.ui.component.holdToProgress
+import com.hotaro.brik.ui.component.rememberScrollStateExpanded
 import com.hotaro.brik.ui.component.segmentedItemShape
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -212,6 +222,12 @@ fun ZenWindow(
     }
 }
 
+private enum class DurationUnit(val label: String, val multiplierToMinutes: Int) {
+    MINUTES("Minutes", 1),
+    HOURS("Hours", 60),
+    DAYS("Days", 1440)
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun InactiveZenConfigScreen(
@@ -230,7 +246,33 @@ private fun InactiveZenConfigScreen(
 
     var selectedDurationMinutes by remember { mutableIntStateOf(ZenManager.getConfiguredDuration(context)) }
     var isInfiniteSelected by remember { mutableStateOf(ZenManager.isConfiguredInfinite(context)) }
-    var enterZenProgress by remember { mutableFloatStateOf(0f) }
+
+    val scrollState = rememberScrollState()
+    val isFabExpanded by rememberScrollStateExpanded(scrollState)
+    val fabCornerRadius by animateDpAsState(
+        targetValue = if (isFabExpanded) 20.dp else 28.dp,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "fabCornerRadius"
+    )
+
+    var customDurationUnit by remember {
+        mutableStateOf(
+            when {
+                selectedDurationMinutes >= 1440 && selectedDurationMinutes % 1440 == 0 -> DurationUnit.DAYS
+                selectedDurationMinutes >= 60 && selectedDurationMinutes % 60 == 0 -> DurationUnit.HOURS
+                else -> DurationUnit.MINUTES
+            }
+        )
+    }
+    var customDurationInput by remember {
+        val count = when {
+            selectedDurationMinutes >= 1440 && selectedDurationMinutes % 1440 == 0 -> selectedDurationMinutes / 1440
+            selectedDurationMinutes >= 60 && selectedDurationMinutes % 60 == 0 -> selectedDurationMinutes / 60
+            else -> selectedDurationMinutes
+        }
+        mutableStateOf(if (count > 0) count.toString() else "")
+    }
+
     var showAppPickerSheet by remember { mutableStateOf(false) }
 
     var isDurationExpanded by remember { mutableStateOf(false) }
@@ -315,7 +357,7 @@ private fun InactiveZenConfigScreen(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
                     ) { /* Absorb blank space clicks */ }
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(scrollState)
                     .padding(horizontal = 16.dp, vertical = 12.dp)
                     .padding(bottom = 96.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -368,9 +410,31 @@ private fun InactiveZenConfigScreen(
                     TomatoSectionHeader(title = "SESSION & TIMER")
 
                     // 1. Session Duration Item
+                    val formattedDurationSubtitle = if (isInfiniteSelected) {
+                        "Infinite lockdown • Key required"
+                    } else {
+                        when {
+                            selectedDurationMinutes >= 1440 && selectedDurationMinutes % 1440 == 0 ->
+                                "${selectedDurationMinutes / 1440} day${if (selectedDurationMinutes / 1440 > 1) "s" else ""} • Tap to adjust"
+                            selectedDurationMinutes >= 60 && selectedDurationMinutes % 60 == 0 ->
+                                "${selectedDurationMinutes / 60} hour${if (selectedDurationMinutes / 60 > 1) "s" else ""} • Tap to adjust"
+                            else ->
+                                "$selectedDurationMinutes minutes • Tap to adjust"
+                        }
+                    }
+                    val formattedDurationPill = if (isInfiniteSelected) {
+                        "Infinite"
+                    } else {
+                        when {
+                            selectedDurationMinutes >= 1440 && selectedDurationMinutes % 1440 == 0 -> "${selectedDurationMinutes / 1440}d"
+                            selectedDurationMinutes >= 60 && selectedDurationMinutes % 60 == 0 -> "${selectedDurationMinutes / 60}h"
+                            else -> "${selectedDurationMinutes}m"
+                        }
+                    }
+
                     TomatoSettingsItem(
                         title = "Session Duration",
-                        subtitle = if (isInfiniteSelected) "Infinite lockdown • Key required" else "${selectedDurationMinutes} minutes • Tap to adjust",
+                        subtitle = formattedDurationSubtitle,
                         leadingIcon = R.drawable.schedule_fill0,
                         iconContainerColor = colorScheme.primaryContainer,
                         iconTint = colorScheme.onPrimaryContainer,
@@ -384,7 +448,7 @@ private fun InactiveZenConfigScreen(
                                     color = if (isInfiniteSelected) colorScheme.tertiaryContainer else colorScheme.primaryContainer
                                 ) {
                                     Text(
-                                        text = if (isInfiniteSelected) "Infinite" else "${selectedDurationMinutes}m",
+                                        text = formattedDurationPill,
                                         style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                                         color = if (isInfiniteSelected) colorScheme.onTertiaryContainer else colorScheme.onPrimaryContainer,
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
@@ -467,7 +531,7 @@ private fun InactiveZenConfigScreen(
                                     )
                                     Spacer(Modifier.height(8.dp))
 
-                                    val presets = listOf(15, 30, 45, 60, 120, 240)
+                                    val presets = listOf(15, 30, 60, 120, 240, 480)
                                     FlowRow(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                                         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -480,6 +544,16 @@ private fun InactiveZenConfigScreen(
                                                 onClick = {
                                                     selectedDurationMinutes = minutes
                                                     ZenManager.setConfiguredDuration(context, minutes)
+                                                    if (minutes >= 1440 && minutes % 1440 == 0) {
+                                                        customDurationUnit = DurationUnit.DAYS
+                                                        customDurationInput = (minutes / 1440).toString()
+                                                    } else if (minutes >= 60 && minutes % 60 == 0) {
+                                                        customDurationUnit = DurationUnit.HOURS
+                                                        customDurationInput = (minutes / 60).toString()
+                                                    } else {
+                                                        customDurationUnit = DurationUnit.MINUTES
+                                                        customDurationInput = minutes.toString()
+                                                    }
                                                 },
                                                 label = { Text(label, fontWeight = FontWeight.SemiBold) },
                                                 colors = FilterChipDefaults.filterChipColors(
@@ -491,22 +565,85 @@ private fun InactiveZenConfigScreen(
                                         }
                                     }
 
-                                    Spacer(Modifier.height(12.dp))
+                                    Spacer(Modifier.height(14.dp))
                                     Text(
-                                        text = "Custom: ${selectedDurationMinutes} minutes",
-                                        style = typography.bodySmall,
+                                        text = "Custom Duration",
+                                        style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                                         color = colorScheme.onSurfaceVariant
                                     )
-                                    Slider(
-                                        value = selectedDurationMinutes.toFloat(),
-                                        onValueChange = {
-                                            val m = it.toInt()
-                                            selectedDurationMinutes = m
-                                            ZenManager.setConfiguredDuration(context, m)
-                                        },
-                                        valueRange = 5f..480f,
-                                        steps = 94
-                                    )
+                                    Spacer(Modifier.height(8.dp))
+
+                                    Surface(
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = colorScheme.surfaceContainerLowest,
+                                        border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(14.dp),
+                                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                                        ) {
+                                            OutlinedTextField(
+                                                value = customDurationInput,
+                                                onValueChange = { input ->
+                                                    val clean = input.filter { it.isDigit() }.take(5)
+                                                    customDurationInput = clean
+                                                    val num = clean.toIntOrNull()
+                                                    if (num != null && num > 0) {
+                                                        val total = (num * customDurationUnit.multiplierToMinutes).coerceIn(1, 1440 * 365)
+                                                        selectedDurationMinutes = total
+                                                        ZenManager.setConfiguredDuration(context, total)
+                                                    }
+                                                },
+                                                placeholder = { Text("e.g. 45") },
+                                                label = { Text("Lockdown Period") },
+                                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                                singleLine = true,
+                                                shape = RoundedCornerShape(12.dp),
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                DurationUnit.values().forEach { unit ->
+                                                    val isSelected = customDurationUnit == unit
+                                                    Surface(
+                                                        onClick = {
+                                                            customDurationUnit = unit
+                                                            val num = customDurationInput.toIntOrNull()
+                                                            if (num != null && num > 0) {
+                                                                val total = (num * unit.multiplierToMinutes).coerceIn(1, 1440 * 365)
+                                                                selectedDurationMinutes = total
+                                                                ZenManager.setConfiguredDuration(context, total)
+                                                            }
+                                                        },
+                                                        shape = RoundedCornerShape(10.dp),
+                                                        color = if (isSelected) colorScheme.primary else colorScheme.surfaceContainerHigh,
+                                                        border = BorderStroke(
+                                                            1.dp,
+                                                            if (isSelected) colorScheme.primary else colorScheme.outlineVariant.copy(alpha = 0.4f)
+                                                        ),
+                                                        modifier = Modifier.weight(1f)
+                                                    ) {
+                                                        Box(
+                                                            modifier = Modifier.padding(vertical = 10.dp),
+                                                            contentAlignment = Alignment.Center
+                                                        ) {
+                                                            Text(
+                                                                text = unit.label,
+                                                                style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                                                color = if (isSelected) colorScheme.onPrimary else colorScheme.onSurface
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -875,9 +1012,12 @@ private fun InactiveZenConfigScreen(
                 }
             }
 
-            // Floating Pill Button: Lotus icon + "Enter Zen" in soft-edged rectangle at bottom right
+            // Floating Action Box: Lotus icon + "Enter Zen" in morphing container at bottom right
+            val enterZenShape = RoundedCornerShape(fabCornerRadius)
+
             Surface(
-                shape = RoundedCornerShape(16.dp),
+                onClick = { onStartZen(selectedDurationMinutes, isInfiniteSelected) },
+                shape = enterZenShape,
                 color = colorScheme.primary,
                 contentColor = colorScheme.onPrimary,
                 shadowElevation = 8.dp,
@@ -885,38 +1025,36 @@ private fun InactiveZenConfigScreen(
                     .align(Alignment.BottomEnd)
                     .navigationBarsPadding()
                     .padding(end = 20.dp, bottom = 20.dp)
-                    .holdToProgress(
-                        durationMillis = 5000L,
-                        onProgressUpdate = { enterZenProgress = it },
-                        onCompleted = {
-                            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                            onStartZen(selectedDurationMinutes, isInfiniteSelected)
-                        },
-                        onTap = {
-                            onStartZen(selectedDurationMinutes, isInfiniteSelected)
-                        }
-                    )
-                    .drawBorderProgress(
-                        progress = enterZenProgress,
-                        shape = RoundedCornerShape(16.dp),
-                        color = colorScheme.onPrimary,
-                        strokeWidth = 3.dp
-                    )
+                    .height(56.dp)
+                    .animateContentSize(animationSpec = spring(stiffness = Spring.StiffnessMediumLow))
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    modifier = Modifier.padding(horizontal = if (isFabExpanded) 22.dp else 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.self_improvement_fill0),
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
+                        contentDescription = "Enter Zen",
+                        tint = colorScheme.onPrimary,
+                        modifier = Modifier.size(24.dp)
                     )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = "Enter Zen",
-                        style = typography.titleSmall.copy(fontWeight = FontWeight.Bold)
-                    )
+                    AnimatedVisibility(
+                        visible = isFabExpanded,
+                        enter = fadeIn(tween(200)) + expandHorizontally(spring(stiffness = Spring.StiffnessMediumLow)),
+                        exit = fadeOut(tween(150)) + shrinkHorizontally(spring(stiffness = Spring.StiffnessMediumLow))
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                text = "Enter Zen",
+                                style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = colorScheme.onPrimary,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -1262,42 +1400,31 @@ private fun ActiveZenDesktop(
 
                 if (showBatteryIndicator) {
                     Spacer(Modifier.height(8.dp))
-                    Surface(
-                        shape = CircleShape,
-                        color = Color.White.copy(alpha = 0.08f),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
+                    val batteryColor = when {
+                        isCharging -> colorScheme.primary
+                        batteryLevel <= 15 -> Color(0xFFFF5252)
+                        batteryLevel <= 20 -> Color(0xFFFFAB40)
+                        else -> Color.White.copy(alpha = 0.85f)
+                    }
+                    Row(
+                        modifier = Modifier.padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(
-                                painter = painterResource(if (isCharging) R.drawable.ic_battery_charging else R.drawable.ic_battery_std),
-                                contentDescription = "Battery",
-                                tint = when {
-                                    isCharging -> colorScheme.primary
-                                    batteryLevel <= 15 -> Color(0xFFFF5252)
-                                    batteryLevel <= 20 -> Color(0xFFFFAB40)
-                                    else -> Color.White.copy(alpha = 0.85f)
-                                },
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Text(
-                                text = "$batteryLevel%${if (isCharging) " • Charging" else ""}",
-                                style = typography.labelSmall.copy(
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 11.sp
-                                ),
-                                color = when {
-                                    isCharging -> colorScheme.primary
-                                    batteryLevel <= 15 -> Color(0xFFFF5252)
-                                    batteryLevel <= 20 -> Color(0xFFFFAB40)
-                                    else -> Color.White.copy(alpha = 0.85f)
-                                }
-                            )
-                        }
+                        RealFillBatteryIcon(
+                            batteryLevel = batteryLevel,
+                            isCharging = isCharging,
+                            tint = batteryColor
+                        )
+                        Text(
+                            text = "$batteryLevel%${if (isCharging) " • Charging" else ""}",
+                            style = typography.labelSmall.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 11.sp
+                            ),
+                            color = batteryColor
+                        )
                     }
                 }
 

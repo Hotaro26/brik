@@ -6,6 +6,7 @@ import android.view.HapticFeedbackConstants
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -15,6 +16,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -179,7 +181,13 @@ fun KeyScreen(
     val view = LocalView.current
     val activity = context as? Activity
     var lotusProgress by remember { mutableFloatStateOf(0f) }
-    var zenPillProgress by remember { mutableFloatStateOf(0f) }
+    var isLotusPressed by remember { mutableStateOf(false) }
+
+    val lotusFillAlpha by animateFloatAsState(
+        targetValue = if (isLotusPressed) 0.25f else 1f,
+        animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
+        label = "lotusFillAlpha"
+    )
 
     val onStartZenDirectly = {
         if (!ZenManager.hasKey(context)) {
@@ -426,8 +434,12 @@ fun KeyScreen(
                                 val zenCookieShape = remember { cookieShape(sides = 9, indentFactor = 0.86f) }
                                 Surface(
                                     shape = zenCookieShape,
-                                    color = if (isZenActive) colorScheme.primary else colorScheme.surfaceContainerHigh,
-                                    shadowElevation = 8.dp,
+                                    color = if (isZenActive) {
+                                        colorScheme.primary
+                                    } else {
+                                        colorScheme.surfaceContainerHigh.copy(alpha = lotusFillAlpha)
+                                    },
+                                    shadowElevation = if (isLotusPressed) 2.dp else 8.dp,
                                     modifier = Modifier
                                         .scale(scale)
                                         .size(112.dp)
@@ -435,7 +447,10 @@ fun KeyScreen(
                                         .holdToProgress(
                                             durationMillis = 5000L,
                                             enabled = !isZenActive,
-                                            onProgressUpdate = { lotusProgress = it },
+                                            onProgressUpdate = { progress, pressed ->
+                                                lotusProgress = progress
+                                                isLotusPressed = pressed
+                                            },
                                             onCompleted = {
                                                 view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                                                 onStartZenDirectly()
@@ -475,7 +490,7 @@ fun KeyScreen(
                                 )
 
                                 Text(
-                                    text = if (isZenActive) "Active lockdown session • Tap to view" else "Hold 5s to enter directly • Tap to configure",
+                                    text = if (isZenActive) "Active lockdown session • Tap to view" else "Hold lotus icon to enter directly • Tap below to configure",
                                     style = typography.bodyMedium,
                                     color = if (isZenActive) colorScheme.primary else colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(top = 6.dp)
@@ -484,29 +499,12 @@ fun KeyScreen(
                                 Spacer(Modifier.height(24.dp))
 
                                 Surface(
+                                    onClick = { onNavigateToZen() },
                                     shape = CircleShape,
                                     color = if (isZenActive) colorScheme.primaryContainer else colorScheme.primary,
+                                    contentColor = if (isZenActive) colorScheme.onPrimaryContainer else colorScheme.onPrimary,
                                     shadowElevation = 8.dp,
-                                    modifier = Modifier
-                                        .height(52.dp)
-                                        .holdToProgress(
-                                            durationMillis = 5000L,
-                                            enabled = !isZenActive,
-                                            onProgressUpdate = { zenPillProgress = it },
-                                            onCompleted = {
-                                                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                                                onStartZenDirectly()
-                                            },
-                                            onTap = {
-                                                onNavigateToZen()
-                                            }
-                                        )
-                                        .drawBorderProgress(
-                                            progress = zenPillProgress,
-                                            shape = CircleShape,
-                                            color = if (isZenActive) colorScheme.primary else colorScheme.onPrimary,
-                                            strokeWidth = 3.dp
-                                        )
+                                    modifier = Modifier.height(52.dp)
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
