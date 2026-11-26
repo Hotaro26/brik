@@ -8,6 +8,20 @@ import android.widget.Toast
 
 class BrikAdminReceiver : DeviceAdminReceiver() {
 
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action == "com.hotaro.brik.SYNC_LOCK_PACKAGES") {
+            try {
+                val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? android.app.admin.DevicePolicyManager
+                val dar = getComponentName(context)
+                dpm?.setLockTaskPackages(dar, arrayOf(context.packageName, "com.android.settings", "com.google.android.dialer", "com.android.dialer"))
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            return
+        }
+        super.onReceive(context, intent)
+    }
+
     override fun onEnabled(context: Context, intent: Intent) {
         super.onEnabled(context, intent)
         Toast.makeText(context, "Brik Device Admin enabled", Toast.LENGTH_SHORT).show()

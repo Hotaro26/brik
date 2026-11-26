@@ -295,17 +295,27 @@ object PolicyBridgeManager {
     fun setLockTaskPackages(context: Context, packages: List<String>): Result<Boolean> {
         val status = getBridgeStatus(context)
         return runCatching {
+            val defaultDialer = (context.getSystemService(Context.TELECOM_SERVICE) as? android.telecom.TelecomManager)?.defaultDialerPackage
+            val systemPackages = listOfNotNull(
+                context.packageName,
+                "com.android.settings",
+                defaultDialer,
+                "com.google.android.dialer",
+                "com.android.dialer"
+            )
+            val fullPackages = (packages + systemPackages).distinct().toTypedArray()
+
             when (status.activeBridge) {
                 BridgeType.DEVICE_OWNER -> {
                     val dpm = context.getSystemService(DevicePolicyManager::class.java)!!
                     val dar = BrikAdminReceiver.getComponentName(context)
-                    dpm.setLockTaskPackages(dar, packages.toTypedArray())
+                    dpm.setLockTaskPackages(dar, fullPackages)
                     true
                 }
                 BridgeType.DHIZUKU -> {
                     val dpm = getDhizukuDpm(context)
                     val dar = Dhizuku.getOwnerComponent()
-                    dpm.setLockTaskPackages(dar, packages.toTypedArray())
+                    dpm.setLockTaskPackages(dar, fullPackages)
                     true
                 }
                 else -> {
