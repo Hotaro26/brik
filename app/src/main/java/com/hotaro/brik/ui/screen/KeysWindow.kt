@@ -468,6 +468,12 @@ fun KeysWindow(
                     }
 
                     ElevatedCard(
+                        onClick = {
+                            if (lock.isSystemKey) {
+                                systemLockToEdit = lock
+                                showVerifyBeforeEditSystemKeyDialog = true
+                            }
+                        },
                         shape = shape,
                         colors = CardDefaults.elevatedCardColors(
                             containerColor = colorScheme.surfaceContainerHigh

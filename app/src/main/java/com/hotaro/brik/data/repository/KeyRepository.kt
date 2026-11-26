@@ -15,19 +15,36 @@ import java.util.UUID
 
 class KeyRepository(private val context: Context) {
     private val prefs = context.getSharedPreferences("brik_keys_pref", Context.MODE_PRIVATE)
-    private val json = Json { ignoreUnknownKeys = true }
 
-    private val _activeLocks = MutableStateFlow<List<BagLock>>(emptyList())
-    val activeLocks: StateFlow<List<BagLock>> = _activeLocks.asStateFlow()
+    val activeLocks: StateFlow<List<BagLock>> get() = _activeLocks.asStateFlow()
+    val savedKeys: StateFlow<List<SavedKey>> get() = _savedKeys.asStateFlow()
+    val stats: StateFlow<LockStats> get() = _stats.asStateFlow()
 
-    private val _savedKeys = MutableStateFlow<List<SavedKey>>(emptyList())
-    val savedKeys: StateFlow<List<SavedKey>> = _savedKeys.asStateFlow()
+    companion object {
+        private val json = Json { ignoreUnknownKeys = true }
 
-    private val _stats = MutableStateFlow(LockStats())
-    val stats: StateFlow<LockStats> = _stats.asStateFlow()
+        private val _activeLocks = MutableStateFlow<List<BagLock>>(emptyList())
+        val activeLocks: StateFlow<List<BagLock>> = _activeLocks.asStateFlow()
+
+        private val _savedKeys = MutableStateFlow<List<SavedKey>>(emptyList())
+        val savedKeys: StateFlow<List<SavedKey>> = _savedKeys.asStateFlow()
+
+        private val _stats = MutableStateFlow(LockStats())
+        val stats: StateFlow<LockStats> = _stats.asStateFlow()
+
+        @Volatile
+        private var isLoaded = false
+    }
 
     init {
-        loadData()
+        if (!isLoaded) {
+            synchronized(KeyRepository::class.java) {
+                if (!isLoaded) {
+                    loadData()
+                    isLoaded = true
+                }
+            }
+        }
         syncExistingSystemKeys(context)
     }
 
@@ -67,7 +84,9 @@ class KeyRepository(private val context: Context) {
         secretHash: String,
         qrToken: String? = null
     ) {
-        if (_activeLocks.value.none { it.id == id }) {
+        val currentLocks = _activeLocks.value
+        val existing = currentLocks.find { it.id == id }
+        if (existing == null) {
             val lock = BagLock(
                 id = id,
                 bagId = id,
@@ -79,7 +98,12 @@ class KeyRepository(private val context: Context) {
                 packageNames = emptySet(),
                 isSystemKey = true
             )
-            persistLocks(_activeLocks.value + lock)
+            persistLocks(currentLocks + lock)
+        } else if (existing.secretHash != secretHash || existing.keyType != keyType || existing.qrToken != qrToken || existing.bagName != name) {
+            val updated = currentLocks.map {
+                if (it.id == id) it.copy(bagName = name, keyType = keyType, secretHash = secretHash, qrToken = qrToken) else it
+            }
+            persistLocks(updated)
         }
     }
 
@@ -95,7 +119,7 @@ class KeyRepository(private val context: Context) {
         }
 
         // 2. Sideload & ADB
-        val sideloadPrefs = context.getSharedPreferences("brik_sideload_lock_pref", Context.MODE_PRIVATE)
+        val sideloadPrefs = context.getSharedPreferences("brik_sideload_lock_prefs", Context.MODE_PRIVATE)
         val sideloadHash = sideloadPrefs.getString("pref_sideload_lock_secret_hash", null)
         val sideloadTypeStr = sideloadPrefs.getString("pref_sideload_lock_key_type", null)
         val sideloadQr = sideloadPrefs.getString("pref_sideload_lock_qr_token", null)
@@ -105,7 +129,7 @@ class KeyRepository(private val context: Context) {
         }
 
         // 3. DNS
-        val dnsPrefs = context.getSharedPreferences("brik_dns_lock_pref", Context.MODE_PRIVATE)
+        val dnsPrefs = context.getSharedPreferences("brik_dns_lock_prefs", Context.MODE_PRIVATE)
         val dnsEnabled = dnsPrefs.getBoolean("dns_lock_enabled", false)
         val dnsHash = dnsPrefs.getString("dns_key_hash", null)
         val dnsTypeStr = dnsPrefs.getString("dns_key_type", null)
@@ -115,7 +139,7 @@ class KeyRepository(private val context: Context) {
         }
 
         // 4. Grayscale
-        val grayPrefs = context.getSharedPreferences("brik_grayscale_pref", Context.MODE_PRIVATE)
+        val grayPrefs = context.getSharedPreferences("brik_grayscale_preferences", Context.MODE_PRIVATE)
         val grayHash = grayPrefs.getString("pref_grayscale_secret_hash", null)
         val grayTypeStr = grayPrefs.getString("pref_grayscale_key_type", null)
         val grayQr = grayPrefs.getString("pref_grayscale_qr_token", null)
@@ -125,7 +149,7 @@ class KeyRepository(private val context: Context) {
         }
 
         // 5. Zen
-        val zenPrefs = context.getSharedPreferences("brik_zen_pref", Context.MODE_PRIVATE)
+        val zenPrefs = context.getSharedPreferences("brik_zen_preferences", Context.MODE_PRIVATE)
         val zenHash = zenPrefs.getString("pref_zen_secret_hash", null)
         val zenTypeStr = zenPrefs.getString("pref_zen_key_type", null)
         val zenQr = zenPrefs.getString("pref_zen_qr_token", null)
@@ -226,6 +250,13 @@ class KeyRepository(private val context: Context) {
         val updatedStats = currentStats.copy(totalLocks = currentStats.totalLocks + 1)
         persistStats(updatedStats)
 
+        val dpmPrefs = context.getSharedPreferences("brik_admin_pref", Context.MODE_PRIVATE)
+        dpmPrefs.edit()
+            .putString("pref_dpm_uninstall_secret_hash", hash)
+            .putString("pref_dpm_uninstall_key_type", keyType.name)
+            .putString("pref_dpm_uninstall_qr_token", if (keyType == KeyType.QR_CODE) secret else null)
+            .apply()
+
         return lock
     }
 
@@ -248,6 +279,13 @@ class KeyRepository(private val context: Context) {
         val currentStats = _stats.value
         val updatedStats = currentStats.copy(totalLocks = currentStats.totalLocks + 1)
         persistStats(updatedStats)
+
+        val sideloadPrefs = context.getSharedPreferences("brik_sideload_lock_prefs", Context.MODE_PRIVATE)
+        sideloadPrefs.edit()
+            .putString("pref_sideload_lock_key_type", keyType.name)
+            .putString("pref_sideload_lock_secret_hash", hash)
+            .putString("pref_sideload_lock_qr_token", if (keyType == KeyType.QR_CODE) secret else null)
+            .apply()
 
         return lock
     }
@@ -272,6 +310,33 @@ class KeyRepository(private val context: Context) {
         val updatedStats = currentStats.copy(totalLocks = currentStats.totalLocks + 1)
         persistStats(updatedStats)
 
+        when (id) {
+            "dns_lock" -> {
+                val dnsPrefs = context.getSharedPreferences("brik_dns_lock_prefs", Context.MODE_PRIVATE)
+                dnsPrefs.edit()
+                    .putBoolean("dns_lock_enabled", true)
+                    .putString("dns_key_type", keyType.name)
+                    .putString("dns_key_hash", hash)
+                    .apply()
+            }
+            "grayscale_security_key" -> {
+                val grayPrefs = context.getSharedPreferences("brik_grayscale_preferences", Context.MODE_PRIVATE)
+                grayPrefs.edit()
+                    .putString("pref_grayscale_key_type", keyType.name)
+                    .putString("pref_grayscale_secret_hash", hash)
+                    .putString("pref_grayscale_qr_token", if (keyType == KeyType.QR_CODE) secret else null)
+                    .apply()
+            }
+            "zen_security_key" -> {
+                val zenPrefs = context.getSharedPreferences("brik_zen_preferences", Context.MODE_PRIVATE)
+                zenPrefs.edit()
+                    .putString("pref_zen_key_type", keyType.name)
+                    .putString("pref_zen_secret_hash", hash)
+                    .putString("pref_zen_qr_token", if (keyType == KeyType.QR_CODE) secret else null)
+                    .apply()
+            }
+        }
+
         return lock
     }
 
@@ -282,6 +347,29 @@ class KeyRepository(private val context: Context) {
     fun removeSystemSecurityKey(id: String) {
         val updated = _activeLocks.value.filterNot { it.id == id }
         persistLocks(updated)
+
+        when (id) {
+            "dns_lock" -> {
+                val dnsPrefs = context.getSharedPreferences("brik_dns_lock_prefs", Context.MODE_PRIVATE)
+                dnsPrefs.edit().putBoolean("dns_lock_enabled", false).remove("dns_key_hash").remove("dns_key_type").apply()
+            }
+            "grayscale_security_key" -> {
+                val grayPrefs = context.getSharedPreferences("brik_grayscale_preferences", Context.MODE_PRIVATE)
+                grayPrefs.edit().remove("pref_grayscale_key_type").remove("pref_grayscale_secret_hash").remove("pref_grayscale_qr_token").apply()
+            }
+            "zen_security_key" -> {
+                val zenPrefs = context.getSharedPreferences("brik_zen_preferences", Context.MODE_PRIVATE)
+                zenPrefs.edit().remove("pref_zen_key_type").remove("pref_zen_secret_hash").remove("pref_zen_qr_token").apply()
+            }
+            "sideload_adb_lock" -> {
+                val sideloadPrefs = context.getSharedPreferences("brik_sideload_lock_prefs", Context.MODE_PRIVATE)
+                sideloadPrefs.edit().remove("pref_sideload_lock_key_type").remove("pref_sideload_lock_secret_hash").remove("pref_sideload_lock_qr_token").apply()
+            }
+            "dpm_uninstall_lock" -> {
+                val dpmPrefs = context.getSharedPreferences("brik_admin_pref", Context.MODE_PRIVATE)
+                dpmPrefs.edit().remove("pref_dpm_uninstall_secret_hash").remove("pref_dpm_uninstall_key_type").remove("pref_dpm_uninstall_qr_token").apply()
+            }
+        }
     }
 
     fun verifySystemSecurityKey(id: String, inputSecret: String): Boolean {
@@ -297,6 +385,8 @@ class KeyRepository(private val context: Context) {
     fun removeSideloadLock() {
         val updated = _activeLocks.value.filterNot { it.id == "sideload_adb_lock" }
         persistLocks(updated)
+        val sideloadPrefs = context.getSharedPreferences("brik_sideload_lock_prefs", Context.MODE_PRIVATE)
+        sideloadPrefs.edit().remove("pref_sideload_lock_key_type").remove("pref_sideload_lock_secret_hash").remove("pref_sideload_lock_qr_token").apply()
     }
 
     fun getDpmUninstallLock(): BagLock? {
@@ -306,6 +396,8 @@ class KeyRepository(private val context: Context) {
     fun removeDpmUninstallLock() {
         val updated = _activeLocks.value.filterNot { it.id == "dpm_uninstall_lock" }
         persistLocks(updated)
+        val dpmPrefs = context.getSharedPreferences("brik_admin_pref", Context.MODE_PRIVATE)
+        dpmPrefs.edit().remove("pref_dpm_uninstall_secret_hash").remove("pref_dpm_uninstall_key_type").remove("pref_dpm_uninstall_qr_token").apply()
     }
 
     fun verifyDpmUninstallKey(inputSecret: String): Boolean {

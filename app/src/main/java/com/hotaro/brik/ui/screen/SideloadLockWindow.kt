@@ -47,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hotaro.brik.R
+import com.hotaro.brik.data.model.KeyType
 import com.hotaro.brik.data.model.SavedKey
 import com.hotaro.brik.data.repository.KeyRepository
 import com.hotaro.brik.policy.PolicyBridgeManager
@@ -74,6 +75,7 @@ fun SideloadLockWindow(onBack: () -> Unit) {
 
     var showSetKeyDialog by remember { mutableStateOf(false) }
     var showVerifyKeyDialog by remember { mutableStateOf(false) }
+    var showVerifyBeforeReconfigureDialog by remember { mutableStateOf(false) }
     var pendingToggleActive by remember { mutableStateOf(false) }
 
     Column(
@@ -325,6 +327,8 @@ fun SideloadLockWindow(onBack: () -> Unit) {
                 onClick = {
                     if (isRestrictionActive && hasKey) {
                         Toast.makeText(context, "Lift restrictions first to modify the key", Toast.LENGTH_SHORT).show()
+                    } else if (hasKey) {
+                        showVerifyBeforeReconfigureDialog = true
                     } else {
                         showSetKeyDialog = true
                     }
@@ -397,6 +401,26 @@ fun SideloadLockWindow(onBack: () -> Unit) {
             },
             onKeySet = {
                 showSetKeyDialog = false
+            }
+        )
+    }
+
+    if (showVerifyBeforeReconfigureDialog) {
+        VerifyEmergencyKeyDialog(
+            title = "Verify Current Key",
+            subtitle = if (SideloadLockManager.getKeyType(context) == KeyType.QR_CODE) {
+                "Scan or enter your existing QR key to modify Sideload & ADB security."
+            } else {
+                "Enter your existing password to modify Sideload & ADB security."
+            },
+            keyTypeOverride = SideloadLockManager.getKeyType(context),
+            onVerifyCustom = { input ->
+                SideloadLockManager.verifySecurityKey(context, input)
+            },
+            onDismiss = { showVerifyBeforeReconfigureDialog = false },
+            onVerified = {
+                showVerifyBeforeReconfigureDialog = false
+                showSetKeyDialog = true
             }
         )
     }

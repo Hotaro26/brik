@@ -104,7 +104,7 @@ object EmergencyManager {
             if (!dpmHash.isNullOrBlank() && dpmHash.equals(inputHash, ignoreCase = true)) {
                 return true
             }
-            val zenPrefs = context.getSharedPreferences("brik_zen_pref", Context.MODE_PRIVATE)
+            val zenPrefs = context.getSharedPreferences("brik_zen_preferences", Context.MODE_PRIVATE)
             val zenHash = zenPrefs.getString("pref_zen_secret_hash", null)
             if (!zenHash.isNullOrBlank() && zenHash.equals(inputHash, ignoreCase = true)) {
                 return true
