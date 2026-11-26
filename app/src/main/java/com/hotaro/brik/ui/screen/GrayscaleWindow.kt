@@ -87,12 +87,14 @@ import com.hotaro.brik.R
 import com.hotaro.brik.data.model.AppInfo
 import com.hotaro.brik.data.model.KeyType
 import com.hotaro.brik.data.model.SavedKey
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hotaro.brik.service.BrikAccessibilityService
 import com.hotaro.brik.ui.component.SetEmergencyKeyDialog
 import com.hotaro.brik.ui.component.TomatoSectionHeader
 import com.hotaro.brik.ui.component.TomatoSettingsItem
 import com.hotaro.brik.ui.component.VerifyEmergencyKeyDialog
 import com.hotaro.brik.ui.component.segmentedItemShape
+import com.hotaro.brik.ui.viewmodel.ToolsViewModel
 import com.hotaro.brik.util.GrayscaleManager
 import java.util.Locale
 
@@ -100,7 +102,8 @@ import java.util.Locale
 @Composable
 fun GrayscaleWindow(
     onBack: () -> Unit,
-    savedKeys: List<SavedKey> = emptyList()
+    savedKeys: List<SavedKey> = emptyList(),
+    viewModel: ToolsViewModel = viewModel()
 ) {
     val context = LocalContext.current
     val pm = context.packageManager
@@ -147,13 +150,17 @@ fun GrayscaleWindow(
     val repoSavedKeys by keyRepository.savedKeys.collectAsState()
     val effectiveSavedKeys = if (savedKeys.isNotEmpty()) savedKeys else repoSavedKeys
 
-    val launcherApps = remember(context) { loadLauncherApps(pm, context.packageName) }
-
-    val exceptedAppInfos = remember(systemwideExceptions, launcherApps) {
-        launcherApps.filter { systemwideExceptions.contains(it.packageName) }
+    val installedApps by viewModel.installedApps.collectAsState()
+    val fallbackApps = remember(context) { loadLauncherApps(pm, context.packageName) }
+    val allApps = remember(installedApps, fallbackApps) {
+        if (installedApps.isNotEmpty()) installedApps else fallbackApps
     }
-    val specificAppInfos = remember(appSpecificApps, launcherApps) {
-        launcherApps.filter { appSpecificApps.contains(it.packageName) }
+
+    val exceptedAppInfos = remember(systemwideExceptions, allApps) {
+        allApps.filter { systemwideExceptions.contains(it.packageName) }
+    }
+    val specificAppInfos = remember(appSpecificApps, allApps) {
+        allApps.filter { appSpecificApps.contains(it.packageName) }
     }
 
     // Refresh accessibility service status & write permission
@@ -857,8 +864,8 @@ fun GrayscaleWindow(
         var tempEnabled by remember { mutableStateOf(isSystemwideEnabled) }
         var showSystemAppsInExceptions by remember { mutableStateOf(false) }
 
-        val filteredApps = remember(launcherApps, searchQuery, showSystemAppsInExceptions) {
-            val baseList = if (showSystemAppsInExceptions) launcherApps else launcherApps.filter { !it.isSystemApp }
+        val filteredApps = remember(allApps, searchQuery, showSystemAppsInExceptions) {
+            val baseList = if (showSystemAppsInExceptions) allApps else allApps.filter { !it.isSystemApp }
             if (searchQuery.isBlank()) baseList else baseList.filter {
                 it.label.contains(searchQuery, ignoreCase = true) || it.packageName.contains(searchQuery, ignoreCase = true)
             }
@@ -1048,8 +1055,8 @@ fun GrayscaleWindow(
         var tempEnabled by remember { mutableStateOf(isAppSpecificEnabled) }
         var showSystemAppsInSpecific by remember { mutableStateOf(false) }
 
-        val filteredApps = remember(launcherApps, searchQuery, showSystemAppsInSpecific) {
-            val baseList = if (showSystemAppsInSpecific) launcherApps else launcherApps.filter { !it.isSystemApp }
+        val filteredApps = remember(allApps, searchQuery, showSystemAppsInSpecific) {
+            val baseList = if (showSystemAppsInSpecific) allApps else allApps.filter { !it.isSystemApp }
             if (searchQuery.isBlank()) baseList else baseList.filter {
                 it.label.contains(searchQuery, ignoreCase = true) || it.packageName.contains(searchQuery, ignoreCase = true)
             }
@@ -1310,8 +1317,7 @@ private fun loadLauncherApps(pm: PackageManager, currentPackageName: String): Li
             } catch (_: Exception) {
                 null
             }
-            val isSystem = (info.activityInfo.applicationInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0 ||
-                    (info.activityInfo.applicationInfo.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
+            val isSystem = (info.activityInfo.applicationInfo?.flags ?: 0) and ApplicationInfo.FLAG_SYSTEM != 0
             result.add(
                 AppInfo(
                     packageName = pkg,
@@ -1323,5 +1329,29 @@ private fun loadLauncherApps(pm: PackageManager, currentPackageName: String): Li
         }
     }
 
-    return result.sortedBy { it.label.lowercase(Locale.getDefault()) }
+    try {
+        val allApps = pm.getInstalledApplications(PackageManager.GET_META_DATA)
+        for (app in allApps) {
+            val pkg = app.packageName
+            if (pkg != currentPackageName && seenPackages.add(pkg)) {
+                val label = pm.getApplicationLabel(app).toString().ifBlank { pkg }
+                val icon = try {
+                    pm.getApplicationIcon(app)
+                } catch (_: Exception) {
+                    null
+                }
+                val isSystem = (app.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+                result.add(
+                    AppInfo(
+                        packageName = pkg,
+                        label = label,
+                        icon = icon,
+                        isSystemApp = isSystem
+                    )
+                )
+            }
+        }
+    } catch (_: Exception) {}
+
+    return result.sortedWith(compareBy({ it.isSystemApp }, { it.label.lowercase(Locale.getDefault()) }))
 }
