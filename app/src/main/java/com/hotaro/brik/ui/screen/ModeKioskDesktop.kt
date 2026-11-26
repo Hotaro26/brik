@@ -525,6 +525,8 @@ fun ModeKioskDesktop(
 
                     Surface(
                         onClick = {
+                            isControlsRevealed = false
+                            hideJob?.cancel()
                             if (remainingMillis == 0L && endsAt > 0L) {
                                 onExitSession()
                             } else {
