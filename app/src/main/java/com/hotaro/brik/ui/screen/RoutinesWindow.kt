@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -107,6 +108,7 @@ import com.hotaro.brik.policy.DnsManager
 import com.hotaro.brik.ui.component.QrScannerView
 import com.hotaro.brik.ui.component.RoundedPullRefreshPage
 import com.hotaro.brik.ui.component.TomatoSectionHeader
+import com.hotaro.brik.ui.component.VerifyEmergencyKeyDialog
 import com.hotaro.brik.ui.component.TomatoSettingsItem
 import com.hotaro.brik.ui.component.segmentedItemShape
 import com.hotaro.brik.ui.viewmodel.TimeBlockViewModel
@@ -664,7 +666,7 @@ fun RoutinesWindow(
                                                     modifier = Modifier.weight(1f)
                                                 ) {
                                                     Icon(
-                                                        painter = painterResource(R.drawable.tune_fill0),
+                                                        painter = painterResource(R.drawable.settings_filled),
                                                         contentDescription = null,
                                                         modifier = Modifier.size(16.dp)
                                                     )
@@ -1301,6 +1303,8 @@ private fun RoutineDetailWindow(
     var isDaysExpanded by remember { mutableStateOf(false) }
     var isDnsExpanded by remember { mutableStateOf(false) }
     var isKeyExpanded by remember { mutableStateOf(false) }
+    var showVerifyKeyBeforeEdit by remember { mutableStateOf(false) }
+    var keyVerified by remember(routine.id) { mutableStateOf(false) }
 
     val nameChevronRotation by animateFloatAsState(targetValue = if (isNameExpanded) 90f else 0f, label = "nameRot")
     val timeChevronRotation by animateFloatAsState(targetValue = if (isTimeExpanded) 90f else 0f, label = "timeRot")
@@ -1448,7 +1452,8 @@ private fun RoutineDetailWindow(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding)
-                        .padding(horizontal = 20.dp),
+                        .padding(horizontal = 20.dp)
+                        .imePadding(),
                     contentPadding = PaddingValues(top = 12.dp, bottom = 48.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
@@ -2000,8 +2005,33 @@ private fun RoutineDetailWindow(
                                 } else {
                                     segmentedItemShape(0, 1)
                                 },
-                                onClick = { isKeyExpanded = !isKeyExpanded }
+                                onClick = {
+                                    if (currentSecret.isNotBlank() && !keyVerified) {
+                                        showVerifyKeyBeforeEdit = true
+                                    } else {
+                                        isKeyExpanded = !isKeyExpanded
+                                    }
+                                }
                             )
+
+                            // Verify existing key before allowing edit
+                            if (showVerifyKeyBeforeEdit) {
+                                VerifyEmergencyKeyDialog(
+                                    title = "Verify Current Key",
+                                    subtitle = "Enter your existing protection key to edit it.",
+                                    keyTypeOverride = selectedKeyType,
+                                    onVerifyCustom = { input ->
+                                        input.trim() == passwordSecret.trim() ||
+                                            com.hotaro.brik.util.QrUtils.sha256(input) == com.hotaro.brik.util.QrUtils.sha256(passwordSecret.trim())
+                                    },
+                                    onDismiss = { showVerifyKeyBeforeEdit = false },
+                                    onVerified = {
+                                        showVerifyKeyBeforeEdit = false
+                                        keyVerified = true
+                                        isKeyExpanded = true
+                                    }
+                                )
+                            }
 
                             AnimatedVisibility(
                                 visible = isKeyExpanded,

@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -103,6 +104,7 @@ import com.hotaro.brik.policy.DnsManager
 import com.hotaro.brik.ui.component.QrScannerView
 import com.hotaro.brik.ui.component.RoundedPullRefreshPage
 import com.hotaro.brik.ui.component.TomatoSectionHeader
+import com.hotaro.brik.ui.component.VerifyEmergencyKeyDialog
 import com.hotaro.brik.ui.component.TomatoSettingsItem
 import com.hotaro.brik.ui.component.segmentedItemShape
 import com.hotaro.brik.ui.viewmodel.TimeBlockViewModel
@@ -599,7 +601,7 @@ fun ModesWindow(
                                                     modifier = Modifier.weight(1f)
                                                 ) {
                                                     Icon(
-                                                        painter = painterResource(R.drawable.tune_fill0),
+                                                        painter = painterResource(R.drawable.settings_filled),
                                                         contentDescription = null,
                                                         modifier = Modifier.size(16.dp)
                                                     )
@@ -1126,6 +1128,8 @@ private fun ModeDetailWindow(
     var isDurationExpanded by remember { mutableStateOf(false) }
     var isTargetsExpanded by remember { mutableStateOf(false) }
     var isKeyExpanded by remember { mutableStateOf(false) }
+    var showVerifyKeyBeforeEdit by remember { mutableStateOf(false) }
+    var keyVerified by remember { mutableStateOf(false) }
 
     var isKioskMode by remember { mutableStateOf(mode.enableKioskMode) }
     var kioskPackages by remember { mutableStateOf(mode.kioskAllowedPackages.toSet()) }
@@ -1226,7 +1230,8 @@ private fun ModeDetailWindow(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 20.dp),
+                .padding(horizontal = 20.dp)
+                .imePadding(),
             contentPadding = PaddingValues(top = 12.dp, bottom = 48.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -2069,8 +2074,33 @@ private fun ModeDetailWindow(
                         } else {
                             segmentedItemShape(1, 2)
                         },
-                        onClick = { isKeyExpanded = !isKeyExpanded }
+                        onClick = {
+                            if (currentSecret.isNotBlank() && !keyVerified) {
+                                showVerifyKeyBeforeEdit = true
+                            } else {
+                                isKeyExpanded = !isKeyExpanded
+                            }
+                        }
                     )
+
+                    // Verify existing key before allowing edit
+                    if (showVerifyKeyBeforeEdit) {
+                        VerifyEmergencyKeyDialog(
+                            title = "Verify Current Key",
+                            subtitle = "Enter your existing protection key to edit it.",
+                            keyTypeOverride = selectedKeyType,
+                            onVerifyCustom = { input ->
+                                input.trim() == passwordSecret.trim() ||
+                                    com.hotaro.brik.util.QrUtils.sha256(input) == com.hotaro.brik.util.QrUtils.sha256(passwordSecret.trim())
+                            },
+                            onDismiss = { showVerifyKeyBeforeEdit = false },
+                            onVerified = {
+                                showVerifyKeyBeforeEdit = false
+                                keyVerified = true
+                                isKeyExpanded = true
+                            }
+                        )
+                    }
 
                     AnimatedVisibility(
                         visible = isKeyExpanded,

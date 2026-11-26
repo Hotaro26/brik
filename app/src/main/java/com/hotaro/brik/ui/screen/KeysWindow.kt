@@ -62,6 +62,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -130,6 +131,7 @@ fun KeysWindow(
     var scannedCustomQr by remember { mutableStateOf<String?>(null) }
     var showCustomQrScanner by remember { mutableStateOf(false) }
     var isRefreshing by remember { mutableStateOf(false) }
+    var isActiveKeysExpanded by remember { mutableStateOf(true) }
 
     RoundedPullRefreshPage(
         isRefreshing = isRefreshing,
@@ -372,73 +374,132 @@ fun KeysWindow(
             // SECTION 2: ACTIVE PROTECTION KEYS
             // ==========================================
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                Surface(
+                    onClick = { isActiveKeysExpanded = !isActiveKeysExpanded },
+                    shape = if (isActiveKeysExpanded && activeLocks.isNotEmpty()) {
+                        RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+                    } else {
+                        RoundedCornerShape(18.dp)
+                    },
+                    color = colorScheme.surfaceContainerHigh,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    TomatoSectionHeader(title = "ACTIVE PROTECTION KEYS")
-                    if (activeLocks.isNotEmpty()) {
-                        Surface(
-                            shape = CircleShape,
-                            color = colorScheme.primaryContainer
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Text(
-                                text = "${activeLocks.size}",
-                                style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = colorScheme.onPrimaryContainer,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
+                            Surface(
+                                shape = CircleShape,
+                                color = colorScheme.primaryContainer,
+                                modifier = Modifier.size(34.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.key_fill0),
+                                        contentDescription = null,
+                                        tint = colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                            Column {
+                                Text(
+                                    text = "Active Protection Keys",
+                                    style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = colorScheme.onSurface
+                                )
+                                Text(
+                                    text = if (activeLocks.isEmpty()) "No keys configured" else "${activeLocks.size} key${if (activeLocks.size == 1) "" else "s"} active",
+                                    style = typography.bodySmall.copy(fontSize = 11.sp),
+                                    color = colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (activeLocks.isNotEmpty()) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = colorScheme.primary
+                                ) {
+                                    Text(
+                                        text = "${activeLocks.size}",
+                                        style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = colorScheme.onPrimary,
+                                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp)
+                                    )
+                                }
+                            }
+                            Icon(
+                                painter = painterResource(R.drawable.arrow_forward_big),
+                                contentDescription = null,
+                                tint = colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .graphicsLayer {
+                                        rotationZ = if (isActiveKeysExpanded) 270f else 90f
+                                    }
                             )
                         }
                     }
                 }
             }
 
-            if (activeLocks.isEmpty()) {
-                item {
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = colorScheme.surfaceContainerHigh,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(28.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
+            if (isActiveKeysExpanded) {
+                if (activeLocks.isEmpty()) {
+                    item {
+                        Surface(
+                            shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 18.dp, bottomEnd = 18.dp),
+                            color = colorScheme.surfaceContainerHigh,
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Surface(
-                                shape = CircleShape,
-                                color = colorScheme.surfaceContainerLowest,
-                                modifier = Modifier.size(52.dp)
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(28.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.key_fill0),
-                                        contentDescription = null,
-                                        tint = colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(26.dp)
-                                    )
+                                Surface(
+                                    shape = CircleShape,
+                                    color = colorScheme.surfaceContainerLowest,
+                                    modifier = Modifier.size(52.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.key_fill0),
+                                            contentDescription = null,
+                                            tint = colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(26.dp)
+                                        )
+                                    }
                                 }
+                                Spacer(Modifier.height(12.dp))
+                                Text(
+                                    text = "No Active Keys Configured",
+                                    style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Keys set for Device Owner, Sideload/ADB, DNS, Grayscale, Zen Mode, Focus Modes, and App Bags will appear here.",
+                                    style = typography.bodySmall,
+                                    color = colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = 4.dp),
+                                    textAlign = TextAlign.Center
+                                )
                             }
-                            Spacer(Modifier.height(12.dp))
-                            Text(
-                                text = "No Active Keys Configured",
-                                style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Keys set for Device Owner, Sideload/ADB, DNS, Grayscale, Zen Mode, Focus Modes, and App Bags will appear here.",
-                                style = typography.bodySmall,
-                                color = colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = 4.dp),
-                                textAlign = TextAlign.Center
-                            )
                         }
                     }
-                }
-            } else {
-                itemsIndexed(activeLocks, key = { _, lock -> lock.id }) { index, lock ->
+                } else {
+                    itemsIndexed(activeLocks, key = { _, lock -> lock.id }) { index, lock ->
                     val shape = segmentedItemShape(index, activeLocks.size)
                     val leadingIconRes = when {
                         lock.id == "dpm_uninstall_lock" -> R.drawable.shield_fill0
@@ -615,7 +676,8 @@ fun KeysWindow(
                         }
                     }
                 }
-            }
+                } // end else activeLocks.isNotEmpty
+            } // end if isActiveKeysExpanded
 
             // ==========================================
             // SECTION 3: SAVED KEYS VAULT
