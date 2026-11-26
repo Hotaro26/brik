@@ -242,7 +242,7 @@ fun ModeKioskDesktop(
                 .padding(horizontal = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(Modifier.height(36.dp))
+            Spacer(Modifier.height(24.dp))
 
             // Profile Tag
             Surface(
@@ -271,7 +271,7 @@ fun ModeKioskDesktop(
                 }
             }
 
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(18.dp))
 
             // Clock & Date
             Row(
@@ -342,7 +342,7 @@ fun ModeKioskDesktop(
                 }
             }
 
-            Spacer(Modifier.height(36.dp))
+            Spacer(Modifier.height(20.dp))
 
             // Minimalist Text-Only App List (No icons)
             if (permittedApps.isEmpty()) {
@@ -388,7 +388,7 @@ fun ModeKioskDesktop(
                             )
                         ),
                     horizontalAlignment = columnAlignment,
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)
                 ) {
                     visibleApps.forEach { app ->
                         Text(

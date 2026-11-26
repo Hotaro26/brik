@@ -1057,16 +1057,6 @@ fun FloatingQuickControls(
                                     .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
                                 verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                if (showNotifications) {
-                                    NotificationControlPill(
-                                        previewMode = notifPreviewMode,
-                                        onClick = {
-                                            lastInteractionTime = System.currentTimeMillis()
-                                            expandNotificationShade(context)
-                                        }
-                                    )
-                                }
-
                                 activeTiles.chunked(2).forEach { rowTiles ->
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
@@ -1105,95 +1095,6 @@ private data class QuickTileData(
     val activeColor: Color,
     val onClick: () -> Unit
 )
-
-@Composable
-private fun NotificationControlPill(
-    previewMode: String,
-    onClick: () -> Unit
-) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
-        color = colorScheme.surfaceContainerLow,
-        border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.4f)),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        if (previewMode == "preview") {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Surface(
-                    shape = CircleShape,
-                    color = colorScheme.primaryContainer.copy(alpha = 0.45f),
-                    modifier = Modifier.size(28.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_notifications),
-                            contentDescription = null,
-                            tint = colorScheme.primary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Notifications Muted",
-                        style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                        color = colorScheme.onSurface
-                    )
-                    Text(
-                        text = "Focus lockdown active • Tap to expand notification shade",
-                        style = typography.bodySmall.copy(fontSize = 10.sp),
-                        color = colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-        } else {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_notifications),
-                        contentDescription = null,
-                        tint = colorScheme.primary,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Text(
-                        text = "Notification Shade",
-                        style = typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                        color = colorScheme.onSurface
-                    )
-                }
-                Surface(
-                    shape = CircleShape,
-                    color = colorScheme.primaryContainer.copy(alpha = 0.45f)
-                ) {
-                    Text(
-                        text = "Expand",
-                        style = typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
-                        color = colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                    )
-                }
-            }
-        }
-    }
-}
 
 private fun expandNotificationShade(context: Context) {
     try {

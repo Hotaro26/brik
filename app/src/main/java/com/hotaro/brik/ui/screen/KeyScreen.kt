@@ -181,13 +181,6 @@ fun KeyScreen(
     val view = LocalView.current
     val activity = context as? Activity
     var lotusProgress by remember { mutableFloatStateOf(0f) }
-    var isLotusPressed by remember { mutableStateOf(false) }
-
-    val lotusFillAlpha by animateFloatAsState(
-        targetValue = if (isLotusPressed) 0.25f else 1f,
-        animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
-        label = "lotusFillAlpha"
-    )
 
     val onStartZenDirectly = {
         if (!ZenManager.hasKey(context)) {
@@ -434,12 +427,8 @@ fun KeyScreen(
                                 val zenCookieShape = remember { cookieShape(sides = 9, indentFactor = 0.86f) }
                                 Surface(
                                     shape = zenCookieShape,
-                                    color = if (isZenActive) {
-                                        colorScheme.primary
-                                    } else {
-                                        colorScheme.surfaceContainerHigh.copy(alpha = lotusFillAlpha)
-                                    },
-                                    shadowElevation = if (isLotusPressed) 2.dp else 8.dp,
+                                    color = if (isZenActive) colorScheme.primary else colorScheme.surfaceContainerHigh,
+                                    shadowElevation = 8.dp,
                                     modifier = Modifier
                                         .scale(scale)
                                         .size(112.dp)
@@ -447,10 +436,7 @@ fun KeyScreen(
                                         .holdToProgress(
                                             durationMillis = 5000L,
                                             enabled = !isZenActive,
-                                            onProgressUpdate = { progress, pressed ->
-                                                lotusProgress = progress
-                                                isLotusPressed = pressed
-                                            },
+                                            onProgressUpdate = { lotusProgress = it },
                                             onCompleted = {
                                                 view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                                                 onStartZenDirectly()

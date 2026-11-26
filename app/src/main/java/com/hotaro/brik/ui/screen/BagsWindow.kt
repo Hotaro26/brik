@@ -28,6 +28,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.hotaro.brik.ui.component.rememberFloatingActionButtonExpanded
@@ -627,11 +629,18 @@ fun BagsWindow(
         var editedPackages by remember(targetBag.id) { mutableStateOf(targetBag.packageNames.toSet()) }
         var editedActionType by remember(targetBag.id) { mutableStateOf(targetBag.actionType) }
         var appSearchQuery by remember { mutableStateOf("") }
+        var showSystemAppsInEdit by remember { mutableStateOf(false) }
         val editSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-        val filteredApps = remember(installedApps, appSearchQuery) {
-            if (appSearchQuery.isBlank()) installedApps else installedApps.filter {
-                it.label.contains(appSearchQuery, ignoreCase = true) || it.packageName.contains(appSearchQuery, ignoreCase = true)
+        val filteredApps = remember(installedApps, appSearchQuery, showSystemAppsInEdit) {
+            val baseList = if (showSystemAppsInEdit) installedApps else installedApps.filter { !it.isSystemApp }
+            if (appSearchQuery.isBlank()) {
+                baseList
+            } else {
+                val q = appSearchQuery.trim().lowercase()
+                baseList.filter {
+                    it.label.lowercase().contains(q) || it.packageName.lowercase().contains(q)
+                }
             }
         }
 
@@ -779,24 +788,85 @@ fun BagsWindow(
 
                 Spacer(Modifier.height(14.dp))
 
-                OutlinedTextField(
-                    value = appSearchQuery,
-                    onValueChange = { appSearchQuery = it },
-                    placeholder = { Text("Search apps to add or remove...") },
-                    leadingIcon = {
-                        Icon(painter = painterResource(R.drawable.search_fill0), contentDescription = null, modifier = Modifier.size(18.dp))
-                    },
-                    trailingIcon = if (appSearchQuery.isNotEmpty()) {
-                        {
-                            IconButton(onClick = { appSearchQuery = "" }) {
-                                Icon(painter = painterResource(R.drawable.close_fill0), contentDescription = "Clear", modifier = Modifier.size(18.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = colorScheme.surfaceContainerLowest,
+                        border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(42.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.search_fill0),
+                                contentDescription = null,
+                                tint = colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Box(
+                                modifier = Modifier.weight(1f),
+                                contentAlignment = Alignment.CenterStart
+                            ) {
+                                if (appSearchQuery.isEmpty()) {
+                                    Text(
+                                        text = "Search apps...",
+                                        style = typography.bodyMedium,
+                                        color = colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                    )
+                                }
+                                BasicTextField(
+                                    value = appSearchQuery,
+                                    onValueChange = { appSearchQuery = it },
+                                    textStyle = typography.bodyMedium.copy(color = colorScheme.onSurface),
+                                    singleLine = true,
+                                    cursorBrush = SolidColor(colorScheme.primary),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                            if (appSearchQuery.isNotEmpty()) {
+                                IconButton(
+                                    onClick = { appSearchQuery = "" },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.close_fill0),
+                                        contentDescription = "Clear",
+                                        tint = colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
                             }
                         }
-                    } else null,
-                    singleLine = true,
-                    shape = CircleShape,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                    }
+
+                    Surface(
+                        shape = CircleShape,
+                        color = if (showSystemAppsInEdit) colorScheme.primaryContainer else colorScheme.surfaceContainerHighest,
+                        border = BorderStroke(1.dp, if (showSystemAppsInEdit) colorScheme.primary.copy(alpha = 0.5f) else Color.Transparent),
+                        modifier = Modifier.size(42.dp),
+                        onClick = { showSystemAppsInEdit = !showSystemAppsInEdit }
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                painter = painterResource(if (showSystemAppsInEdit) R.drawable.visibility_fill0 else R.drawable.visibility_off_fill0),
+                                contentDescription = if (showSystemAppsInEdit) "Hide System Apps" else "Show System Apps",
+                                tint = if (showSystemAppsInEdit) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
 
                 Spacer(Modifier.height(12.dp))
 
