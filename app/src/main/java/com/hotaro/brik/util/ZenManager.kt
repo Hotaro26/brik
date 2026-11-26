@@ -218,6 +218,12 @@ object ZenManager {
             .putString(KEY_ZEN_SECRET_HASH, hash)
             .putString(KEY_ZEN_QR_TOKEN, if (keyType == KeyType.QR_CODE) secret else null)
             .apply()
+        com.hotaro.brik.data.repository.KeyRepository(context).setSystemSecurityKey(
+            id = "zen_security_key",
+            name = "Zen Mode Security Key",
+            keyType = keyType,
+            secret = secret
+        )
         _hasSecurityKey.value = true
     }
 
@@ -238,6 +244,17 @@ object ZenManager {
         }
         val inputHash = QrUtils.sha256(input)
         return expectedHash.equals(inputHash, ignoreCase = true)
+    }
+
+    fun clearSecurityKey(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit()
+            .remove(KEY_ZEN_SECRET_HASH)
+            .remove(KEY_ZEN_QR_TOKEN)
+            .remove(KEY_ZEN_KEY_TYPE)
+            .apply()
+        com.hotaro.brik.data.repository.KeyRepository(context).removeSystemSecurityKey("zen_security_key")
+        _hasSecurityKey.value = EmergencyManager.hasKey(context)
     }
 
     fun hasKey(context: Context): Boolean {

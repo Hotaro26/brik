@@ -190,6 +190,12 @@ object DnsManager {
             .putString(KEY_DNS_KEY_TYPE, keyType.name)
             .putString(KEY_DNS_KEY_HASH, hash)
             .apply()
+        com.hotaro.brik.data.repository.KeyRepository(context).setSystemSecurityKey(
+            id = "dns_lock",
+            name = "DNS Protection Key",
+            keyType = keyType,
+            secret = secret
+        )
     }
 
     fun clearSecurityKey(context: Context) {
@@ -199,6 +205,7 @@ object DnsManager {
             .remove(KEY_DNS_KEY_HASH)
             .remove(KEY_DNS_KEY_TYPE)
             .apply()
+        com.hotaro.brik.data.repository.KeyRepository(context).removeSystemSecurityKey("dns_lock")
     }
 
     fun verifySecurityKey(context: Context, input: String): Boolean {

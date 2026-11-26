@@ -7,6 +7,7 @@ import android.graphics.Bitmap
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
@@ -30,6 +32,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -38,15 +42,14 @@ import androidx.compose.material3.MaterialTheme.typography
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -64,23 +67,29 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hotaro.brik.R
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.OutlinedTextField
 import com.hotaro.brik.data.model.BagLock
-import com.hotaro.brik.data.model.SavedKey
 import com.hotaro.brik.data.model.KeyType
+import com.hotaro.brik.data.model.SavedKey
+import com.hotaro.brik.data.repository.TimeBlockRepository
+import com.hotaro.brik.policy.DnsManager
 import com.hotaro.brik.ui.component.QrScannerView
 import com.hotaro.brik.ui.component.RoundedPullRefreshPage
 import com.hotaro.brik.ui.component.SetEmergencyKeyDialog
+import com.hotaro.brik.ui.component.TomatoSectionHeader
 import com.hotaro.brik.ui.component.VerifyEmergencyKeyDialog
+import com.hotaro.brik.ui.component.segmentedItemShape
 import com.hotaro.brik.ui.viewmodel.KeyViewModel
 import com.hotaro.brik.util.EmergencyManager
+import com.hotaro.brik.util.GrayscaleManager
 import com.hotaro.brik.util.QrUtils
+import com.hotaro.brik.util.SideloadLockManager
+import com.hotaro.brik.util.ZenManager
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -104,11 +113,17 @@ fun KeysWindow(
     var viewSavedKey by remember { mutableStateOf<SavedKey?>(null) }
     var deleteSavedKeyTarget by remember { mutableStateOf<SavedKey?>(null) }
     var showAddSavedKeyDialog by remember { mutableStateOf(false) }
+    var prefilledTokenForAdd by remember { mutableStateOf<String?>(null) }
 
     val isEmergencyActive by EmergencyManager.isEmergencyModeActive.collectAsState()
     val pullTimestamps = remember { mutableStateListOf<Long>() }
     var showSetEmergencyKeyDialog by remember { mutableStateOf(false) }
     var showVerifyEmergencyKeyDialog by remember { mutableStateOf(false) }
+
+    // Unified System Key editing states
+    var systemLockToEdit by remember { mutableStateOf<BagLock?>(null) }
+    var showVerifyBeforeEditSystemKeyDialog by remember { mutableStateOf(false) }
+    var showEditSystemKeyDialog by remember { mutableStateOf(false) }
 
     var qrOptionMode by remember { mutableStateOf(0) } // 0: Random, 1: Scan External
     var randomQrKey by remember { mutableStateOf(UUID.randomUUID().toString()) }
@@ -142,7 +157,10 @@ fun KeysWindow(
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { showAddSavedKeyDialog = true },
+                onClick = {
+                    prefilledTokenForAdd = null
+                    showAddSavedKeyDialog = true
+                },
                 containerColor = colorScheme.primary,
                 contentColor = colorScheme.onPrimary,
                 shape = CircleShape
@@ -156,12 +174,19 @@ fun KeysWindow(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        text = "Keys & Analytics",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp,
-                        color = colorScheme.onSurface
-                    )
+                    Column {
+                        Text(
+                            text = "Keys & Analytics",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp,
+                            color = colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Active locks, physical vault & tokens",
+                            style = typography.bodySmall.copy(fontSize = 11.sp),
+                            color = colorScheme.onSurfaceVariant
+                        )
+                    }
                 },
                 navigationIcon = {
                     Surface(
@@ -182,6 +207,33 @@ fun KeysWindow(
                         }
                     }
                 },
+                actions = {
+                    if (isEmergencyActive) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = colorScheme.errorContainer,
+                            modifier = Modifier.padding(end = 12.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Icon(
+                                    painter = painterResource(R.drawable.shield_fill0),
+                                    contentDescription = null,
+                                    tint = colorScheme.onErrorContainer,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    text = "Emergency Active",
+                                    style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = colorScheme.onErrorContainer
+                                )
+                            }
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent,
                     scrolledContainerColor = Color.Transparent
@@ -194,105 +246,409 @@ fun KeysWindow(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 20.dp),
-            contentPadding = PaddingValues(top = 12.dp, bottom = 40.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            contentPadding = PaddingValues(top = 12.dp, bottom = 48.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            // Emergency Mode Active Banner
-            if (isEmergencyActive) {
-                item {
-                    Surface(
-                        shape = RoundedCornerShape(18.dp),
-                        color = colorScheme.errorContainer,
-                        modifier = Modifier.fillMaxWidth()
+            // ==========================================
+            // SECTION 1: OVERVIEW & ANALYTICS
+            // ==========================================
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    TomatoSectionHeader(title = "OVERVIEW & ANALYTICS")
+
+                    // 3-Column Metric Overview
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                        StatCard(
+                            title = "Active",
+                            value = "${activeLocks.size}",
+                            subtitle = "Guarded Keys",
+                            modifier = Modifier.weight(1f)
+                        )
+                        StatCard(
+                            title = "Total",
+                            value = "${stats.totalLocks}",
+                            subtitle = "Locked Bags",
+                            modifier = Modifier.weight(1f)
+                        )
+                        StatCard(
+                            title = "Unlocked",
+                            value = "${stats.totalUnlocks}",
+                            subtitle = "Successful",
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    // Emergency Status Banner
+                    if (isEmergencyActive) {
+                        Surface(
+                            shape = RoundedCornerShape(18.dp),
+                            color = colorScheme.errorContainer,
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Icon(
-                                painter = painterResource(R.drawable.shield_fill0),
-                                contentDescription = null,
-                                tint = colorScheme.onErrorContainer,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Emergency Mode Active",
-                                    style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = colorScheme.onErrorContainer
-                                )
-                                Text(
-                                    text = "Saved QR codes & tokens are visible",
-                                    style = typography.bodySmall,
-                                    color = colorScheme.onErrorContainer.copy(alpha = 0.85f)
-                                )
-                            }
-                            TextButton(
-                                onClick = {
-                                    EmergencyManager.setEmergencyModeActive(context, false)
-                                    Toast.makeText(context, "Emergency Mode deactivated", Toast.LENGTH_SHORT).show()
-                                }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("Deactivate", color = colorScheme.error, fontWeight = FontWeight.Bold)
+                                Icon(
+                                    painter = painterResource(R.drawable.shield_fill0),
+                                    contentDescription = null,
+                                    tint = colorScheme.onErrorContainer,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Emergency Vault Unlocked",
+                                        style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = colorScheme.onErrorContainer
+                                    )
+                                    Text(
+                                        text = "Saved tokens, QR visualizers, and manual unlock controls are accessible.",
+                                        style = typography.bodySmall,
+                                        color = colorScheme.onErrorContainer.copy(alpha = 0.85f)
+                                    )
+                                }
+                                TextButton(
+                                    onClick = {
+                                        EmergencyManager.setEmergencyModeActive(context, false)
+                                        Toast.makeText(context, "Emergency Mode deactivated", Toast.LENGTH_SHORT).show()
+                                    }
+                                ) {
+                                    Text("Lock Vault", color = colorScheme.error, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    } else {
+                        Surface(
+                            shape = RoundedCornerShape(18.dp),
+                            color = colorScheme.surfaceContainerHigh,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = colorScheme.surfaceContainerLowest,
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.shield_fill0),
+                                            contentDescription = null,
+                                            tint = colorScheme.primary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Security Key Vault Enforced",
+                                        style = typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                                        color = colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "Pull down 3 times rapidly on this screen to trigger Emergency Override verification.",
+                                        style = typography.bodySmall.copy(fontSize = 11.sp),
+                                        color = colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
 
-            // Stats Row
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    StatCard(
-                        title = "Active",
-                        value = "${activeLocks.size}",
-                        subtitle = "Bags Locked",
-                        modifier = Modifier.weight(1f)
-                    )
-                    StatCard(
-                        title = "Total",
-                        value = "${stats.totalLocks}",
-                        subtitle = "Locked Sessions",
-                        modifier = Modifier.weight(1f)
-                    )
-                    StatCard(
-                        title = "Unlocked",
-                        value = "${stats.totalUnlocks}",
-                        subtitle = "Success Unlocks",
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-
-            // Saved Keys Section
+            // ==========================================
+            // SECTION 2: ACTIVE PROTECTION KEYS
+            // ==========================================
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(
-                        text = "Saved Keys",
-                        style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = colorScheme.primary
-                    )
-                    if (savedKeys.isNotEmpty()) {
+                    TomatoSectionHeader(title = "ACTIVE PROTECTION KEYS")
+                    if (activeLocks.isNotEmpty()) {
                         Surface(
                             shape = CircleShape,
                             color = colorScheme.primaryContainer
                         ) {
                             Text(
-                                text = "${savedKeys.size}",
+                                text = "${activeLocks.size}",
                                 style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                                 color = colorScheme.onPrimaryContainer,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
                             )
+                        }
+                    }
+                }
+            }
+
+            if (activeLocks.isEmpty()) {
+                item {
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = colorScheme.surfaceContainerHigh,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(28.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = colorScheme.surfaceContainerLowest,
+                                modifier = Modifier.size(52.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.key_fill0),
+                                        contentDescription = null,
+                                        tint = colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(26.dp)
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                text = "No Active Keys Configured",
+                                style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Keys set for Device Owner, Sideload/ADB, DNS, Grayscale, Zen Mode, Focus Modes, and App Bags will appear here.",
+                                style = typography.bodySmall,
+                                color = colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 4.dp),
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+            } else {
+                itemsIndexed(activeLocks, key = { _, lock -> lock.id }) { index, lock ->
+                    val shape = segmentedItemShape(index, activeLocks.size)
+                    val leadingIconRes = when {
+                        lock.id == "dpm_uninstall_lock" -> R.drawable.shield_fill0
+                        lock.id == "sideload_adb_lock" -> R.drawable.screen_lock_portrait_fill0
+                        lock.id == "dns_lock" -> R.drawable.dns_fill0
+                        lock.id == "grayscale_security_key" -> R.drawable.contrast_fill0
+                        lock.id == "zen_security_key" -> R.drawable.self_improvement_fill0
+                        lock.id.startsWith("focus_mode_") || lock.id.startsWith("routine_") -> R.drawable.schedule_fill0
+                        else -> R.drawable.key_fill0
+                    }
+
+                    val protectionDesc = when (lock.id) {
+                        "dpm_uninstall_lock" -> "Device Owner Uninstall Key • Required to revoke Device Owner"
+                        "sideload_adb_lock" -> "Sideload & ADB Lockdown • Required to modify installation policies"
+                        "dns_lock" -> "Private DNS Guard • Required to alter DNS protection rules"
+                        "grayscale_security_key" -> "Screen Grayscale Guard • Required to disable monochrome filter"
+                        "zen_security_key" -> "Zen Mode Security Key • Required to abort running zen session"
+                        else -> {
+                            if (lock.id.startsWith("focus_mode_")) {
+                                "Focus Mode Protection • Key required to abort focus session"
+                            } else if (lock.id.startsWith("routine_")) {
+                                "Routine Protection • Key required to modify or toggle routine"
+                            } else {
+                                "${lock.packageNames.size} packages currently suspended in '${lock.bagName}'"
+                            }
+                        }
+                    }
+
+                    ElevatedCard(
+                        shape = shape,
+                        colors = CardDefaults.elevatedCardColors(
+                            containerColor = colorScheme.surfaceContainerHigh
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 1.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = colorScheme.surfaceContainerLowest,
+                                    modifier = Modifier.size(44.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            painter = painterResource(leadingIconRes),
+                                            contentDescription = null,
+                                            tint = if (lock.isSystemKey) colorScheme.primary else colorScheme.tertiary,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
+                                }
+
+                                Spacer(Modifier.width(12.dp))
+
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        text = lock.bagName,
+                                        style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    val dateStr = SimpleDateFormat("MMM dd, hh:mm a", Locale.getDefault()).format(Date(lock.lockedAt))
+                                    Text(
+                                        text = dateStr,
+                                        style = typography.bodySmall.copy(fontSize = 11.sp),
+                                        color = colorScheme.outline
+                                    )
+                                }
+
+                                Spacer(Modifier.width(8.dp))
+
+                                Surface(
+                                    shape = CircleShape,
+                                    color = if (lock.isSystemKey) colorScheme.primaryContainer else if (lock.keyType == KeyType.QR_CODE) colorScheme.tertiaryContainer else colorScheme.secondaryContainer
+                                ) {
+                                    Text(
+                                        text = if (lock.keyType == KeyType.QR_CODE) "QR Key" else "Password",
+                                        style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = if (lock.isSystemKey) colorScheme.onPrimaryContainer else if (lock.keyType == KeyType.QR_CODE) colorScheme.onTertiaryContainer else colorScheme.onSecondaryContainer,
+                                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(Modifier.height(8.dp))
+
+                            Text(
+                                text = protectionDesc,
+                                style = typography.bodySmall,
+                                color = if (lock.isSystemKey) colorScheme.onSurfaceVariant else colorScheme.error
+                            )
+
+                            Spacer(Modifier.height(12.dp))
+
+                            // Action buttons row
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (lock.isSystemKey) {
+                                    FilledTonalButton(
+                                        onClick = {
+                                            systemLockToEdit = lock
+                                            showVerifyBeforeEditSystemKeyDialog = true
+                                        },
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.edit_fill0),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("Edit Key", style = typography.labelMedium)
+                                    }
+                                    Spacer(Modifier.width(8.dp))
+                                }
+
+                                if (lock.keyType == KeyType.QR_CODE && lock.qrToken != null) {
+                                    OutlinedButton(
+                                        onClick = { viewQrLock = lock },
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.qr_code_fill0),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("View QR", style = typography.labelMedium)
+                                    }
+                                    Spacer(Modifier.width(8.dp))
+                                }
+
+                                // Clear key is ONLY displayed in Emergency Mode for system keys!
+                                if (!lock.isSystemKey || isEmergencyActive) {
+                                    Button(
+                                        onClick = { emergencyUnlockLock = lock },
+                                        colors = ButtonDefaults.buttonColors(containerColor = colorScheme.errorContainer),
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.delete_fill0),
+                                            contentDescription = null,
+                                            tint = colorScheme.onErrorContainer,
+                                            modifier = Modifier.size(15.dp)
+                                        )
+                                        Spacer(Modifier.width(5.dp))
+                                        Text(
+                                            text = if (lock.isSystemKey) "Clear Key" else "Emergency Unlock",
+                                            color = colorScheme.onErrorContainer,
+                                            style = typography.labelMedium
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ==========================================
+            // SECTION 3: SAVED KEYS VAULT
+            // ==========================================
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    TomatoSectionHeader(title = "SAVED KEYS VAULT")
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (savedKeys.isNotEmpty()) {
+                            Surface(
+                                shape = CircleShape,
+                                color = colorScheme.secondaryContainer,
+                                modifier = Modifier.padding(end = 8.dp)
+                            ) {
+                                Text(
+                                    text = "${savedKeys.size}",
+                                    style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
+                        TextButton(
+                            onClick = {
+                                prefilledTokenForAdd = null
+                                showAddSavedKeyDialog = true
+                            }
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.add_fill0),
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text("Add Key")
                         }
                     }
                 }
@@ -311,28 +667,39 @@ fun KeysWindow(
                                 .padding(24.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Icon(
-                                painter = painterResource(R.drawable.qr_code_fill0),
-                                contentDescription = null,
-                                tint = colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(36.dp)
-                            )
-                            Spacer(Modifier.height(8.dp))
+                            Surface(
+                                shape = CircleShape,
+                                color = colorScheme.surfaceContainerLowest,
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.qr_code_fill0),
+                                        contentDescription = null,
+                                        tint = colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.height(10.dp))
                             Text(
-                                text = "No Saved Keys",
+                                text = "Vault Is Empty",
                                 style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                                 color = colorScheme.onSurface
                             )
                             Text(
-                                text = "Scan and save physical QR codes or tokens here for quick access when locking bags.",
+                                text = "Scan and save external QR codes (e.g. books, cards, household items) to quickly lock bags and features.",
                                 style = typography.bodySmall,
                                 color = colorScheme.onSurfaceVariant,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                textAlign = TextAlign.Center,
                                 modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
                             )
                             Button(
-                                onClick = { showAddSavedKeyDialog = true },
-                                shape = RoundedCornerShape(10.dp)
+                                onClick = {
+                                    prefilledTokenForAdd = null
+                                    showAddSavedKeyDialog = true
+                                },
+                                shape = RoundedCornerShape(12.dp)
                             ) {
                                 Icon(
                                     painter = painterResource(R.drawable.add_fill0),
@@ -346,19 +713,7 @@ fun KeysWindow(
                     }
                 }
             } else {
-                item {
-                    Text(
-                        text = "SAVED KEYS",
-                        style = typography.labelMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.2.sp
-                        ),
-                        color = colorScheme.primary,
-                        modifier = Modifier.padding(start = 6.dp, bottom = 4.dp)
-                    )
-                }
-
-                items(savedKeys, key = { it.id }) { key ->
+                itemsIndexed(savedKeys, key = { _, key -> key.id }) { index, key ->
                     val dismissState = rememberSwipeToDismissBoxState(
                         confirmValueChange = { dismissValue ->
                             if (dismissValue == SwipeToDismissBoxValue.StartToEnd || dismissValue == SwipeToDismissBoxValue.EndToStart) {
@@ -382,7 +737,7 @@ fun KeysWindow(
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .clip(RoundedCornerShape(18.dp))
+                                    .clip(segmentedItemShape(index, savedKeys.size))
                                     .background(colorScheme.error)
                                     .padding(horizontal = 24.dp),
                                 contentAlignment = alignment
@@ -397,31 +752,31 @@ fun KeysWindow(
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 4.dp)
+                            .padding(vertical = 1.dp)
                     ) {
                         Surface(
                             onClick = { viewSavedKey = key },
-                            shape = RoundedCornerShape(18.dp),
+                            shape = segmentedItemShape(index, savedKeys.size),
                             color = colorScheme.surfaceContainerHigh,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(16.dp),
+                                    .padding(14.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Surface(
                                     shape = RoundedCornerShape(12.dp),
                                     color = colorScheme.surfaceContainerLowest,
-                                    modifier = Modifier.size(48.dp)
+                                    modifier = Modifier.size(46.dp)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Icon(
                                             painter = painterResource(R.drawable.qr_code_fill0),
                                             contentDescription = null,
                                             tint = colorScheme.primary,
-                                            modifier = Modifier.size(26.dp)
+                                            modifier = Modifier.size(24.dp)
                                         )
                                     }
                                 }
@@ -468,7 +823,7 @@ fun KeysWindow(
                                         Icon(
                                             painter = painterResource(if (isEmergencyActive) R.drawable.content_copy_fill0 else R.drawable.shield_fill0),
                                             contentDescription = if (isEmergencyActive) "Copy Token" else "Key Protected",
-                                            tint = if (isEmergencyActive) colorScheme.onSurfaceVariant else colorScheme.outline,
+                                            tint = if (isEmergencyActive) colorScheme.primary else colorScheme.outline,
                                             modifier = Modifier.size(20.dp)
                                         )
                                     }
@@ -486,302 +841,13 @@ fun KeysWindow(
                 }
             }
 
-            // QR Key Options (Random Generated QR vs Scan Any Other QR)
+            // ==========================================
+            // SECTION 4: QR CODE UTILITIES
+            // ==========================================
             item {
-                ElevatedCard(
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.elevatedCardColors(
-                        containerColor = colorScheme.surfaceContainerHigh
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(18.dp)
-                    ) {
-                        Text(
-                            text = "QR Key Options",
-                            style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = colorScheme.onSurface
-                        )
-                        Text(
-                            text = "Generate random QR key or scan any physical QR code",
-                            style = typography.bodySmall,
-                            color = colorScheme.onSurfaceVariant
-                        )
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    TomatoSectionHeader(title = "QR CODE UTILITIES")
 
-                        Spacer(Modifier.height(14.dp))
-
-                        // Segmented Option Selector
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(colorScheme.surfaceContainerLowest)
-                                .padding(4.dp),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Surface(
-                                onClick = { qrOptionMode = 0 },
-                                shape = RoundedCornerShape(10.dp),
-                                color = if (qrOptionMode == 0) colorScheme.primaryContainer else Color.Transparent,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(38.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text(
-                                        text = "Random QR",
-                                        style = typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                                        color = if (qrOptionMode == 0) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-
-                            Surface(
-                                onClick = { qrOptionMode = 1 },
-                                shape = RoundedCornerShape(10.dp),
-                                color = if (qrOptionMode == 1) colorScheme.primaryContainer else Color.Transparent,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(38.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text(
-                                        text = "Scan Any QR",
-                                        style = typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                                        color = if (qrOptionMode == 1) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-
-                        Spacer(Modifier.height(14.dp))
-
-                        if (qrOptionMode == 0) {
-                            val qrBmp = remember(randomQrKey) {
-                                try {
-                                    QrUtils.encodeToBitmap(randomQrKey, 320)
-                                } catch (e: Exception) {
-                                    null
-                                }
-                            }
-
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                if (qrBmp != null) {
-                                    Image(
-                                        bitmap = qrBmp.asImageBitmap(),
-                                        contentDescription = "Random QR Key",
-                                        modifier = Modifier
-                                            .size(160.dp)
-                                            .clip(RoundedCornerShape(14.dp))
-                                            .background(android.graphics.Color.WHITE.let { Color(it) })
-                                            .padding(6.dp)
-                                    )
-                                }
-
-                                Spacer(Modifier.height(10.dp))
-
-                                Text(
-                                    text = randomQrKey,
-                                    style = typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
-                                    color = colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-
-                                Spacer(Modifier.height(10.dp))
-
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Button(
-                                        onClick = {
-                                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                            clipboard.setPrimaryClip(ClipData.newPlainText("Brik Random QR Key", randomQrKey))
-                                            Toast.makeText(context, "Random QR Key copied!", Toast.LENGTH_SHORT).show()
-                                        },
-                                        shape = RoundedCornerShape(10.dp)
-                                    ) {
-                                        Text("Copy Key", style = typography.labelSmall)
-                                    }
-
-                                    OutlinedButton(
-                                        onClick = {
-                                            randomQrKey = UUID.randomUUID().toString()
-                                            Toast.makeText(context, "New random key generated!", Toast.LENGTH_SHORT).show()
-                                        },
-                                        shape = RoundedCornerShape(10.dp)
-                                    ) {
-                                        Text("Generate New", style = typography.labelSmall)
-                                    }
-                                }
-                            }
-                        } else {
-                            val customBmp = remember(scannedCustomQr) {
-                                if (scannedCustomQr != null) {
-                                    try {
-                                        QrUtils.encodeToBitmap(scannedCustomQr!!, 320)
-                                    } catch (e: Exception) {
-                                        null
-                                    }
-                                } else null
-                            }
-
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                if (scannedCustomQr == null) {
-                                    Surface(
-                                        shape = RoundedCornerShape(14.dp),
-                                        color = colorScheme.surfaceContainerLowest,
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Column(
-                                            modifier = Modifier.padding(16.dp),
-                                            horizontalAlignment = Alignment.CenterHorizontally
-                                        ) {
-                                            Icon(
-                                                painter = painterResource(R.drawable.qr_code_fill0),
-                                                contentDescription = null,
-                                                tint = colorScheme.primary,
-                                                modifier = Modifier.size(36.dp)
-                                            )
-                                            Spacer(Modifier.height(8.dp))
-                                            Text(
-                                                text = "Scan Physical QR Code",
-                                                style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                                color = colorScheme.onSurface
-                                            )
-                                            Text(
-                                                text = "Scan any QR code from a book, card, receipt, or packaging to use or verify it as an external key.",
-                                                style = typography.bodySmall,
-                                                color = colorScheme.onSurfaceVariant,
-                                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                                modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
-                                            )
-                                            Button(
-                                                onClick = { showCustomQrScanner = true },
-                                                shape = RoundedCornerShape(10.dp)
-                                            ) {
-                                                Text("Start Camera Scanner")
-                                            }
-                                        }
-                                    }
-                                } else {
-                                    if (customBmp != null) {
-                                        Image(
-                                            bitmap = customBmp.asImageBitmap(),
-                                            contentDescription = "Scanned Physical QR",
-                                            modifier = Modifier
-                                                .size(160.dp)
-                                                .clip(RoundedCornerShape(14.dp))
-                                                .background(android.graphics.Color.WHITE.let { Color(it) })
-                                                .padding(6.dp)
-                                        )
-                                    }
-
-                                    Spacer(Modifier.height(10.dp))
-
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = colorScheme.primaryContainer
-                                    ) {
-                                        Text(
-                                            text = "Physical QR Key Captured",
-                                            style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                            color = colorScheme.onPrimaryContainer,
-                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                                        )
-                                    }
-
-                                    Spacer(Modifier.height(8.dp))
-
-                                    Text(
-                                        text = scannedCustomQr!!,
-                                        style = typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
-                                        color = colorScheme.onSurfaceVariant,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-
-                                    Spacer(Modifier.height(10.dp))
-
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Button(
-                                            onClick = {
-                                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                                clipboard.setPrimaryClip(ClipData.newPlainText("Brik Scanned QR Key", scannedCustomQr))
-                                                Toast.makeText(context, "Scanned key copied!", Toast.LENGTH_SHORT).show()
-                                            },
-                                            shape = RoundedCornerShape(10.dp)
-                                        ) {
-                                            Text("Copy Scanned Key", style = typography.labelSmall)
-                                        }
-
-                                        OutlinedButton(
-                                            onClick = { showCustomQrScanner = true },
-                                            shape = RoundedCornerShape(10.dp)
-                                        ) {
-                                            Text("Scan Another", style = typography.labelSmall)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            item {
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = "Active Keys",
-                    style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = colorScheme.primary
-                )
-            }
-
-            if (activeLocks.isEmpty()) {
-                item {
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = colorScheme.surfaceContainerHigh,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(32.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Icon(
-                                painter = painterResource(R.drawable.key_fill0),
-                                contentDescription = null,
-                                tint = colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(40.dp)
-                            )
-                            Spacer(Modifier.height(12.dp))
-                            Text(
-                                text = "No Active Keys",
-                                style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Lock any bag in Tools > Bags with Password or QR Code to track its key here.",
-                                style = typography.bodySmall,
-                                color = colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = 4.dp),
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                            )
-                        }
-                    }
-                }
-            } else {
-                items(activeLocks, key = { it.id }) { lock ->
                     ElevatedCard(
                         shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.elevatedCardColors(
@@ -794,83 +860,229 @@ fun KeysWindow(
                                 .fillMaxWidth()
                                 .padding(18.dp)
                         ) {
+                            Text(
+                                text = "Token Generator & Physical Scanner",
+                                style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Generate secure random tokens or bind real-world barcodes & QR codes.",
+                                style = typography.bodySmall,
+                                color = colorScheme.onSurfaceVariant
+                            )
+
+                            Spacer(Modifier.height(14.dp))
+
+                            // Segmented Option Switcher
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(colorScheme.surfaceContainerLowest)
+                                    .padding(4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(
-                                        text = lock.bagName,
-                                        style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                        color = colorScheme.onSurface
-                                    )
-                                    val dateStr = SimpleDateFormat("MMM dd, hh:mm a", Locale.getDefault()).format(Date(lock.lockedAt))
-                                    Text(
-                                        text = if (lock.isSystemKey) "System Protection Key • $dateStr" else "Locked $dateStr",
-                                        style = typography.bodySmall,
-                                        color = colorScheme.onSurfaceVariant
-                                    )
+                                Surface(
+                                    onClick = { qrOptionMode = 0 },
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = if (qrOptionMode == 0) colorScheme.primaryContainer else Color.Transparent,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(38.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            text = "Random Generator",
+                                            style = typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                                            color = if (qrOptionMode == 0) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 }
 
                                 Surface(
-                                    shape = CircleShape,
-                                    color = if (lock.isSystemKey) colorScheme.errorContainer else if (lock.keyType == KeyType.QR_CODE) colorScheme.tertiaryContainer else colorScheme.primaryContainer
+                                    onClick = { qrOptionMode = 1 },
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = if (qrOptionMode == 1) colorScheme.primaryContainer else Color.Transparent,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(38.dp)
                                 ) {
-                                    Text(
-                                        text = if (lock.isSystemKey) "System Key" else if (lock.keyType == KeyType.QR_CODE) "QR Key" else "Password Key",
-                                        style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                        color = if (lock.isSystemKey) colorScheme.onErrorContainer else if (lock.keyType == KeyType.QR_CODE) colorScheme.onTertiaryContainer else colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                                    )
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            text = "Scan Any Code",
+                                            style = typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                                            color = if (qrOptionMode == 1) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 }
-                            }
-
-                            Spacer(Modifier.height(8.dp))
-
-                            if (lock.isSystemKey) {
-                                Text(
-                                    text = "Device Owner Uninstall Key (${if (lock.keyType == KeyType.QR_CODE) "QR Key" else "Password"}) • Required to revoke DPM",
-                                    style = typography.bodySmall,
-                                    color = colorScheme.primary
-                                )
-                            } else {
-                                Text(
-                                    text = "${lock.packageNames.size} packages currently suspended",
-                                    style = typography.bodySmall,
-                                    color = colorScheme.error
-                                )
                             }
 
                             Spacer(Modifier.height(14.dp))
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.End,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                if (lock.keyType == KeyType.QR_CODE && lock.qrToken != null) {
-                                    OutlinedButton(
-                                        onClick = { viewQrLock = lock },
-                                        shape = RoundedCornerShape(12.dp)
-                                    ) {
-                                        Icon(
-                                            painter = painterResource(R.drawable.qr_code_fill0),
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(Modifier.width(6.dp))
-                                        Text("View QR")
+                            if (qrOptionMode == 0) {
+                                val qrBmp = remember(randomQrKey) {
+                                    try {
+                                        QrUtils.encodeToBitmap(randomQrKey, 320)
+                                    } catch (e: Exception) {
+                                        null
                                     }
-                                    Spacer(Modifier.width(8.dp))
                                 }
 
-                                Button(
-                                    onClick = { emergencyUnlockLock = lock },
-                                    colors = ButtonDefaults.buttonColors(containerColor = colorScheme.errorContainer),
-                                    shape = RoundedCornerShape(12.dp)
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Text(if (lock.isSystemKey) "Clear Key" else "Emergency Unlock", color = colorScheme.onErrorContainer)
+                                    if (qrBmp != null) {
+                                        Image(
+                                            bitmap = qrBmp.asImageBitmap(),
+                                            contentDescription = "Random QR Key",
+                                            modifier = Modifier
+                                                .size(150.dp)
+                                                .clip(RoundedCornerShape(14.dp))
+                                                .background(Color.White)
+                                                .padding(6.dp)
+                                        )
+                                    }
+
+                                    Spacer(Modifier.height(10.dp))
+
+                                    Text(
+                                        text = randomQrKey,
+                                        style = typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
+                                        color = colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+
+                                    Spacer(Modifier.height(12.dp))
+
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        FilledTonalButton(
+                                            onClick = {
+                                                randomQrKey = UUID.randomUUID().toString()
+                                            },
+                                            shape = RoundedCornerShape(10.dp),
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Text("Regenerate", style = typography.labelSmall)
+                                        }
+
+                                        OutlinedButton(
+                                            onClick = {
+                                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                                clipboard.setPrimaryClip(ClipData.newPlainText("Brik QR Token", randomQrKey))
+                                                Toast.makeText(context, "Token copied!", Toast.LENGTH_SHORT).show()
+                                            },
+                                            shape = RoundedCornerShape(10.dp),
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Text("Copy", style = typography.labelSmall)
+                                        }
+
+                                        Button(
+                                            onClick = {
+                                                prefilledTokenForAdd = randomQrKey
+                                                showAddSavedKeyDialog = true
+                                            },
+                                            shape = RoundedCornerShape(10.dp),
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Text("Save", style = typography.labelSmall)
+                                        }
+                                    }
+                                }
+                            } else {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    if (scannedCustomQr == null) {
+                                        Text(
+                                            text = "Scan any physical item (e.g. food box barcode, book ISBN, bottle QR) to turn it into an unlock key.",
+                                            style = typography.bodySmall,
+                                            color = colorScheme.onSurfaceVariant,
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.padding(vertical = 8.dp)
+                                        )
+
+                                        Spacer(Modifier.height(6.dp))
+
+                                        Button(
+                                            onClick = { showCustomQrScanner = true },
+                                            shape = RoundedCornerShape(12.dp)
+                                        ) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.qr_code_scanner_fill0),
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                            Spacer(Modifier.width(8.dp))
+                                            Text("Open Camera Scanner")
+                                        }
+                                    } else {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = colorScheme.primaryContainer
+                                        ) {
+                                            Text(
+                                                text = "Scanned Key Detected",
+                                                style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = colorScheme.onPrimaryContainer,
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                                            )
+                                        }
+
+                                        Spacer(Modifier.height(8.dp))
+
+                                        Text(
+                                            text = scannedCustomQr!!,
+                                            style = typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
+                                            color = colorScheme.onSurfaceVariant,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+
+                                        Spacer(Modifier.height(12.dp))
+
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Button(
+                                                onClick = {
+                                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                                    clipboard.setPrimaryClip(ClipData.newPlainText("Brik Scanned QR Key", scannedCustomQr))
+                                                    Toast.makeText(context, "Scanned key copied!", Toast.LENGTH_SHORT).show()
+                                                },
+                                                shape = RoundedCornerShape(10.dp),
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Text("Copy", style = typography.labelSmall)
+                                            }
+
+                                            FilledTonalButton(
+                                                onClick = {
+                                                    prefilledTokenForAdd = scannedCustomQr
+                                                    showAddSavedKeyDialog = true
+                                                },
+                                                shape = RoundedCornerShape(10.dp),
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Text("Save", style = typography.labelSmall)
+                                            }
+
+                                            OutlinedButton(
+                                                onClick = { showCustomQrScanner = true },
+                                                shape = RoundedCornerShape(10.dp),
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Text("Rescan", style = typography.labelSmall)
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -880,7 +1092,11 @@ fun KeysWindow(
         }
     }
 
-    // --- View QR Code Dialog ---
+    // ==========================================
+    // DIALOGS & BOTTOM SHEETS
+    // ==========================================
+
+    // --- View QR Code Dialog for Active Lock ---
     if (viewQrLock != null && viewQrLock!!.qrToken != null) {
         val lock = viewQrLock!!
         val qrBitmap = remember(lock.qrToken) {
@@ -912,7 +1128,7 @@ fun KeysWindow(
                             modifier = Modifier
                                 .size(220.dp)
                                 .clip(RoundedCornerShape(16.dp))
-                                .background(android.graphics.Color.WHITE.let { androidx.compose.ui.graphics.Color(it) })
+                                .background(Color.White)
                                 .padding(8.dp)
                         )
                     }
@@ -949,14 +1165,14 @@ fun KeysWindow(
         )
     }
 
-    // --- Emergency Unlock Confirmation Dialog ---
+    // --- Emergency Unlock / Clear Confirmation Dialog ---
     if (emergencyUnlockLock != null) {
         val lock = emergencyUnlockLock!!
         AlertDialog(
             onDismissRequest = { emergencyUnlockLock = null },
             title = {
                 Text(
-                    text = if (lock.isSystemKey) "Clear Uninstall Key?" else "Emergency Unlock?",
+                    text = if (lock.isSystemKey) "Clear Security Key?" else "Emergency Unlock?",
                     fontWeight = FontWeight.Bold,
                     color = colorScheme.error
                 )
@@ -964,7 +1180,7 @@ fun KeysWindow(
             text = {
                 Text(
                     text = if (lock.isSystemKey) {
-                        "This will remove the saved uninstall security key for Device Owner."
+                        "This will remove the security key configured for '${lock.bagName}'."
                     } else {
                         "This will immediately unsuspend all ${lock.packageNames.size} apps in '${lock.bagName}' and remove the lock key."
                     },
@@ -977,7 +1193,7 @@ fun KeysWindow(
                     onClick = {
                         keyViewModel.emergencyUnlock(context, lock) { ok, err ->
                             if (ok) {
-                                Toast.makeText(context, if (lock.isSystemKey) "Uninstall key cleared!" else "'${lock.bagName}' emergency unlocked!", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, if (lock.isSystemKey) "Key cleared!" else "'${lock.bagName}' emergency unlocked!", Toast.LENGTH_SHORT).show()
                                 emergencyUnlockLock = null
                             } else {
                                 Toast.makeText(context, err ?: "Failed to unlock", Toast.LENGTH_SHORT).show()
@@ -1000,12 +1216,12 @@ fun KeysWindow(
         )
     }
 
-    // --- Custom QR Scanner Dialog ---
+    // --- Custom QR Scanner Dialog for Utilities ---
     if (showCustomQrScanner) {
         AlertDialog(
             onDismissRequest = { showCustomQrScanner = false },
             title = {
-                Text("Scan Any QR Code", fontWeight = FontWeight.Bold)
+                Text("Scan Any Barcode or QR", fontWeight = FontWeight.Bold)
             },
             text = {
                 Box(
@@ -1018,7 +1234,7 @@ fun KeysWindow(
                         onQrDetected = { detected ->
                             scannedCustomQr = detected
                             showCustomQrScanner = false
-                            Toast.makeText(context, "QR code captured!", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Code captured!", Toast.LENGTH_SHORT).show()
                         },
                         modifier = Modifier.fillMaxSize()
                     )
@@ -1038,7 +1254,7 @@ fun KeysWindow(
     if (showAddSavedKeyDialog) {
         var nameInput by remember { mutableStateOf("") }
         var descriptionInput by remember { mutableStateOf("") }
-        var tokenInput by remember { mutableStateOf("") }
+        var tokenInput by remember(prefilledTokenForAdd) { mutableStateOf(prefilledTokenForAdd ?: "") }
         var showScannerForAdd by remember { mutableStateOf(false) }
 
         if (showScannerForAdd) {
@@ -1082,7 +1298,10 @@ fun KeysWindow(
             }
 
             AlertDialog(
-                onDismissRequest = { showAddSavedKeyDialog = false },
+                onDismissRequest = {
+                    showAddSavedKeyDialog = false
+                    prefilledTokenForAdd = null
+                },
                 title = {
                     Text(
                         text = "Add Saved Key",
@@ -1097,7 +1316,7 @@ fun KeysWindow(
                     ) {
                         item {
                             Text(
-                                text = "Scan or type a QR key with a name and description to save it for quick use.",
+                                text = "Scan or type a QR key with a name and description to save it in your vault.",
                                 style = typography.bodySmall,
                                 color = colorScheme.onSurfaceVariant
                             )
@@ -1108,7 +1327,7 @@ fun KeysWindow(
                                 value = nameInput,
                                 onValueChange = { nameInput = it },
                                 label = { Text("Key Name *") },
-                                placeholder = { Text("e.g., Desk QR, Journal Book") },
+                                placeholder = { Text("e.g., Desk QR, Blue Notebook") },
                                 singleLine = true,
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier.fillMaxWidth()
@@ -1120,7 +1339,7 @@ fun KeysWindow(
                                 value = descriptionInput,
                                 onValueChange = { descriptionInput = it },
                                 label = { Text("Description (Optional)") },
-                                placeholder = { Text("e.g., Barcode on notebook cover") },
+                                placeholder = { Text("e.g., Barcode on shelf item") },
                                 maxLines = 2,
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier.fillMaxWidth()
@@ -1184,7 +1403,7 @@ fun KeysWindow(
                                         modifier = Modifier
                                             .size(120.dp)
                                             .clip(RoundedCornerShape(12.dp))
-                                            .background(android.graphics.Color.WHITE.let { Color(it) })
+                                            .background(Color.White)
                                             .padding(4.dp)
                                     )
                                     Spacer(Modifier.height(4.dp))
@@ -1208,6 +1427,7 @@ fun KeysWindow(
                             )
                             Toast.makeText(context, "Saved key '${nameInput.trim()}'!", Toast.LENGTH_SHORT).show()
                             showAddSavedKeyDialog = false
+                            prefilledTokenForAdd = null
                         },
                         enabled = nameInput.isNotBlank() && tokenInput.isNotBlank(),
                         shape = RoundedCornerShape(12.dp)
@@ -1216,7 +1436,10 @@ fun KeysWindow(
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showAddSavedKeyDialog = false }) {
+                    TextButton(onClick = {
+                        showAddSavedKeyDialog = false
+                        prefilledTokenForAdd = null
+                    }) {
                         Text("Cancel")
                     }
                 },
@@ -1255,7 +1478,6 @@ fun KeysWindow(
                     .padding(bottom = 36.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Header with Name, Description, and Edit Icon
                 if (!isEditingKey) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1286,7 +1508,6 @@ fun KeysWindow(
                         }
                     }
                 } else {
-                    // Inline Edit Form
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -1341,7 +1562,6 @@ fun KeysWindow(
                 Spacer(Modifier.height(20.dp))
 
                 if (isEmergencyActive) {
-                    // QR Code
                     if (qrBitmap != null) {
                         Surface(
                             shape = RoundedCornerShape(20.dp),
@@ -1388,7 +1608,6 @@ fun KeysWindow(
                         Text("Copy Token Text")
                     }
                 } else {
-                    // Protected Key Placeholder
                     Surface(
                         shape = RoundedCornerShape(20.dp),
                         color = colorScheme.surfaceContainerLowest,
@@ -1416,16 +1635,16 @@ fun KeysWindow(
                             }
                             Spacer(Modifier.height(14.dp))
                             Text(
-                                text = "Key Content Protected",
+                                text = "Key Content Vault Protected",
                                 style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                 color = colorScheme.onSurface
                             )
                             Spacer(Modifier.height(6.dp))
                             Text(
-                                text = "QR code and token string are hidden to enforce lockdown security.\n\nPull down 3 times within 5 seconds on Keys & Analytics to activate Emergency Mode.",
+                                text = "QR visualizer and token contents are hidden to prevent impulsive unlocking.\n\nPull down 3 times rapidly on Keys & Analytics to activate Emergency Mode.",
                                 style = typography.bodySmall,
                                 color = colorScheme.onSurfaceVariant,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                textAlign = TextAlign.Center
                             )
                         }
                     }
@@ -1448,7 +1667,7 @@ fun KeysWindow(
             },
             text = {
                 Text(
-                    text = "Are you sure you want to delete '${target.name}'? This key will no longer appear in quick use.",
+                    text = "Are you sure you want to delete '${target.name}'? This key will be permanently removed from your vault.",
                     style = typography.bodyMedium,
                     color = colorScheme.onSurfaceVariant
                 )
@@ -1476,6 +1695,7 @@ fun KeysWindow(
         )
     }
 
+    // --- Emergency Mode Setup & Verification Dialogs ---
     if (showSetEmergencyKeyDialog) {
         SetEmergencyKeyDialog(
             savedKeys = savedKeys,
@@ -1488,6 +1708,96 @@ fun KeysWindow(
         VerifyEmergencyKeyDialog(
             onDismiss = { showVerifyEmergencyKeyDialog = false },
             onVerified = { showVerifyEmergencyKeyDialog = false }
+        )
+    }
+
+    // --- Unified System Key Verification Before Edit Dialog ---
+    if (showVerifyBeforeEditSystemKeyDialog && systemLockToEdit != null) {
+        val lock = systemLockToEdit!!
+        val currentKeyType = when (lock.id) {
+            "dpm_uninstall_lock" -> keyViewModel.getDpmUninstallLock()?.keyType ?: KeyType.PASSWORD
+            "sideload_adb_lock" -> SideloadLockManager.getKeyType(context)
+            "dns_lock" -> DnsManager.getKeyType(context)
+            "grayscale_security_key" -> GrayscaleManager.getKeyType(context)
+            "zen_security_key" -> ZenManager.getKeyType(context)
+            else -> lock.keyType
+        }
+
+        VerifyEmergencyKeyDialog(
+            title = "Verify Current Key",
+            subtitle = if (currentKeyType == KeyType.QR_CODE) {
+                "Scan or enter your existing QR key to authorize editing '${lock.bagName}'."
+            } else {
+                "Enter your existing password to authorize editing '${lock.bagName}'."
+            },
+            keyTypeOverride = currentKeyType,
+            onVerifyCustom = { input ->
+                when (lock.id) {
+                    "dpm_uninstall_lock" -> keyViewModel.verifyDpmUninstallKey(input)
+                    "sideload_adb_lock" -> SideloadLockManager.verifySecurityKey(context, input)
+                    "dns_lock" -> DnsManager.verifySecurityKey(context, input)
+                    "grayscale_security_key" -> GrayscaleManager.verifySecurityKey(context, input)
+                    "zen_security_key" -> ZenManager.verifySecurityKey(context, input)
+                    else -> keyViewModel.verifySystemSecurityKey(lock.id, input)
+                }
+            },
+            onDismiss = {
+                showVerifyBeforeEditSystemKeyDialog = false
+                systemLockToEdit = null
+            },
+            onVerified = {
+                showVerifyBeforeEditSystemKeyDialog = false
+                showEditSystemKeyDialog = true
+            }
+        )
+    }
+
+    // --- Unified System Key Edit Dialog ---
+    if (showEditSystemKeyDialog && systemLockToEdit != null) {
+        val lock = systemLockToEdit!!
+        SetEmergencyKeyDialog(
+            savedKeys = savedKeys,
+            title = "Edit ${lock.bagName}",
+            subtitle = "Set a new password or QR key for ${lock.bagName}.",
+            onDismiss = {
+                showEditSystemKeyDialog = false
+                systemLockToEdit = null
+            },
+            onSaveKey = { keyType, secret ->
+                when {
+                    lock.id == "dpm_uninstall_lock" -> {
+                        keyViewModel.setDpmUninstallLock(keyType, secret)
+                    }
+                    lock.id == "sideload_adb_lock" -> {
+                        SideloadLockManager.setSecurityKey(context, keyType, secret)
+                    }
+                    lock.id == "dns_lock" -> {
+                        DnsManager.setSecurityKey(context, keyType, secret)
+                    }
+                    lock.id == "grayscale_security_key" -> {
+                        GrayscaleManager.setSecurityKey(context, keyType, secret)
+                    }
+                    lock.id == "zen_security_key" -> {
+                        ZenManager.setSecurityKey(context, keyType, secret)
+                    }
+                    lock.id.startsWith("focus_mode_") -> {
+                        val modeId = lock.id.removePrefix("focus_mode_")
+                        TimeBlockRepository(context).updateFocusModeKey(modeId, keyType, secret)
+                    }
+                    lock.id.startsWith("routine_") -> {
+                        val routineId = lock.id.removePrefix("routine_")
+                        TimeBlockRepository(context).updateRoutineKey(routineId, keyType, secret)
+                    }
+                    else -> {
+                        keyViewModel.setSystemSecurityKey(lock.id, lock.bagName, keyType, secret)
+                    }
+                }
+                Toast.makeText(context, "${lock.bagName} updated successfully!", Toast.LENGTH_SHORT).show()
+            },
+            onKeySet = {
+                showEditSystemKeyDialog = false
+                systemLockToEdit = null
+            }
         )
     }
 }

@@ -6,6 +6,7 @@ import android.os.UserManager
 import android.provider.Settings
 import com.hotaro.brik.admin.BrikAdminReceiver
 import com.hotaro.brik.data.model.KeyType
+import com.hotaro.brik.data.repository.KeyRepository
 import com.hotaro.brik.policy.BridgeType
 import com.hotaro.brik.policy.PolicyBridgeManager
 import com.rosan.dhizuku.api.Dhizuku
@@ -45,7 +46,16 @@ object SideloadLockManager {
         _restrictPlayStore.value = prefs.getBoolean(KEY_RESTRICT_PLAY_STORE, false)
         _restrictDeveloperOptions.value = prefs.getBoolean(KEY_RESTRICT_DEVELOPER_OPTIONS, true)
         val hash = prefs.getString(KEY_LOCK_SECRET_HASH, null)
-        _hasSecurityKey.value = !hash.isNullOrBlank() || EmergencyManager.hasKey(context)
+        val repoLock = KeyRepository(context).getSideloadLock()
+        if (hash.isNullOrBlank() && repoLock != null) {
+            // Restore from active locks if not in separate prefs
+            prefs.edit()
+                .putString(KEY_LOCK_KEY_TYPE, repoLock.keyType.name)
+                .putString(KEY_LOCK_SECRET_HASH, repoLock.secretHash)
+                .putString(KEY_LOCK_QR_TOKEN, repoLock.qrToken)
+                .apply()
+        }
+        _hasSecurityKey.value = !hash.isNullOrBlank() || repoLock != null || EmergencyManager.hasKey(context)
 
         if (_isRestrictionActive.value) {
             applyPolicies(context, true)
@@ -55,7 +65,8 @@ object SideloadLockManager {
     fun hasKey(context: Context): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val hash = prefs.getString(KEY_LOCK_SECRET_HASH, null)
-        return !hash.isNullOrBlank() || EmergencyManager.hasKey(context)
+        val repoLock = KeyRepository(context).getSideloadLock()
+        return !hash.isNullOrBlank() || repoLock != null || EmergencyManager.hasKey(context)
     }
 
     fun getKeyType(context: Context): KeyType {
@@ -63,6 +74,10 @@ object SideloadLockManager {
         val typeStr = prefs.getString(KEY_LOCK_KEY_TYPE, null)
         if (typeStr != null) {
             return runCatching { KeyType.valueOf(typeStr) }.getOrDefault(KeyType.PASSWORD)
+        }
+        val repoLock = KeyRepository(context).getSideloadLock()
+        if (repoLock != null) {
+            return repoLock.keyType
         }
         return EmergencyManager.getKeyType(context)
     }
@@ -75,14 +90,17 @@ object SideloadLockManager {
             .putString(KEY_LOCK_SECRET_HASH, hash)
             .putString(KEY_LOCK_QR_TOKEN, if (keyType == KeyType.QR_CODE) secret else null)
             .apply()
+        KeyRepository(context).setSideloadLockKey(keyType, secret)
         _hasSecurityKey.value = true
     }
 
     fun verifySecurityKey(context: Context, inputSecret: String): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val expectedHash = prefs.getString(KEY_LOCK_SECRET_HASH, null)
+        val repoLock = KeyRepository(context).getSideloadLock()
+        val targetHash = expectedHash ?: repoLock?.secretHash
         val inputHash = QrUtils.sha256(inputSecret)
-        if (expectedHash != null && expectedHash.equals(inputHash, ignoreCase = true)) {
+        if (targetHash != null && targetHash.equals(inputHash, ignoreCase = true)) {
             return true
         }
         return EmergencyManager.verifyEmergencyKey(context, inputSecret)
@@ -95,6 +113,7 @@ object SideloadLockManager {
             .remove(KEY_LOCK_SECRET_HASH)
             .remove(KEY_LOCK_QR_TOKEN)
             .apply()
+        KeyRepository(context).removeSideloadLock()
         _hasSecurityKey.value = EmergencyManager.hasKey(context)
     }
 

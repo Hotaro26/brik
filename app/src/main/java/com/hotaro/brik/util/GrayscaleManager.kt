@@ -122,6 +122,12 @@ object GrayscaleManager {
             .putString(KEY_SECRET_HASH, hash)
             .putString(KEY_QR_TOKEN, if (keyType == KeyType.QR_CODE) secret else null)
             .apply()
+        com.hotaro.brik.data.repository.KeyRepository(context).setSystemSecurityKey(
+            id = "grayscale_security_key",
+            name = "Grayscale Security Key",
+            keyType = keyType,
+            secret = secret
+        )
         _hasSecurityKey.value = true
     }
 
@@ -142,6 +148,17 @@ object GrayscaleManager {
         }
         val inputHash = QrUtils.sha256(input)
         return expectedHash.equals(inputHash, ignoreCase = true)
+    }
+
+    fun clearSecurityKey(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit()
+            .remove(KEY_SECRET_HASH)
+            .remove(KEY_QR_TOKEN)
+            .remove(KEY_KEY_TYPE)
+            .apply()
+        com.hotaro.brik.data.repository.KeyRepository(context).removeSystemSecurityKey("grayscale_security_key")
+        _hasSecurityKey.value = EmergencyManager.hasKey(context)
     }
 
     fun applyGrayscale(context: Context, enable: Boolean): Boolean {

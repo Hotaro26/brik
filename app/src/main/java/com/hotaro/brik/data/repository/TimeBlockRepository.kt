@@ -79,7 +79,68 @@ class TimeBlockRepository(private val context: Context) {
             _routines.value = emptyList()
         }
 
+        _focusModes.value.forEach { mode ->
+            if (!mode.keySecret.isNullOrBlank()) {
+                keyRepository.registerSystemKeyIfMissing(
+                    id = "focus_mode_${mode.id}",
+                    name = "Focus: ${mode.name}",
+                    keyType = mode.keyType,
+                    secretHash = com.hotaro.brik.util.QrUtils.sha256(mode.keySecret),
+                    qrToken = if (mode.keyType == KeyType.QR_CODE) mode.keySecret else null
+                )
+            }
+        }
+        _routines.value.forEach { routine ->
+            if (!routine.keySecret.isNullOrBlank()) {
+                keyRepository.registerSystemKeyIfMissing(
+                    id = "routine_${routine.id}",
+                    name = "Routine: ${routine.name}",
+                    keyType = routine.keyType,
+                    secretHash = com.hotaro.brik.util.QrUtils.sha256(routine.keySecret),
+                    qrToken = if (routine.keyType == KeyType.QR_CODE) routine.keySecret else null
+                )
+            }
+        }
+
         syncActiveBlocks(context)
+    }
+
+    fun updateFocusModeKey(id: String, keyType: KeyType, newSecret: String) {
+        val mode = _focusModes.value.find { it.id == id } ?: return
+        val updated = mode.copy(keyType = keyType, keySecret = newSecret)
+        saveFocusMode(updated)
+    }
+
+    fun clearFocusModeKey(id: String) {
+        val mode = _focusModes.value.find { it.id == id } ?: return
+        val updated = mode.copy(keySecret = null)
+        val existingIndex = _focusModes.value.indexOfFirst { it.id == id }
+        val list = if (existingIndex >= 0) {
+            _focusModes.value.toMutableList().apply { set(existingIndex, updated) }
+        } else {
+            _focusModes.value + updated
+        }
+        persistFocusModes(list)
+        keyRepository.removeSystemSecurityKey("focus_mode_$id")
+    }
+
+    fun updateRoutineKey(id: String, keyType: KeyType, newSecret: String) {
+        val routine = _routines.value.find { it.id == id } ?: return
+        val updated = routine.copy(keyType = keyType, keySecret = newSecret)
+        saveRoutine(updated)
+    }
+
+    fun clearRoutineKey(id: String) {
+        val routine = _routines.value.find { it.id == id } ?: return
+        val updated = routine.copy(keySecret = null)
+        val existingIndex = _routines.value.indexOfFirst { it.id == id }
+        val list = if (existingIndex >= 0) {
+            _routines.value.toMutableList().apply { set(existingIndex, updated) }
+        } else {
+            _routines.value + updated
+        }
+        persistRoutines(list)
+        keyRepository.removeSystemSecurityKey("routine_$id")
     }
 
     fun saveFocusMode(mode: FocusMode): FocusMode {
@@ -90,6 +151,14 @@ class TimeBlockRepository(private val context: Context) {
             _focusModes.value + mode
         }
         persistFocusModes(updated)
+        if (!mode.keySecret.isNullOrBlank()) {
+            keyRepository.setSystemSecurityKey(
+                id = "focus_mode_${mode.id}",
+                name = "Focus: ${mode.name}",
+                keyType = mode.keyType,
+                secret = mode.keySecret
+            )
+        }
         return mode
     }
 
@@ -104,6 +173,7 @@ class TimeBlockRepository(private val context: Context) {
         }
         val updated = _focusModes.value.filterNot { it.id == id }
         persistFocusModes(updated)
+        keyRepository.removeSystemSecurityKey("focus_mode_$id")
         onResult(true, null)
     }
 
@@ -149,6 +219,14 @@ class TimeBlockRepository(private val context: Context) {
         }
         persistRoutines(updated)
         syncActiveBlocks(context)
+        if (!routine.keySecret.isNullOrBlank()) {
+            keyRepository.setSystemSecurityKey(
+                id = "routine_${routine.id}",
+                name = "Routine: ${routine.name}",
+                keyType = routine.keyType,
+                secret = routine.keySecret
+            )
+        }
         return routine
     }
 
@@ -162,6 +240,7 @@ class TimeBlockRepository(private val context: Context) {
         val updated = _routines.value.filterNot { it.id == id }
         persistRoutines(updated)
         syncActiveBlocks(context)
+        keyRepository.removeSystemSecurityKey("routine_$id")
         onResult(true, null)
     }
 

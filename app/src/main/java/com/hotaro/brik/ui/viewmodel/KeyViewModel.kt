@@ -10,7 +10,12 @@ import com.hotaro.brik.data.model.KeyType
 import com.hotaro.brik.data.model.LockStats
 import com.hotaro.brik.data.model.SavedKey
 import com.hotaro.brik.data.repository.KeyRepository
+import com.hotaro.brik.data.repository.TimeBlockRepository
+import com.hotaro.brik.policy.DnsManager
 import com.hotaro.brik.policy.PolicyBridgeManager
+import com.hotaro.brik.util.GrayscaleManager
+import com.hotaro.brik.util.SideloadLockManager
+import com.hotaro.brik.util.ZenManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -116,22 +121,60 @@ class KeyViewModel(application: Application) : AndroidViewModel(application) {
     ) {
         viewModelScope.launch {
             repository.removeLockDirectly(lock.id)
-            if (lock.packageNames.isNotEmpty()) {
-                withContext(Dispatchers.IO) {
-                    val remainingLockedPackages = repository.activeLocks.value
-                        .filter { it.id != lock.id }
-                        .flatMap { it.packageNames }
-                        .toSet()
-                    val packagesToRelease = lock.packageNames.filterNot { remainingLockedPackages.contains(it) }
+            when {
+                lock.id == "dpm_uninstall_lock" -> {
+                    val prefs = context.getSharedPreferences("brik_admin_pref", Context.MODE_PRIVATE)
+                    prefs.edit()
+                        .remove("pref_dpm_uninstall_secret_hash")
+                        .remove("pref_dpm_uninstall_key_type")
+                        .remove("pref_dpm_uninstall_qr_token")
+                        .apply()
+                }
+                lock.id == "sideload_adb_lock" -> {
+                    SideloadLockManager.clearSecurityKey(context)
+                }
+                lock.id == "dns_lock" -> {
+                    DnsManager.clearSecurityKey(context)
+                }
+                lock.id == "grayscale_security_key" -> {
+                    GrayscaleManager.clearSecurityKey(context)
+                }
+                lock.id == "zen_security_key" -> {
+                    ZenManager.clearSecurityKey(context)
+                }
+                lock.id.startsWith("focus_mode_") -> {
+                    val modeId = lock.id.removePrefix("focus_mode_")
+                    TimeBlockRepository(context).clearFocusModeKey(modeId)
+                }
+                lock.id.startsWith("routine_") -> {
+                    val routineId = lock.id.removePrefix("routine_")
+                    TimeBlockRepository(context).clearRoutineKey(routineId)
+                }
+                lock.packageNames.isNotEmpty() -> {
+                    withContext(Dispatchers.IO) {
+                        val remainingLockedPackages = repository.activeLocks.value
+                            .filter { it.id != lock.id }
+                            .flatMap { it.packageNames }
+                            .toSet()
+                        val packagesToRelease = lock.packageNames.filterNot { remainingLockedPackages.contains(it) }
 
-                    if (packagesToRelease.isNotEmpty()) {
-                        PolicyBridgeManager.suspendPackages(context, packagesToRelease, false)
-                        PolicyBridgeManager.setUninstallBlocked(context, packagesToRelease, false)
+                        if (packagesToRelease.isNotEmpty()) {
+                            PolicyBridgeManager.suspendPackages(context, packagesToRelease, false)
+                            PolicyBridgeManager.setUninstallBlocked(context, packagesToRelease, false)
+                        }
                     }
                 }
             }
             onResult(true, null)
         }
+    }
+
+    fun setSystemSecurityKey(id: String, name: String, keyType: KeyType, secret: String): BagLock {
+        return repository.setSystemSecurityKey(id, name, keyType, secret)
+    }
+
+    fun verifySystemSecurityKey(id: String, inputSecret: String): Boolean {
+        return repository.verifySystemSecurityKey(id, inputSecret)
     }
 
     fun syncAllActiveLocks(context: Context) {
@@ -148,8 +191,20 @@ class KeyViewModel(application: Application) : AndroidViewModel(application) {
         return repository.setDpmUninstallLock(keyType, secret)
     }
 
+    fun setSideloadLockKey(keyType: KeyType, secret: String): BagLock {
+        return repository.setSideloadLockKey(keyType, secret)
+    }
+
+    fun getSideloadLock(): BagLock? {
+        return repository.getSideloadLock()
+    }
+
     fun getDpmUninstallLock(): BagLock? {
         return repository.getDpmUninstallLock()
+    }
+
+    fun verifyDpmUninstallKey(inputSecret: String): Boolean {
+        return repository.verifyDpmUninstallKey(inputSecret)
     }
 
     fun verifyAndDeactivateDeviceOwner(

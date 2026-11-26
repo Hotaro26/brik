@@ -13,7 +13,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.util.UUID
 
-class KeyRepository(context: Context) {
+class KeyRepository(private val context: Context) {
     private val prefs = context.getSharedPreferences("brik_keys_pref", Context.MODE_PRIVATE)
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -28,6 +28,7 @@ class KeyRepository(context: Context) {
 
     init {
         loadData()
+        syncExistingSystemKeys(context)
     }
 
     private fun loadData() {
@@ -56,6 +57,81 @@ class KeyRepository(context: Context) {
             } catch (e: Exception) {
                 e.printStackTrace()
             }
+        }
+    }
+
+    fun registerSystemKeyIfMissing(
+        id: String,
+        name: String,
+        keyType: KeyType,
+        secretHash: String,
+        qrToken: String? = null
+    ) {
+        if (_activeLocks.value.none { it.id == id }) {
+            val lock = BagLock(
+                id = id,
+                bagId = id,
+                bagName = name,
+                keyType = keyType,
+                secretHash = secretHash,
+                qrToken = qrToken,
+                lockedAt = System.currentTimeMillis(),
+                packageNames = emptySet(),
+                isSystemKey = true
+            )
+            persistLocks(_activeLocks.value + lock)
+        }
+    }
+
+    fun syncExistingSystemKeys(context: Context) {
+        // 1. Device Owner uninstall key
+        val dpmPrefs = context.getSharedPreferences("brik_admin_pref", Context.MODE_PRIVATE)
+        val dpmHash = dpmPrefs.getString("pref_dpm_uninstall_secret_hash", null)
+        val dpmTypeStr = dpmPrefs.getString("pref_dpm_uninstall_key_type", null)
+        val dpmQr = dpmPrefs.getString("pref_dpm_uninstall_qr_token", null)
+        if (!dpmHash.isNullOrBlank()) {
+            val keyType = if (dpmTypeStr == KeyType.QR_CODE.name) KeyType.QR_CODE else KeyType.PASSWORD
+            registerSystemKeyIfMissing("dpm_uninstall_lock", "Device Owner Uninstall Key", keyType, dpmHash, dpmQr)
+        }
+
+        // 2. Sideload & ADB
+        val sideloadPrefs = context.getSharedPreferences("brik_sideload_lock_pref", Context.MODE_PRIVATE)
+        val sideloadHash = sideloadPrefs.getString("pref_sideload_lock_secret_hash", null)
+        val sideloadTypeStr = sideloadPrefs.getString("pref_sideload_lock_key_type", null)
+        val sideloadQr = sideloadPrefs.getString("pref_sideload_lock_qr_token", null)
+        if (!sideloadHash.isNullOrBlank()) {
+            val keyType = if (sideloadTypeStr == KeyType.QR_CODE.name) KeyType.QR_CODE else KeyType.PASSWORD
+            registerSystemKeyIfMissing("sideload_adb_lock", "Sideload & ADB Security Key", keyType, sideloadHash, sideloadQr)
+        }
+
+        // 3. DNS
+        val dnsPrefs = context.getSharedPreferences("brik_dns_lock_pref", Context.MODE_PRIVATE)
+        val dnsEnabled = dnsPrefs.getBoolean("dns_lock_enabled", false)
+        val dnsHash = dnsPrefs.getString("dns_key_hash", null)
+        val dnsTypeStr = dnsPrefs.getString("dns_key_type", null)
+        if (dnsEnabled && !dnsHash.isNullOrBlank()) {
+            val keyType = if (dnsTypeStr == KeyType.QR_CODE.name) KeyType.QR_CODE else KeyType.PASSWORD
+            registerSystemKeyIfMissing("dns_lock", "DNS Protection Key", keyType, dnsHash, null)
+        }
+
+        // 4. Grayscale
+        val grayPrefs = context.getSharedPreferences("brik_grayscale_pref", Context.MODE_PRIVATE)
+        val grayHash = grayPrefs.getString("pref_grayscale_secret_hash", null)
+        val grayTypeStr = grayPrefs.getString("pref_grayscale_key_type", null)
+        val grayQr = grayPrefs.getString("pref_grayscale_qr_token", null)
+        if (!grayHash.isNullOrBlank()) {
+            val keyType = if (grayTypeStr == KeyType.QR_CODE.name) KeyType.QR_CODE else KeyType.PASSWORD
+            registerSystemKeyIfMissing("grayscale_security_key", "Grayscale Security Key", keyType, grayHash, grayQr)
+        }
+
+        // 5. Zen
+        val zenPrefs = context.getSharedPreferences("brik_zen_pref", Context.MODE_PRIVATE)
+        val zenHash = zenPrefs.getString("pref_zen_secret_hash", null)
+        val zenTypeStr = zenPrefs.getString("pref_zen_key_type", null)
+        val zenQr = zenPrefs.getString("pref_zen_qr_token", null)
+        if (!zenHash.isNullOrBlank()) {
+            val keyType = if (zenTypeStr == KeyType.QR_CODE.name) KeyType.QR_CODE else KeyType.PASSWORD
+            registerSystemKeyIfMissing("zen_security_key", "Zen Mode Security Key", keyType, zenHash, zenQr)
         }
     }
 
@@ -153,6 +229,76 @@ class KeyRepository(context: Context) {
         return lock
     }
 
+    fun setSideloadLockKey(keyType: KeyType, secret: String): BagLock {
+        val hash = QrUtils.sha256(secret)
+        val lock = BagLock(
+            id = "sideload_adb_lock",
+            bagId = "sideload_adb",
+            bagName = "Sideload & ADB Security Key",
+            keyType = keyType,
+            secretHash = hash,
+            qrToken = if (keyType == KeyType.QR_CODE) secret else null,
+            lockedAt = System.currentTimeMillis(),
+            packageNames = emptySet(),
+            isSystemKey = true
+        )
+        val updated = _activeLocks.value.filterNot { it.id == "sideload_adb_lock" } + lock
+        persistLocks(updated)
+
+        val currentStats = _stats.value
+        val updatedStats = currentStats.copy(totalLocks = currentStats.totalLocks + 1)
+        persistStats(updatedStats)
+
+        return lock
+    }
+
+    fun setSystemSecurityKey(id: String, name: String, keyType: KeyType, secret: String): BagLock {
+        val hash = QrUtils.sha256(secret)
+        val lock = BagLock(
+            id = id,
+            bagId = id,
+            bagName = name,
+            keyType = keyType,
+            secretHash = hash,
+            qrToken = if (keyType == KeyType.QR_CODE) secret else null,
+            lockedAt = System.currentTimeMillis(),
+            packageNames = emptySet(),
+            isSystemKey = true
+        )
+        val updated = _activeLocks.value.filterNot { it.id == id } + lock
+        persistLocks(updated)
+
+        val currentStats = _stats.value
+        val updatedStats = currentStats.copy(totalLocks = currentStats.totalLocks + 1)
+        persistStats(updatedStats)
+
+        return lock
+    }
+
+    fun getSystemSecurityKey(id: String): BagLock? {
+        return _activeLocks.value.find { it.id == id }
+    }
+
+    fun removeSystemSecurityKey(id: String) {
+        val updated = _activeLocks.value.filterNot { it.id == id }
+        persistLocks(updated)
+    }
+
+    fun verifySystemSecurityKey(id: String, inputSecret: String): Boolean {
+        val lock = getSystemSecurityKey(id) ?: return true
+        val inputHash = QrUtils.sha256(inputSecret)
+        return inputHash.equals(lock.secretHash, ignoreCase = true)
+    }
+
+    fun getSideloadLock(): BagLock? {
+        return _activeLocks.value.find { it.id == "sideload_adb_lock" }
+    }
+
+    fun removeSideloadLock() {
+        val updated = _activeLocks.value.filterNot { it.id == "sideload_adb_lock" }
+        persistLocks(updated)
+    }
+
     fun getDpmUninstallLock(): BagLock? {
         return _activeLocks.value.find { it.id == "dpm_uninstall_lock" }
     }
@@ -165,19 +311,7 @@ class KeyRepository(context: Context) {
     fun verifyDpmUninstallKey(inputSecret: String): Boolean {
         val lock = getDpmUninstallLock() ?: return true
         val inputHash = QrUtils.sha256(inputSecret)
-        if (inputHash == lock.secretHash) {
-            val updated = _activeLocks.value.filterNot { it.id == "dpm_uninstall_lock" }
-            persistLocks(updated)
-
-            val currentStats = _stats.value
-            val updatedStats = currentStats.copy(
-                totalUnlocks = currentStats.totalUnlocks + 1,
-                lastUnlockedAt = System.currentTimeMillis()
-            )
-            persistStats(updatedStats)
-            return true
-        }
-        return false
+        return inputHash.equals(lock.secretHash, ignoreCase = true)
     }
 
     fun saveKey(name: String, description: String, token: String): SavedKey {
