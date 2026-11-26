@@ -302,31 +302,51 @@ fun FloatingQuickControls(
     val toggleWifi: () -> Unit = {
         lastInteractionTime = System.currentTimeMillis()
         val target = !isWifiEnabled
-        val shellCmd = if (target) "svc wifi enable || cmd wifi set-wifi-enabled enabled" else "svc wifi disable || cmd wifi set-wifi-enabled disabled"
-        val shellSuccess = executePrivilegedCommand(shellCmd)
-        if (shellSuccess) {
-            isWifiEnabled = target
+
+        // 1st Priority: Native Direct (Android <= 9) or Native Floating Wi-Fi Panel (Android 10+)
+        var handled = false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            try {
+                context.startActivity(Intent(Settings.Panel.ACTION_WIFI).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                handled = true
+            } catch (_: Exception) {
+                try {
+                    context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    handled = true
+                } catch (_: Exception) {}
+            }
         } else {
-            val direct = try {
+            handled = try {
                 @Suppress("DEPRECATION")
                 wifiManager?.setWifiEnabled(target) == true
             } catch (_: Exception) { false }
-            if (direct) {
+            if (handled) isWifiEnabled = target
+        }
+
+        // 2nd Priority: Shizuku
+        if (!handled) {
+            val shellCmd = if (target) "svc wifi enable || cmd wifi set-wifi-enabled enabled" else "svc wifi disable || cmd wifi set-wifi-enabled disabled"
+            if (executePrivilegedCommand(shellCmd)) {
                 isWifiEnabled = target
-            } else {
-                try {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                        context.startActivity(Intent(Settings.Panel.ACTION_WIFI).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                    } else {
-                        context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                    }
-                } catch (_: Exception) {
-                    try {
-                        context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                    } catch (_: Exception) {
-                        Toast.makeText(context, "Wi-Fi settings unavailable", Toast.LENGTH_SHORT).show()
-                    }
+                handled = true
+            }
+        }
+
+        // 3rd Priority: Device Owner / Fallback
+        if (!handled) {
+            try {
+                @Suppress("DEPRECATION")
+                if (wifiManager?.setWifiEnabled(target) == true) {
+                    isWifiEnabled = target
+                    handled = true
                 }
+            } catch (_: Exception) {}
+        }
+        if (!handled) {
+            try {
+                context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            } catch (_: Exception) {
+                Toast.makeText(context, "Wi-Fi settings unavailable", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -334,49 +354,56 @@ fun FloatingQuickControls(
     val toggleBluetooth: () -> Unit = {
         lastInteractionTime = System.currentTimeMillis()
         val target = !isBtEnabled
-        val shellCmd = if (target) "svc bluetooth enable || cmd bluetooth_manager enable" else "svc bluetooth disable || cmd bluetooth_manager disable"
-        val shellSuccess = executePrivilegedCommand(shellCmd)
-        if (shellSuccess) {
-            isBtEnabled = target
-        } else {
+
+        // 1st Priority: Native Direct Adapter Toggle or Bluetooth Settings
+        var handled = false
+        if (bluetoothAdapter != null) {
+            try {
+                val direct = if (target) {
+                    @Suppress("DEPRECATION")
+                    bluetoothAdapter.enable()
+                } else {
+                    @Suppress("DEPRECATION")
+                    bluetoothAdapter.disable()
+                }
+                if (direct) {
+                    isBtEnabled = target
+                    handled = true
+                }
+            } catch (_: Exception) {
+                handled = false
+            }
+        }
+
+        if (!handled) {
+            try {
+                context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                handled = true
+            } catch (_: Exception) {}
+        }
+
+        // 2nd Priority: Shizuku
+        if (!handled) {
+            val shellCmd = if (target) "svc bluetooth enable || cmd bluetooth_manager enable" else "svc bluetooth disable || cmd bluetooth_manager disable"
+            if (executePrivilegedCommand(shellCmd)) {
+                isBtEnabled = target
+                handled = true
+            }
+        }
+
+        // 3rd Priority: Device Owner
+        if (!handled) {
             val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? android.app.admin.DevicePolicyManager
             val dar = BrikAdminReceiver.getComponentName(context)
-            var handledByDpm = false
             if (dpm != null && dpm.isDeviceOwnerApp(context.packageName)) {
                 try {
                     if (!target) {
                         dpm.addUserRestriction(dar, android.os.UserManager.DISALLOW_BLUETOOTH)
                         isBtEnabled = false
-                        handledByDpm = true
                     } else {
                         dpm.clearUserRestriction(dar, android.os.UserManager.DISALLOW_BLUETOOTH)
                     }
                 } catch (_: Exception) {}
-            }
-            if (!handledByDpm) {
-                var direct = false
-                if (bluetoothAdapter != null) {
-                    try {
-                        direct = if (target) {
-                            @Suppress("DEPRECATION")
-                            bluetoothAdapter.enable()
-                        } else {
-                            @Suppress("DEPRECATION")
-                            bluetoothAdapter.disable()
-                        }
-                    } catch (_: Exception) {
-                        direct = false
-                    }
-                }
-                if (direct) {
-                    isBtEnabled = target
-                } else {
-                    try {
-                        context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                    } catch (_: Exception) {
-                        Toast.makeText(context, "Bluetooth settings unavailable", Toast.LENGTH_SHORT).show()
-                    }
-                }
             }
         }
     }
@@ -384,48 +411,55 @@ fun FloatingQuickControls(
     val toggleHotspot: () -> Unit = {
         lastInteractionTime = System.currentTimeMillis()
         val target = !isHotspotEnabled
-        val shellCmd = if (target) {
-            "svc wifi-tethering start || cmd connectivity start-tethering 0"
-        } else {
-            "svc wifi-tethering stop || cmd connectivity stop-tethering 0"
+
+        // 1st Priority: Native Tethering Settings Screen
+        val tetherIntents = listOf(
+            Intent().setClassName("com.android.settings", "com.android.settings.TetherSettings"),
+            Intent("android.settings.TETHER_SETTINGS"),
+            Intent("android.settings.WIFI_TETHERING_SETTINGS"),
+            Intent(Settings.ACTION_WIRELESS_SETTINGS)
+        )
+        var handled = false
+        for (tIntent in tetherIntents) {
+            try {
+                context.startActivity(tIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                handled = true
+                break
+            } catch (_: Exception) {}
         }
-        val shellSuccess = executePrivilegedCommand(shellCmd)
-        if (shellSuccess) {
-            isHotspotEnabled = target
-        } else {
+
+        // 2nd Priority: Shizuku
+        if (!handled) {
+            val shellCmd = if (target) {
+                "svc wifi-tethering start || cmd connectivity start-tethering 0"
+            } else {
+                "svc wifi-tethering stop || cmd connectivity stop-tethering 0"
+            }
+            if (executePrivilegedCommand(shellCmd)) {
+                isHotspotEnabled = target
+                handled = true
+            }
+        }
+
+        // 3rd Priority: Device Owner
+        if (!handled) {
             val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? android.app.admin.DevicePolicyManager
             val dar = BrikAdminReceiver.getComponentName(context)
-            var handledByDpm = false
             if (dpm != null && dpm.isDeviceOwnerApp(context.packageName)) {
                 try {
                     if (!target) {
                         dpm.addUserRestriction(dar, android.os.UserManager.DISALLOW_CONFIG_TETHERING)
                         isHotspotEnabled = false
-                        handledByDpm = true
+                        handled = true
                     } else {
                         dpm.clearUserRestriction(dar, android.os.UserManager.DISALLOW_CONFIG_TETHERING)
                     }
                 } catch (_: Exception) {}
             }
-            if (!handledByDpm) {
-                val tetherIntents = listOf(
-                    Intent().setClassName("com.android.settings", "com.android.settings.TetherSettings"),
-                    Intent("android.settings.TETHER_SETTINGS"),
-                    Intent("android.settings.WIFI_TETHERING_SETTINGS"),
-                    Intent(Settings.ACTION_WIRELESS_SETTINGS)
-                )
-                var launched = false
-                for (tIntent in tetherIntents) {
-                    try {
-                        context.startActivity(tIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                        launched = true
-                        break
-                    } catch (_: Exception) {}
-                }
-                if (!launched) {
-                    Toast.makeText(context, "Hotspot settings unavailable", Toast.LENGTH_SHORT).show()
-                }
-            }
+        }
+
+        if (!handled) {
+            Toast.makeText(context, "Hotspot settings unavailable", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -480,32 +514,43 @@ fun FloatingQuickControls(
                         onClick = {
                             lastInteractionTime = System.currentTimeMillis()
                             val target = !isDataEnabled
-                            val shellCmd = if (target) "svc data enable" else "svc data disable"
-                            if (executePrivilegedCommand(shellCmd)) {
-                                isDataEnabled = target
-                            } else {
+
+                            // 1st Priority: Native Internet Connectivity Panel / Settings
+                            var handled = false
+                            try {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                    context.startActivity(Intent(Settings.Panel.ACTION_INTERNET_CONNECTIVITY).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                    handled = true
+                                } else {
+                                    context.startActivity(Intent(Settings.ACTION_DATA_ROAMING_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                    handled = true
+                                }
+                            } catch (_: Exception) {
+                                try {
+                                    context.startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                    handled = true
+                                } catch (_: Exception) {}
+                            }
+
+                            // 2nd Priority: Shizuku
+                            if (!handled) {
+                                val shellCmd = if (target) "svc data enable" else "svc data disable"
+                                if (executePrivilegedCommand(shellCmd)) {
+                                    isDataEnabled = target
+                                    handled = true
+                                }
+                            }
+
+                            // 3rd Priority: Device Owner
+                            if (!handled) {
                                 val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? android.app.admin.DevicePolicyManager
                                 val dar = BrikAdminReceiver.getComponentName(context)
-                                var handledByDpm = false
                                 if (dpm != null && dpm.isDeviceOwnerApp(context.packageName)) {
                                     try {
                                         dpm.setGlobalSetting(dar, "mobile_data", if (target) "1" else "0")
                                         isDataEnabled = target
-                                        handledByDpm = true
+                                        handled = true
                                     } catch (_: Exception) {}
-                                }
-                                if (!handledByDpm) {
-                                    try {
-                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                                            context.startActivity(Intent(Settings.Panel.ACTION_INTERNET_CONNECTIVITY).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                                        } else {
-                                            context.startActivity(Intent(Settings.ACTION_DATA_ROAMING_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                                        }
-                                    } catch (_: Exception) {
-                                        try {
-                                            context.startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                                        } catch (_: Exception) {}
-                                    }
                                 }
                             }
                         }
