@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -678,13 +679,14 @@ fun ModesWindow(
             onDismissRequest = { showCreateSheet = false },
             sheetState = sheetState,
             containerColor = colorScheme.surfaceContainerHigh,
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            contentWindowInsets = { WindowInsets(0, 0, 0, 0) }
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp)
-                    .padding(bottom = 32.dp)
+                    .padding(bottom = 16.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -2197,13 +2199,14 @@ private fun ModeDetailWindow(
             onDismissRequest = { showBagsSheet = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = colorScheme.surfaceContainerHigh,
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            contentWindowInsets = { WindowInsets(0, 0, 0, 0) }
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp)
-                    .padding(bottom = 32.dp)
+                    .padding(bottom = 16.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -2286,13 +2289,14 @@ private fun ModeDetailWindow(
             onDismissRequest = { showCustomAppsSheet = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = colorScheme.surfaceContainerHigh,
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            contentWindowInsets = { WindowInsets(0, 0, 0, 0) }
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp)
-                    .padding(bottom = 32.dp)
+                    .padding(bottom = 16.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -2387,13 +2391,14 @@ private fun ModeDetailWindow(
             onDismissRequest = { showSavedKeysSheet = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = colorScheme.surfaceContainerHigh,
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            contentWindowInsets = { WindowInsets(0, 0, 0, 0) }
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp)
-                    .padding(bottom = 32.dp)
+                    .padding(bottom = 16.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -2472,13 +2477,14 @@ private fun ModeDetailWindow(
             onDismissRequest = { showScanKeySheet = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = colorScheme.surfaceContainerHigh,
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            contentWindowInsets = { WindowInsets(0, 0, 0, 0) }
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp)
-                    .padding(bottom = 32.dp)
+                    .padding(bottom = 16.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -2527,13 +2533,14 @@ private fun ModeDetailWindow(
             onDismissRequest = { showKioskAppPickerSheet = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = colorScheme.surfaceContainerHigh,
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            contentWindowInsets = { WindowInsets(0, 0, 0, 0) }
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp)
-                    .padding(bottom = 32.dp)
+                    .padding(bottom = 16.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),

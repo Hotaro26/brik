@@ -1,12 +1,17 @@
 package com.hotaro.brik.ui.component
 
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.hardware.camera2.CameraManager
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.net.wifi.WifiManager
 import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
@@ -36,8 +41,10 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.MaterialTheme.typography
@@ -72,14 +79,55 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
+private fun executePrivilegedCommand(cmd: String): Boolean {
+    return try {
+        if (com.topjohnwu.superuser.Shell.isAppGrantedRoot() == true) {
+            com.topjohnwu.superuser.Shell.cmd(cmd).exec().isSuccess
+        } else if (rikka.shizuku.Shizuku.pingBinder() && rikka.shizuku.Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            val method = rikka.shizuku.Shizuku::class.java.getDeclaredMethod(
+                "newProcess",
+                Array<String>::class.java,
+                Array<String>::class.java,
+                String::class.java
+            )
+            method.isAccessible = true
+            val process = method.invoke(null, arrayOf("sh", "-c", cmd), null, null) as Process
+            process.waitFor() == 0
+        } else {
+            false
+        }
+    } catch (_: Throwable) {
+        false
+    }
+}
+
+private fun checkWifiApEnabled(context: Context): Boolean {
+    return try {
+        val wm = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager ?: return false
+        val method = wm.javaClass.getDeclaredMethod("isWifiApEnabled")
+        method.isAccessible = true
+        method.invoke(wm) as? Boolean ?: false
+    } catch (_: Exception) {
+        try {
+            val wm = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager ?: return false
+            val method = wm.javaClass.getDeclaredMethod("getWifiApState")
+            method.isAccessible = true
+            val state = method.invoke(wm) as? Int ?: 0
+            state == 13
+        } catch (_: Exception) {
+            false
+        }
+    }
+}
+
 /**
  * iPhone AssistiveTouch-style floating ball with Material 3 Expressive Quick Controls.
- * - Morphing container: smoothly morphs from 56dp circle to 290x266dp rounded rectangle card.
- * - Draggable freely; on release outside edges, smoothly glides/snaps to nearest edge.
- * - Auto-hides (dims to faint opacity) after inactivity interval (configurable: 2s, 3s, 5s, off).
- * - Movable expanded Quick Controls card (user can drag it anywhere on screen).
- * - Touch events consumed so it never triggers background kiosk exit gestures.
- * - Crisp AssistiveTouch concentric disc without tap highlight.
+ * - Smooth container morphing between 56dp circle and expandable Quick Controls card.
+ * - Anti-squeeze collapse physics (critically damped Spring.DampingRatioNoBouncy).
+ * - Real-time state listeners and toggle actions for Wi-Fi, Bluetooth, Hotspot, Flashlight, Data, DND.
+ * - Independent scrolling area preventing Bluetooth / Caller tile clipping.
+ * - Movable card via top handle drag without interfering with vertical tile scrolling.
+ * - Edge snap glide on release.
  */
 @Composable
 fun FloatingQuickControls(
@@ -116,34 +164,119 @@ fun FloatingQuickControls(
         }
     }
 
-    // Connectivity State
-    var isWifiEnabled by remember { mutableStateOf(false) }
+    DisposableEffect(cameraManager, cameraId) {
+        if (cameraManager == null || cameraId == null) {
+            return@DisposableEffect onDispose {}
+        }
+        val torchCallback = object : CameraManager.TorchCallback() {
+            override fun onTorchModeChanged(camId: String, enabled: Boolean) {
+                if (camId == cameraId) {
+                    isFlashlightOn = enabled
+                }
+            }
+        }
+        try {
+            cameraManager.registerTorchCallback(torchCallback, null)
+        } catch (_: Exception) {}
+        onDispose {
+            try {
+                cameraManager.unregisterTorchCallback(torchCallback)
+            } catch (_: Exception) {}
+        }
+    }
+
+    // Wi-Fi State
+    val wifiManager = remember { context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager }
+    var isWifiEnabled by remember { mutableStateOf(wifiManager?.isWifiEnabled == true) }
+
+    // Bluetooth State
+    val bluetoothManager = remember { context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager }
+    val bluetoothAdapter = remember(bluetoothManager) { bluetoothManager?.adapter ?: BluetoothAdapter.getDefaultAdapter() }
+    var isBtEnabled by remember {
+        mutableStateOf(try { bluetoothAdapter?.isEnabled == true } catch (_: Exception) { false })
+    }
+
+    // Hotspot State
+    var isHotspotEnabled by remember { mutableStateOf(checkWifiApEnabled(context)) }
+
+    // Mobile Data State
     var isDataEnabled by remember { mutableStateOf(false) }
+
+    // DND State
+    val notificationManager = remember { context.getSystemService(Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager }
+    var isDndOn by remember {
+        mutableStateOf(
+            try {
+                val filter = notificationManager?.currentInterruptionFilter ?: android.app.NotificationManager.INTERRUPTION_FILTER_ALL
+                filter != android.app.NotificationManager.INTERRUPTION_FILTER_ALL && filter != android.app.NotificationManager.INTERRUPTION_FILTER_UNKNOWN
+            } catch (_: Exception) { false }
+        )
+    }
 
     val updateNetworkState = {
         try {
             val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
             val activeNetwork = cm?.activeNetwork
             val caps = cm?.getNetworkCapabilities(activeNetwork)
-            isWifiEnabled = caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
             isDataEnabled = caps?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true
-        } catch (_: Exception) {
-            // fallback
-        }
+        } catch (_: Exception) {}
+        try {
+            isWifiEnabled = wifiManager?.isWifiEnabled == true
+        } catch (_: Exception) {}
+        try {
+            isBtEnabled = bluetoothAdapter?.isEnabled == true
+        } catch (_: Exception) {}
+        try {
+            isHotspotEnabled = checkWifiApEnabled(context)
+        } catch (_: Exception) {}
+        try {
+            val filter = notificationManager?.currentInterruptionFilter ?: android.app.NotificationManager.INTERRUPTION_FILTER_ALL
+            isDndOn = filter != android.app.NotificationManager.INTERRUPTION_FILTER_ALL && filter != android.app.NotificationManager.INTERRUPTION_FILTER_UNKNOWN
+        } catch (_: Exception) {}
     }
 
     LaunchedEffect(isExpanded) {
         if (isExpanded) updateNetworkState()
     }
 
-    DisposableEffect(Unit) {
+    DisposableEffect(context) {
+        val filter = IntentFilter().apply {
+            addAction(WifiManager.WIFI_STATE_CHANGED_ACTION)
+            addAction(BluetoothAdapter.ACTION_STATE_CHANGED)
+            addAction("android.net.wifi.WIFI_AP_STATE_CHANGED")
+            addAction(android.app.NotificationManager.ACTION_INTERRUPTION_FILTER_CHANGED)
+        }
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(ctx: Context?, intent: Intent?) {
+                when (intent?.action) {
+                    WifiManager.WIFI_STATE_CHANGED_ACTION -> {
+                        val state = intent.getIntExtra(WifiManager.EXTRA_WIFI_STATE, WifiManager.WIFI_STATE_UNKNOWN)
+                        isWifiEnabled = (state == WifiManager.WIFI_STATE_ENABLED)
+                    }
+                    BluetoothAdapter.ACTION_STATE_CHANGED -> {
+                        val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
+                        isBtEnabled = (state == BluetoothAdapter.STATE_ON)
+                    }
+                    "android.net.wifi.WIFI_AP_STATE_CHANGED" -> {
+                        val state = intent.getIntExtra("wifi_state", 0)
+                        isHotspotEnabled = (state == 13)
+                    }
+                    android.app.NotificationManager.ACTION_INTERRUPTION_FILTER_CHANGED -> {
+                        val curFilter = notificationManager?.currentInterruptionFilter ?: android.app.NotificationManager.INTERRUPTION_FILTER_ALL
+                        isDndOn = curFilter != android.app.NotificationManager.INTERRUPTION_FILTER_ALL && curFilter != android.app.NotificationManager.INTERRUPTION_FILTER_UNKNOWN
+                    }
+                }
+            }
+        }
+        try {
+            context.registerReceiver(receiver, filter)
+        } catch (_: Exception) {}
+
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
-                isWifiEnabled = networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
                 isDataEnabled = networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
             }
-
             override fun onLost(network: Network) {
                 updateNetworkState()
             }
@@ -153,15 +286,112 @@ fun FloatingQuickControls(
                 .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
                 .build()
             cm?.registerNetworkCallback(request, callback)
-        } catch (_: Exception) {
-            updateNetworkState()
-        }
+        } catch (_: Exception) {}
 
         onDispose {
             try {
+                context.unregisterReceiver(receiver)
+            } catch (_: Exception) {}
+            try {
                 cm?.unregisterNetworkCallback(callback)
-            } catch (_: Exception) {
-                // ignore
+            } catch (_: Exception) {}
+        }
+    }
+
+    val toggleWifi: () -> Unit = {
+        lastInteractionTime = System.currentTimeMillis()
+        val target = !isWifiEnabled
+        val shellCmd = if (target) "svc wifi enable || cmd wifi set-wifi-enabled enabled" else "svc wifi disable || cmd wifi set-wifi-enabled disabled"
+        val shellSuccess = executePrivilegedCommand(shellCmd)
+        if (shellSuccess) {
+            isWifiEnabled = target
+        } else {
+            val direct = try {
+                @Suppress("DEPRECATION")
+                wifiManager?.setWifiEnabled(target) == true
+            } catch (_: Exception) { false }
+            if (direct) {
+                isWifiEnabled = target
+            } else {
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        context.startActivity(Intent(Settings.Panel.ACTION_WIFI).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    } else {
+                        context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    }
+                } catch (_: Exception) {
+                    try {
+                        context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    } catch (_: Exception) {
+                        Toast.makeText(context, "Wi-Fi settings unavailable", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+    }
+
+    val toggleBluetooth: () -> Unit = {
+        lastInteractionTime = System.currentTimeMillis()
+        val target = !isBtEnabled
+        val shellCmd = if (target) "svc bluetooth enable || cmd bluetooth_manager enable" else "svc bluetooth disable || cmd bluetooth_manager disable"
+        val shellSuccess = executePrivilegedCommand(shellCmd)
+        if (shellSuccess) {
+            isBtEnabled = target
+        } else {
+            var direct = false
+            if (bluetoothAdapter != null) {
+                try {
+                    direct = if (target) {
+                        @Suppress("DEPRECATION")
+                        bluetoothAdapter.enable()
+                    } else {
+                        @Suppress("DEPRECATION")
+                        bluetoothAdapter.disable()
+                    }
+                } catch (_: Exception) {
+                    direct = false
+                }
+            }
+            if (direct) {
+                isBtEnabled = target
+            } else {
+                try {
+                    context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                } catch (_: Exception) {
+                    Toast.makeText(context, "Bluetooth settings unavailable", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    val toggleHotspot: () -> Unit = {
+        lastInteractionTime = System.currentTimeMillis()
+        val target = !isHotspotEnabled
+        val shellCmd = if (target) {
+            "svc wifi-tethering start || cmd connectivity start-tethering 0"
+        } else {
+            "svc wifi-tethering stop || cmd connectivity stop-tethering 0"
+        }
+        val shellSuccess = executePrivilegedCommand(shellCmd)
+        if (shellSuccess) {
+            isHotspotEnabled = target
+        } else {
+            val tetherIntents = listOf(
+                Intent().setClassName("com.android.settings", "com.android.settings.TetherSettings"),
+                Intent("android.settings.TETHER_SETTINGS"),
+                Intent("android.settings.WIFI_TETHERING_SETTINGS"),
+                Intent(Settings.ACTION_WIRELESS_SETTINGS)
+            )
+            var launched = false
+            for (tIntent in tetherIntents) {
+                try {
+                    context.startActivity(tIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    launched = true
+                    break
+                } catch (_: Exception) {}
+            }
+            if (!launched) {
+                Toast.makeText(context, "Hotspot settings unavailable", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -192,33 +422,17 @@ fun FloatingQuickControls(
         val boxWidthDp = 290.dp
         val boxWidthPx = with(density) { boxWidthDp.toPx() }
 
-        val activeTiles = remember(showWifi, showData, showHotspot, showFlashlight, showBluetooth, showDnd, showPhone, isWifiEnabled, isDataEnabled, isFlashlightOn) {
+        val activeTiles = remember(showWifi, showData, showHotspot, showFlashlight, showBluetooth, showDnd, showPhone, isWifiEnabled, isDataEnabled, isHotspotEnabled, isBtEnabled, isDndOn, isFlashlightOn) {
             val list = mutableListOf<QuickTileData>()
             if (showWifi) {
                 list.add(
                     QuickTileData(
                         iconRes = R.drawable.ic_wifi,
                         title = "Wi-Fi",
-                        statusText = if (isWifiEnabled) "Connected" else "Off",
+                        statusText = if (isWifiEnabled) "On" else "Off",
                         isActive = isWifiEnabled,
                         activeColor = Color(0xFF2979FF),
-                        onClick = {
-                            lastInteractionTime = System.currentTimeMillis()
-                            try {
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                                    context.startActivity(Intent(Settings.Panel.ACTION_WIFI).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                                } else {
-                                    val wm = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
-                                    wm?.let { it.isWifiEnabled = !it.isWifiEnabled }
-                                }
-                            } catch (_: Exception) {
-                                try {
-                                    context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                                } catch (_: Exception) {
-                                    Toast.makeText(context, "Wi-Fi settings unavailable", Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                        }
+                        onClick = toggleWifi
                     )
                 )
             }
@@ -239,7 +453,9 @@ fun FloatingQuickControls(
                                     context.startActivity(Intent(Settings.ACTION_DATA_ROAMING_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                                 }
                             } catch (_: Exception) {
-                                context.startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                try {
+                                    context.startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                } catch (_: Exception) {}
                             }
                         }
                     )
@@ -250,29 +466,10 @@ fun FloatingQuickControls(
                     QuickTileData(
                         iconRes = R.drawable.ic_hotspot,
                         title = "Hotspot",
-                        statusText = "Tethering",
-                        isActive = false,
+                        statusText = if (isHotspotEnabled) "On" else "Off",
+                        isActive = isHotspotEnabled,
                         activeColor = Color(0xFFFF9100),
-                        onClick = {
-                            lastInteractionTime = System.currentTimeMillis()
-                            try {
-                                val tetherIntent = Intent().apply {
-                                    setClassName("com.android.settings", "com.android.settings.TetherSettings")
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                }
-                                context.startActivity(tetherIntent)
-                            } catch (_: Exception) {
-                                try {
-                                    context.startActivity(Intent("android.settings.TETHER_SETTINGS").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                                } catch (_: Exception) {
-                                    try {
-                                        context.startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                                    } catch (_: Exception) {
-                                        Toast.makeText(context, "Hotspot unavailable", Toast.LENGTH_SHORT).show()
-                                    }
-                                }
-                            }
-                        }
+                        onClick = toggleHotspot
                     )
                 )
             }
@@ -289,55 +486,18 @@ fun FloatingQuickControls(
                 )
             }
             if (showBluetooth) {
-                val isBtOn = try {
-                    val bm = context.getSystemService(Context.BLUETOOTH_SERVICE) as? android.bluetooth.BluetoothManager
-                    bm?.adapter?.isEnabled == true
-                } catch (_: Exception) { false }
                 list.add(
                     QuickTileData(
                         iconRes = R.drawable.ic_bluetooth,
                         title = "Bluetooth",
-                        statusText = if (isBtOn) "Connected" else "Off",
-                        isActive = isBtOn,
+                        statusText = if (isBtEnabled) "On" else "Off",
+                        isActive = isBtEnabled,
                         activeColor = Color(0xFF00B0FF),
-                        onClick = {
-                            lastInteractionTime = System.currentTimeMillis()
-                            val btAdapter = try {
-                                val bm = context.getSystemService(Context.BLUETOOTH_SERVICE) as? android.bluetooth.BluetoothManager
-                                bm?.adapter
-                            } catch (_: Exception) { null }
-
-                            if (btAdapter != null) {
-                                try {
-                                    if (btAdapter.isEnabled) {
-                                        btAdapter.disable()
-                                    } else {
-                                        btAdapter.enable()
-                                    }
-                                } catch (_: Exception) {
-                                    try {
-                                        context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                                    } catch (_: Exception) {
-                                        Toast.makeText(context, "Bluetooth settings unavailable", Toast.LENGTH_SHORT).show()
-                                    }
-                                }
-                            } else {
-                                try {
-                                    context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                                } catch (_: Exception) {
-                                    Toast.makeText(context, "Bluetooth unavailable", Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                        }
+                        onClick = toggleBluetooth
                     )
                 )
             }
             if (showDnd) {
-                val isDndOn = try {
-                    val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
-                    val filter = nm?.currentInterruptionFilter ?: android.app.NotificationManager.INTERRUPTION_FILTER_ALL
-                    filter != android.app.NotificationManager.INTERRUPTION_FILTER_ALL && filter != android.app.NotificationManager.INTERRUPTION_FILTER_UNKNOWN
-                } catch (_: Exception) { false }
                 list.add(
                     QuickTileData(
                         iconRes = R.drawable.ic_dnd,
@@ -348,15 +508,15 @@ fun FloatingQuickControls(
                         onClick = {
                             lastInteractionTime = System.currentTimeMillis()
                             try {
-                                val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
-                                if (nm != null && nm.isNotificationPolicyAccessGranted) {
-                                    val cur = nm.currentInterruptionFilter
+                                if (notificationManager != null && notificationManager.isNotificationPolicyAccessGranted) {
+                                    val cur = notificationManager.currentInterruptionFilter
                                     val target = if (cur == android.app.NotificationManager.INTERRUPTION_FILTER_ALL) {
                                         android.app.NotificationManager.INTERRUPTION_FILTER_PRIORITY
                                     } else {
                                         android.app.NotificationManager.INTERRUPTION_FILTER_ALL
                                     }
-                                    nm.setInterruptionFilter(target)
+                                    notificationManager.setInterruptionFilter(target)
+                                    isDndOn = (target != android.app.NotificationManager.INTERRUPTION_FILTER_ALL)
                                 } else {
                                     context.startActivity(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                                 }
@@ -404,7 +564,9 @@ fun FloatingQuickControls(
 
         val tileRows = ((activeTiles.size + 1) / 2).coerceAtLeast(1)
         val notifHeight = if (showNotifications) (if (notifPreviewMode == "preview") 56.dp else 40.dp) else 0.dp
-        val boxHeightDp = (68.dp + (tileRows * 92).dp + notifHeight).coerceIn(200.dp, 460.dp)
+        val maxBoxHeightDp = ((screenHeightPx / density.density) - 100f).coerceIn(240f, 440f).dp
+        val naturalHeightDp = (68.dp + (tileRows * 94).dp + notifHeight + 16.dp)
+        val boxHeightDp = minOf(naturalHeightDp, maxBoxHeightDp)
         val boxHeightPx = with(density) { boxHeightDp.toPx() }
 
         val edgeMarginPx = with(density) { 12.dp.toPx() }
@@ -454,22 +616,40 @@ fun FloatingQuickControls(
             label = "ballAlpha"
         )
 
-        // Smooth Container Morphing Dimensions & Position
+        // Smooth Container Morphing Dimensions & Position (Critically damped on collapse to completely eliminate squeezing)
+        val morphSpecDp: androidx.compose.animation.core.AnimationSpec<androidx.compose.ui.unit.Dp> = if (isExpanded) {
+            spring(
+                dampingRatio = Spring.DampingRatioLowBouncy,
+                stiffness = Spring.StiffnessMediumLow
+            )
+        } else {
+            spring(
+                dampingRatio = Spring.DampingRatioNoBouncy,
+                stiffness = Spring.StiffnessMedium
+            )
+        }
+
+        val morphSpecFloat: androidx.compose.animation.core.AnimationSpec<Float> = if (isExpanded) {
+            spring(
+                dampingRatio = Spring.DampingRatioLowBouncy,
+                stiffness = Spring.StiffnessMediumLow
+            )
+        } else {
+            spring(
+                dampingRatio = Spring.DampingRatioNoBouncy,
+                stiffness = Spring.StiffnessMedium
+            )
+        }
+
         val morphWidth by animateDpAsState(
             targetValue = if (isExpanded) boxWidthDp else circleSizeDp,
-            animationSpec = spring(
-                dampingRatio = Spring.DampingRatioMediumBouncy,
-                stiffness = Spring.StiffnessMediumLow
-            ),
+            animationSpec = morphSpecDp,
             label = "morphWidth"
         )
 
         val morphHeight by animateDpAsState(
             targetValue = if (isExpanded) boxHeightDp else circleSizeDp,
-            animationSpec = spring(
-                dampingRatio = Spring.DampingRatioMediumBouncy,
-                stiffness = Spring.StiffnessMediumLow
-            ),
+            animationSpec = morphSpecDp,
             label = "morphHeight"
         )
 
@@ -478,19 +658,13 @@ fun FloatingQuickControls(
 
         val morphX by animateFloatAsState(
             targetValue = targetMorphX,
-            animationSpec = spring(
-                dampingRatio = Spring.DampingRatioMediumBouncy,
-                stiffness = Spring.StiffnessMediumLow
-            ),
+            animationSpec = morphSpecFloat,
             label = "morphX"
         )
 
         val morphY by animateFloatAsState(
             targetValue = targetMorphY,
-            animationSpec = spring(
-                dampingRatio = Spring.DampingRatioMediumBouncy,
-                stiffness = Spring.StiffnessMediumLow
-            ),
+            animationSpec = morphSpecFloat,
             label = "morphY"
         )
 
@@ -567,40 +741,6 @@ fun FloatingQuickControls(
                                 ballAnimY.snapTo((ballAnimY.value + dragAmount.y).coerceIn(topLimitPx, bottomLimitPx))
                             }
                         }
-                    } else {
-                        // Movable card drag gesture
-                        detectDragGestures(
-                            onDragStart = {
-                                isDraggingCard = true
-                                lastInteractionTime = System.currentTimeMillis()
-                            },
-                            onDragEnd = {
-                                isDraggingCard = false
-                                lastInteractionTime = System.currentTimeMillis()
-                            },
-                            onDragCancel = {
-                                isDraggingCard = false
-                                lastInteractionTime = System.currentTimeMillis()
-                            }
-                        ) { change, dragAmount ->
-                            change.consume()
-                            lastInteractionTime = System.currentTimeMillis()
-                            coroutineScope.launch {
-                                val cardMargin = with(density) { 12.dp.toPx() }
-                                cardAnimX.snapTo(
-                                    (cardAnimX.value + dragAmount.x).coerceIn(
-                                        cardMargin,
-                                        (screenWidthPx - boxWidthPx - cardMargin).coerceAtLeast(cardMargin)
-                                    )
-                                )
-                                cardAnimY.snapTo(
-                                    (cardAnimY.value + dragAmount.y).coerceIn(
-                                        topLimitPx,
-                                        (screenHeightPx - boxHeightPx - topLimitPx).coerceAtLeast(topLimitPx)
-                                    )
-                                )
-                            }
-                        }
                     }
                 }
                 .clickable(
@@ -609,7 +749,6 @@ fun FloatingQuickControls(
                 ) {
                     if (!isExpanded) {
                         lastInteractionTime = System.currentTimeMillis()
-                        // Position card near ball, clamped within screen
                         val cardMargin = with(density) { 16.dp.toPx() }
                         val targetCardPosX = ballAnimX.value.coerceIn(
                             cardMargin,
@@ -672,111 +811,151 @@ fun FloatingQuickControls(
                     } else {
                         // Expanded Quick Controls Bento Grid
                         Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                            modifier = Modifier.fillMaxSize()
                         ) {
-                            // Subtle Movable Handle Bar
-                            Surface(
-                                shape = CircleShape,
-                                color = Color(0x35FFFFFF),
+                            // Top Drag Handle & Header Area (Card dragging is isolated to this header)
+                            Column(
                                 modifier = Modifier
-                                    .width(36.dp)
-                                    .height(4.dp)
-                            ) {}
-
-                            Spacer(Modifier.height(10.dp))
-
-                            // Header: M3 Pill Badge with Proper Assistive Icon & Close Button
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                    .fillMaxWidth()
+                                    .pointerInput(screenWidthPx, screenHeightPx, boxWidthPx, boxHeightPx) {
+                                        detectDragGestures(
+                                            onDragStart = {
+                                                isDraggingCard = true
+                                                lastInteractionTime = System.currentTimeMillis()
+                                            },
+                                            onDragEnd = {
+                                                isDraggingCard = false
+                                                lastInteractionTime = System.currentTimeMillis()
+                                            },
+                                            onDragCancel = {
+                                                isDraggingCard = false
+                                                lastInteractionTime = System.currentTimeMillis()
+                                            }
+                                        ) { change, dragAmount ->
+                                            change.consume()
+                                            lastInteractionTime = System.currentTimeMillis()
+                                            coroutineScope.launch {
+                                                val cardMargin = with(density) { 12.dp.toPx() }
+                                                cardAnimX.snapTo(
+                                                    (cardAnimX.value + dragAmount.x).coerceIn(
+                                                        cardMargin,
+                                                        (screenWidthPx - boxWidthPx - cardMargin).coerceAtLeast(cardMargin)
+                                                    )
+                                                )
+                                                cardAnimY.snapTo(
+                                                    (cardAnimY.value + dragAmount.y).coerceIn(
+                                                        topLimitPx,
+                                                        (screenHeightPx - boxHeightPx - topLimitPx).coerceAtLeast(topLimitPx)
+                                                    )
+                                                )
+                                            }
+                                        }
+                                    }
+                                    .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 Surface(
                                     shape = CircleShape,
-                                    color = colorScheme.primaryContainer.copy(alpha = 0.35f),
-                                    border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.4f))
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        Icon(
-                                            painter = painterResource(R.drawable.ic_assistive_touch),
-                                            contentDescription = null,
-                                            tint = colorScheme.primary,
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                        Text(
-                                            text = "Quick Controls",
-                                            style = typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold),
-                                            color = Color.White
-                                        )
-                                    }
-                                }
-
-                                Surface(
-                                    shape = CircleShape,
-                                    color = Color(0x22FFFFFF),
+                                    color = Color(0x35FFFFFF),
                                     modifier = Modifier
-                                        .size(30.dp)
-                                        .clickable(
-                                            interactionSource = remember { MutableInteractionSource() },
-                                            indication = null
-                                        ) {
-                                            isExpanded = false
-                                            lastInteractionTime = System.currentTimeMillis()
-                                        }
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            painter = painterResource(R.drawable.close_fill0),
-                                            contentDescription = "Close",
-                                            tint = Color(0xEEFFFFFF),
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                    }
-                                }
-                            }
+                                        .width(36.dp)
+                                        .height(4.dp)
+                                ) {}
 
-                            Spacer(Modifier.height(12.dp))
+                                Spacer(Modifier.height(8.dp))
 
-                            if (showNotifications) {
-                                NotificationControlPill(
-                                    previewMode = notifPreviewMode,
-                                    onClick = {
-                                        lastInteractionTime = System.currentTimeMillis()
-                                        expandNotificationShade(context)
-                                    }
-                                )
-                                Spacer(Modifier.height(10.dp))
-                            }
-
-                            // Dynamic Tiles in rows of 2
-                            activeTiles.chunked(2).forEachIndexed { rowIndex, rowTiles ->
-                                if (rowIndex > 0) {
-                                    Spacer(Modifier.height(10.dp))
-                                }
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    rowTiles.forEach { tile ->
-                                        ExpressiveQuickTile(
-                                            iconRes = tile.iconRes,
-                                            title = tile.title,
-                                            statusText = tile.statusText,
-                                            isActive = tile.isActive,
-                                            activeColor = tile.activeColor,
-                                            modifier = Modifier.weight(1f),
-                                            onClick = tile.onClick
-                                        )
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = colorScheme.primaryContainer.copy(alpha = 0.35f),
+                                        border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.4f))
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.ic_assistive_touch),
+                                                contentDescription = null,
+                                                tint = colorScheme.primary,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                            Text(
+                                                text = "Quick Controls",
+                                                style = typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold),
+                                                color = Color.White
+                                            )
+                                        }
                                     }
-                                    if (rowTiles.size == 1) {
-                                        Spacer(Modifier.weight(1f))
+
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = Color(0x22FFFFFF),
+                                        modifier = Modifier
+                                            .size(30.dp)
+                                            .clickable(
+                                                interactionSource = remember { MutableInteractionSource() },
+                                                indication = null
+                                            ) {
+                                                isExpanded = false
+                                                lastInteractionTime = System.currentTimeMillis()
+                                            }
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.close_fill0),
+                                                contentDescription = "Close",
+                                                tint = Color(0xEEFFFFFF),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Freely Scrollable Quick Tiles Container
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f, fill = false)
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                if (showNotifications) {
+                                    NotificationControlPill(
+                                        previewMode = notifPreviewMode,
+                                        onClick = {
+                                            lastInteractionTime = System.currentTimeMillis()
+                                            expandNotificationShade(context)
+                                        }
+                                    )
+                                }
+
+                                activeTiles.chunked(2).forEach { rowTiles ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        rowTiles.forEach { tile ->
+                                            ExpressiveQuickTile(
+                                                iconRes = tile.iconRes,
+                                                title = tile.title,
+                                                statusText = tile.statusText,
+                                                isActive = tile.isActive,
+                                                activeColor = tile.activeColor,
+                                                modifier = Modifier.weight(1f),
+                                                onClick = tile.onClick
+                                            )
+                                        }
+                                        if (rowTiles.size == 1) {
+                                            Spacer(Modifier.weight(1f))
+                                        }
                                     }
                                 }
                             }

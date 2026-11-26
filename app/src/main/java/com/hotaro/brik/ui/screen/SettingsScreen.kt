@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -1143,7 +1144,8 @@ fun SettingsScreen(
             onDismissRequest = { showBlockSheet = false },
             sheetState = blockSheetState,
             containerColor = colorScheme.surfaceContainerLowest,
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            contentWindowInsets = { WindowInsets(0, 0, 0, 0) }
         ) {
             Column(
                 modifier = Modifier
@@ -1310,7 +1312,8 @@ fun SettingsScreen(
             onDismissRequest = { showHideSheet = false },
             sheetState = hideSheetState,
             containerColor = colorScheme.surfaceContainerLowest,
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            contentWindowInsets = { WindowInsets(0, 0, 0, 0) }
         ) {
             Column(
                 modifier = Modifier
@@ -1414,7 +1417,8 @@ fun SettingsScreen(
             onDismissRequest = { showKioskSheet = false },
             sheetState = kioskSheetState,
             containerColor = colorScheme.surfaceContainerLowest,
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            contentWindowInsets = { WindowInsets(0, 0, 0, 0) }
         ) {
             Column(
                 modifier = Modifier
@@ -1511,14 +1515,15 @@ fun SettingsScreen(
             onDismissRequest = { showNavBarSheet = false },
             sheetState = navBarSheetState,
             containerColor = colorScheme.surfaceContainerHigh,
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            contentWindowInsets = { WindowInsets(0, 0, 0, 0) }
         ) {
             val currentNavBarStyle by ThemePreferences.navBarStyle.collectAsState()
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 8.dp)
-                    .padding(bottom = 36.dp)
+                    .padding(bottom = 16.dp)
             ) {
                 Text(
                     text = "Navbar Style",
@@ -1606,6 +1611,7 @@ fun SettingsScreen(
             sheetState = iconSheetState,
             containerColor = colorScheme.surfaceContainerHigh,
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            contentWindowInsets = { WindowInsets(0, 0, 0, 0) }
         ) {
             val currentAppIcon by ThemePreferences.appIcon.collectAsState()
             Column(
@@ -1720,7 +1726,8 @@ fun SettingsScreen(
             onDismissRequest = { showThemeSheet = false },
             sheetState = themeSheetState,
             containerColor = colorScheme.surfaceContainerHigh,
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            contentWindowInsets = { WindowInsets(0, 0, 0, 0) }
         ) {
             val currentThemeMode by ThemePreferences.themeMode.collectAsState()
             Column(
@@ -1815,6 +1822,7 @@ fun SettingsScreen(
             sheetState = paletteSheetState,
             containerColor = colorScheme.surfaceContainerHigh,
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            contentWindowInsets = { WindowInsets(0, 0, 0, 0) }
         ) {
             val currentPalette by ThemePreferences.colorPalette.collectAsState()
             Column(
