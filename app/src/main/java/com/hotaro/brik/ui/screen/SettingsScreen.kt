@@ -6,12 +6,21 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.ui.graphics.graphicsLayer
+import com.hotaro.brik.ui.theme.ExpressiveShapeType
+import com.hotaro.brik.ui.theme.MaterialExpressiveShape
+import com.hotaro.brik.ui.theme.MaterialExpressiveShapes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -147,6 +156,7 @@ fun SettingsScreen(
     var showPaletteSheet by remember { mutableStateOf(false) }
     var showNavBarSheet by remember { mutableStateOf(false) }
     var showIconSheet by remember { mutableStateOf(false) }
+    var showMaterialShapesSheet by remember { mutableStateOf(false) }
     var showSetUninstallKeyDialog by remember { mutableStateOf(false) }
     var showVerifyUninstallKeyDialog by remember { mutableStateOf(false) }
     var showBridgeSetupSheet by remember { mutableStateOf(false) }
@@ -457,6 +467,11 @@ fun SettingsScreen(
             val currentAppIcon by ThemePreferences.appIcon.collectAsState()
             val currentNavBarStyle by ThemePreferences.navBarStyle.collectAsState()
 
+            val materialShapesEnabled by ThemePreferences.materialShapesEnabled.collectAsState()
+            val materialShapesSmoothAnim by ThemePreferences.materialShapesSmoothAnim.collectAsState()
+            val materialShapesRandomWindow by ThemePreferences.materialShapesRandomWindow.collectAsState()
+            val materialShapeType by ThemePreferences.materialShapeType.collectAsState()
+
             val currentIconOption = AppIconManager.icons.find { it.id == currentAppIcon } ?: AppIconManager.icons.first()
 
             val themeSubtitle = when (currentThemeMode) {
@@ -485,6 +500,14 @@ fun SettingsScreen(
                 NavBarStyle.CLASSIC -> "Classic Sticky"
             }
 
+            val shapesSubtitle = if (materialShapesEnabled) {
+                val mode = if (materialShapesRandomWindow) "Random" else ExpressiveShapeType.fromKey(materialShapeType).displayName
+                val anim = if (materialShapesSmoothAnim) ", Animated" else ""
+                "Enabled ($mode$anim)"
+            } else {
+                "Disabled (Standard Squares)"
+            }
+
             // 1. Theme Mode
             TomatoSettingsItem(
                 title = "Theme Mode",
@@ -500,7 +523,7 @@ fun SettingsScreen(
                         tint = colorScheme.onSurfaceVariant
                     )
                 },
-                shape = segmentedItemShape(0, 4),
+                shape = segmentedItemShape(0, 5),
                 onClick = { showThemeSheet = true }
             )
 
@@ -519,7 +542,7 @@ fun SettingsScreen(
                         tint = colorScheme.onSurfaceVariant
                     )
                 },
-                shape = segmentedItemShape(1, 4),
+                shape = segmentedItemShape(1, 5),
                 onClick = { showPaletteSheet = true }
             )
 
@@ -538,7 +561,7 @@ fun SettingsScreen(
                         tint = colorScheme.onSurfaceVariant
                     )
                 },
-                shape = segmentedItemShape(2, 4),
+                shape = segmentedItemShape(2, 5),
                 onClick = { showIconSheet = true }
             )
 
@@ -557,8 +580,27 @@ fun SettingsScreen(
                         tint = colorScheme.onSurfaceVariant
                     )
                 },
-                shape = segmentedItemShape(3, 4),
+                shape = segmentedItemShape(3, 5),
                 onClick = { showNavBarSheet = true }
+            )
+
+            // 5. Material Shapes
+            TomatoSettingsItem(
+                title = "Material Shapes",
+                subtitle = shapesSubtitle,
+                leadingIcon = R.drawable.ic_shapes,
+                iconContainerColor = colorScheme.tertiaryContainer,
+                iconTint = colorScheme.onTertiaryContainer,
+                trailingContent = {
+                    Icon(
+                        painter = painterResource(R.drawable.arrow_forward_big),
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = colorScheme.onSurfaceVariant
+                    )
+                },
+                shape = segmentedItemShape(4, 5),
+                onClick = { showMaterialShapesSheet = true }
             )
         }
 
@@ -1933,5 +1975,229 @@ fun SettingsScreen(
             settingsViewModel = settingsViewModel,
             onDismiss = { showBridgeSetupSheet = false }
         )
+    }
+
+    if (showMaterialShapesSheet) {
+        val shapesSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { showMaterialShapesSheet = false },
+            sheetState = shapesSheetState,
+            containerColor = colorScheme.surfaceContainerHigh,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            contentWindowInsets = { WindowInsets(0, 0, 0, 0) }
+        ) {
+            val materialShapesEnabled by ThemePreferences.materialShapesEnabled.collectAsState()
+            val materialShapesSmoothAnim by ThemePreferences.materialShapesSmoothAnim.collectAsState()
+            val materialShapesRandomWindow by ThemePreferences.materialShapesRandomWindow.collectAsState()
+            val materialShapeType by ThemePreferences.materialShapeType.collectAsState()
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp, vertical = 8.dp)
+                    .padding(bottom = 24.dp)
+            ) {
+                Text(
+                    text = "Material 3 Expressive Shapes",
+                    style = typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = colorScheme.onSurface,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                Text(
+                    text = "Replaces the square background of settings icons with organic Material 3 Expressive shapes.",
+                    style = typography.bodySmall,
+                    color = colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                // Master Toggle: Material Shapes
+                TomatoSettingsItem(
+                    title = "Expressive Shapes",
+                    subtitle = if (materialShapesEnabled) "Enabled (M3 Expressive backgrounds)" else "Disabled (Standard square backgrounds)",
+                    leadingIcon = R.drawable.ic_shapes,
+                    iconContainerColor = colorScheme.primaryContainer,
+                    iconTint = colorScheme.onPrimaryContainer,
+                    trailingContent = {
+                        BrikSwitch(
+                            checked = materialShapesEnabled,
+                            onCheckedChange = { ThemePreferences.setMaterialShapesEnabled(context, it) }
+                        )
+                    },
+                    shape = if (materialShapesEnabled) segmentedItemShape(0, 3) else RoundedCornerShape(20.dp),
+                    onClick = { ThemePreferences.setMaterialShapesEnabled(context, !materialShapesEnabled) }
+                )
+
+                if (materialShapesEnabled) {
+                    Spacer(Modifier.height(2.dp))
+
+                    // Toggle: Smooth Circular Animation
+                    TomatoSettingsItem(
+                        title = "Smooth Circular Animation",
+                        subtitle = if (materialShapesSmoothAnim) "Smoothly rotates the shape continuously" else "Static shape without rotation",
+                        leadingIcon = R.drawable.tune_fill0,
+                        iconContainerColor = colorScheme.secondaryContainer,
+                        iconTint = colorScheme.onSecondaryContainer,
+                        trailingContent = {
+                            BrikSwitch(
+                                checked = materialShapesSmoothAnim,
+                                onCheckedChange = { ThemePreferences.setMaterialShapesSmoothAnim(context, it) }
+                            )
+                        },
+                        shape = segmentedItemShape(1, 3),
+                        onClick = { ThemePreferences.setMaterialShapesSmoothAnim(context, !materialShapesSmoothAnim) }
+                    )
+
+                    Spacer(Modifier.height(2.dp))
+
+                    // Toggle: Random Expressive Shapes on Windows Change
+                    TomatoSettingsItem(
+                        title = "Random Shapes on Window Change",
+                        subtitle = if (materialShapesRandomWindow) "Selects fresh random shapes on each window change" else "Uses your preferred shape across all windows",
+                        leadingIcon = R.drawable.palette_fill0,
+                        iconContainerColor = colorScheme.tertiaryContainer,
+                        iconTint = colorScheme.onTertiaryContainer,
+                        trailingContent = {
+                            BrikSwitch(
+                                checked = materialShapesRandomWindow,
+                                onCheckedChange = { ThemePreferences.setMaterialShapesRandomWindow(context, it) }
+                            )
+                        },
+                        shape = segmentedItemShape(2, 3),
+                        onClick = { ThemePreferences.setMaterialShapesRandomWindow(context, !materialShapesRandomWindow) }
+                    )
+
+                    Spacer(Modifier.height(20.dp))
+
+                    TomatoSectionHeader(title = "SHAPE PREVIEW & SELECTION")
+
+                    val galleryShapes = listOf(
+                        "random" to "Random Mixed",
+                        ExpressiveShapeType.SUNNY.name to "Sunny",
+                        ExpressiveShapeType.VERY_SUNNY.name to "Very Sunny",
+                        ExpressiveShapeType.COOKIE_4.name to "4-Sided Cookie",
+                        ExpressiveShapeType.COOKIE_6.name to "6-Sided Cookie",
+                        ExpressiveShapeType.COOKIE_9.name to "9-Sided Cookie",
+                        ExpressiveShapeType.CLOVER_4.name to "4-Leaf Clover",
+                        ExpressiveShapeType.CLOVER_8.name to "8-Leaf Clover",
+                        ExpressiveShapeType.FLOWER.name to "Flower",
+                        ExpressiveShapeType.SOFT_BURST.name to "Soft Burst",
+                        ExpressiveShapeType.BURST.name to "Burst",
+                        ExpressiveShapeType.BOOM.name to "Boom",
+                        ExpressiveShapeType.PUFFY.name to "Puffy",
+                        ExpressiveShapeType.PUFFY_DIAMOND.name to "Puffy Diamond",
+                        ExpressiveShapeType.HEART.name to "Heart",
+                        ExpressiveShapeType.DIAMOND.name to "Diamond",
+                        ExpressiveShapeType.GEM.name to "Gem",
+                        ExpressiveShapeType.PENTAGON.name to "Pentagon",
+                        ExpressiveShapeType.ARCH.name to "Arch",
+                        ExpressiveShapeType.SLANTED.name to "Slanted",
+                        ExpressiveShapeType.BUN.name to "Bun",
+                        ExpressiveShapeType.CIRCLE.name to "Circle"
+                    )
+
+                    val infiniteTransition = rememberInfiniteTransition(label = "previewSpin")
+                    val previewAngle by infiniteTransition.animateFloat(
+                        initialValue = 0f,
+                        targetValue = 360f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(durationMillis = 14000, easing = LinearEasing),
+                            repeatMode = RepeatMode.Restart
+                        ),
+                        label = "previewAngle"
+                    )
+
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        galleryShapes.forEach { (typeKey, label) ->
+                            val isSelected = if (materialShapesRandomWindow) typeKey == "random" else materialShapeType.equals(typeKey, ignoreCase = true)
+                            val shapeForPreview = if (typeKey == "random") {
+                                MaterialExpressiveShapes.getShapeFor(label, 0)
+                            } else {
+                                MaterialExpressiveShape(ExpressiveShapeType.fromKey(typeKey))
+                            }
+
+                            Surface(
+                                onClick = {
+                                    if (typeKey == "random") {
+                                        ThemePreferences.setMaterialShapesRandomWindow(context, true)
+                                        ThemePreferences.setMaterialShapeType(context, "random")
+                                    } else {
+                                        ThemePreferences.setMaterialShapesRandomWindow(context, false)
+                                        ThemePreferences.setMaterialShapeType(context, typeKey)
+                                    }
+                                },
+                                shape = RoundedCornerShape(16.dp),
+                                color = if (isSelected) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier.size(40.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .graphicsLayer { rotationZ = if (materialShapesSmoothAnim) previewAngle else 0f }
+                                                .background(
+                                                    color = if (isSelected) colorScheme.primary else colorScheme.secondaryContainer,
+                                                    shape = shapeForPreview
+                                                )
+                                        )
+                                        Icon(
+                                            painter = painterResource(R.drawable.apps_fill0),
+                                            contentDescription = null,
+                                            tint = if (isSelected) colorScheme.onPrimary else colorScheme.onSecondaryContainer,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+
+                                    Spacer(Modifier.width(16.dp))
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = label,
+                                            style = typography.titleSmall,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                            color = if (isSelected) colorScheme.onPrimaryContainer else colorScheme.onSurface
+                                        )
+                                        if (typeKey == "random") {
+                                            Text(
+                                                text = "Shuffles shapes dynamically on window change",
+                                                style = typography.bodySmall,
+                                                color = colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+
+                                    if (isSelected) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = colorScheme.primary,
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    painter = painterResource(R.drawable.check_fill0),
+                                                    contentDescription = "Selected",
+                                                    tint = colorScheme.onPrimary,
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

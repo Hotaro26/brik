@@ -6,6 +6,12 @@ import android.net.Uri
 import android.os.Build
 import android.view.HapticFeedbackConstants
 import android.widget.Toast
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -39,15 +45,19 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import com.hotaro.brik.ui.theme.ExpressiveShapeType
+import com.hotaro.brik.ui.theme.MaterialExpressiveShape
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -154,6 +164,18 @@ fun AboutWindow(
             // ==========================================
             // HERO MOMENT 1: APP HERO (M3 EXPRESSIVE)
             // ==========================================
+            val infiniteTransition = rememberInfiniteTransition(label = "aboutCloverTransition")
+            val cloverRotation by infiniteTransition.animateFloat(
+                initialValue = 0f,
+                targetValue = 360f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 20000, easing = LinearEasing),
+                    repeatMode = RepeatMode.Restart
+                ),
+                label = "aboutCloverRotation"
+            )
+            val cloverShape = remember { MaterialExpressiveShape(ExpressiveShapeType.CLOVER_8) }
+
             Surface(
                 shape = RoundedCornerShape(32.dp),
                 color = colorScheme.surfaceContainerHigh,
@@ -165,20 +187,24 @@ fun AboutWindow(
                         .padding(26.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Monochrome Themed Icon Container
-                    Surface(
-                        shape = RoundedCornerShape(28.dp),
-                        color = colorScheme.primaryContainer,
-                        modifier = Modifier.size(96.dp)
+                    // Animating Material 3 Expressive 8-Leaf Clover Icon Container
+                    Box(
+                        modifier = Modifier.size(104.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Image(
-                                painter = painterResource(R.drawable.ic_brik_monochrome),
-                                contentDescription = "Brik Monochrome Icon",
-                                colorFilter = ColorFilter.tint(colorScheme.primary),
-                                modifier = Modifier.size(68.dp)
-                            )
-                        }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer { rotationZ = cloverRotation }
+                                .background(color = colorScheme.primaryContainer, shape = cloverShape)
+                        )
+
+                        Image(
+                            painter = painterResource(R.drawable.ic_brik_monochrome),
+                            contentDescription = "Brik Monochrome Icon",
+                            colorFilter = ColorFilter.tint(colorScheme.primary),
+                            modifier = Modifier.size(62.dp)
+                        )
                     }
 
                     Spacer(Modifier.height(18.dp))

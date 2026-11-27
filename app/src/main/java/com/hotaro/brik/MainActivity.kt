@@ -228,6 +228,10 @@ fun BrikMainScreen() {
         }
     }
 
+    androidx.compose.runtime.LaunchedEffect(selectedIndex, currentSubScreen) {
+        com.hotaro.brik.ui.theme.ThemePreferences.bumpWindowSeed()
+    }
+
     // Synchronize and enforce anti-uninstall and suspension on active locks
     androidx.compose.runtime.LaunchedEffect(Unit) {
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {

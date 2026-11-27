@@ -1,14 +1,22 @@
 package com.hotaro.brik.ui.component
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -24,6 +32,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import com.hotaro.brik.R
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -36,6 +45,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -44,6 +54,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.hotaro.brik.ui.theme.ExpressiveShapeType
+import com.hotaro.brik.ui.theme.MaterialExpressiveShape
+import com.hotaro.brik.ui.theme.MaterialExpressiveShapes
+import com.hotaro.brik.ui.theme.ThemePreferences
 
 fun segmentedItemShape(index: Int, total: Int): RoundedCornerShape {
     val cornerLarge = 22.dp
@@ -135,6 +149,34 @@ fun TomatoSettingsItem(
         }
     }
 
+    val shapesEnabled by ThemePreferences.materialShapesEnabled.collectAsState()
+    val smoothAnim by ThemePreferences.materialShapesSmoothAnim.collectAsState()
+    val randomWindow by ThemePreferences.materialShapesRandomWindow.collectAsState()
+    val materialShapeType by ThemePreferences.materialShapeType.collectAsState()
+    val windowSeed by ThemePreferences.windowSeed.collectAsState()
+
+    val expressiveShape = remember(title, windowSeed, materialShapeType, randomWindow) {
+        if (!randomWindow && materialShapeType != "random") {
+            MaterialExpressiveShape(ExpressiveShapeType.fromKey(materialShapeType))
+        } else {
+            MaterialExpressiveShapes.getShapeFor(seed = title, windowSeed = if (randomWindow) windowSeed else 0)
+        }
+    }
+
+    val rotationAngle = if (shapesEnabled && smoothAnim) {
+        val infiniteTransition = rememberInfiniteTransition(label = "shapeRotation")
+        val angle by infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 14000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "spin"
+        )
+        angle
+    } else 0f
+
     Surface(
         onClick = onClick ?: {},
         enabled = onClick != null,
@@ -150,19 +192,31 @@ fun TomatoSettingsItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (leadingIcon != null) {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = iconContainerColor,
-                    modifier = Modifier.size(42.dp)
+                Box(
+                    modifier = Modifier.size(42.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            painter = painterResource(leadingIcon),
-                            contentDescription = null,
-                            tint = iconTint,
-                            modifier = Modifier.size(iconSize)
+                    if (shapesEnabled) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer { rotationZ = rotationAngle }
+                                .background(color = iconContainerColor, shape = expressiveShape)
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(color = iconContainerColor, shape = RoundedCornerShape(12.dp))
                         )
                     }
+
+                    Icon(
+                        painter = painterResource(leadingIcon),
+                        contentDescription = null,
+                        tint = iconTint,
+                        modifier = Modifier.size(iconSize)
+                    )
                 }
                 Spacer(Modifier.width(14.dp))
             }

@@ -6,10 +6,13 @@ import android.view.HapticFeedbackConstants
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
@@ -20,8 +23,11 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -228,6 +234,60 @@ fun KeyScreen(
         label = "keyScale"
     )
 
+    // Keys section elevation offset: moves up when opening, moves down after unlock pill disappears
+    val keySectionOffsetY by animateDpAsState(
+        targetValue = if (isUnlockPillVisible) 0.dp else 24.dp,
+        animationSpec = if (isUnlockPillVisible) {
+            spring(
+                dampingRatio = 0.78f,
+                stiffness = Spring.StiffnessMediumLow
+            )
+        } else {
+            tween(
+                durationMillis = 280,
+                delayMillis = 130,
+                easing = FastOutSlowInEasing
+            )
+        },
+        label = "keySectionOffset"
+    )
+
+    // Unlock pill alpha: slowly and smoothly reveals, fades out quickly on dismiss
+    val pillAlpha by animateFloatAsState(
+        targetValue = if (isUnlockPillVisible) 1f else 0f,
+        animationSpec = if (isUnlockPillVisible) {
+            tween(
+                durationMillis = 320,
+                delayMillis = 90,
+                easing = LinearOutSlowInEasing
+            )
+        } else {
+            tween(
+                durationMillis = 130,
+                easing = FastOutLinearInEasing
+            )
+        },
+        label = "pillAlpha"
+    )
+
+    // Unlock pill scale: softly expands from 0.88f to 1f
+    val pillScale by animateFloatAsState(
+        targetValue = if (isUnlockPillVisible) 1f else 0.88f,
+        animationSpec = if (isUnlockPillVisible) {
+            tween(
+                durationMillis = 320,
+                delayMillis = 90,
+                easing = FastOutSlowInEasing
+            )
+        } else {
+            tween(
+                durationMillis = 130,
+                easing = FastOutLinearInEasing
+            )
+        },
+        label = "pillScale"
+    )
+
     // Material 3 Expressive Cookie continuous slow rotation
     val infiniteTransition = rememberInfiniteTransition(label = "cookieRotationTransition")
     val cookieRotation by infiniteTransition.animateFloat(
@@ -356,87 +416,99 @@ fun KeyScreen(
                             if (currentMode == HomeScreenMode.KEY) {
                                 // --- KEY MODE CONTENT ---
 
-                                // Tappable Material 3 Expressive Cookie Shape with Slow Rotation
-                                Surface(
-                                    shape = cookieShape(sides = 9, indentFactor = 0.86f),
-                                    color = if (isUnlockPillVisible) colorScheme.primaryContainer else colorScheme.surfaceContainerHigh,
-                                    shadowElevation = 8.dp,
-                                    modifier = Modifier
-                                        .scale(scale)
-                                        .size(112.dp)
-                                        .graphicsLayer { rotationZ = cookieRotation }
-                                        .clickable(
-                                            interactionSource = remember { MutableInteractionSource() },
-                                            indication = null
-                                        ) {
-                                            isUnlockPillVisible = !isUnlockPillVisible
-                                        }
+                                // Key Icon & Labels section moves up smoothly on tap
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.graphicsLayer { translationY = keySectionOffsetY.toPx() }
                                 ) {
-                                    Box(
-                                        contentAlignment = Alignment.Center,
+                                    // Tappable Material 3 Expressive Cookie Shape with Slow Rotation
+                                    Surface(
+                                        shape = cookieShape(sides = 9, indentFactor = 0.86f),
+                                        color = if (isUnlockPillVisible) colorScheme.primaryContainer else colorScheme.surfaceContainerHigh,
+                                        shadowElevation = 8.dp,
                                         modifier = Modifier
-                                            .fillMaxSize()
-                                            .graphicsLayer { rotationZ = -cookieRotation } // Icon stays upright
+                                            .scale(scale)
+                                            .size(112.dp)
+                                            .graphicsLayer { rotationZ = cookieRotation }
+                                            .clickable(
+                                                interactionSource = remember { MutableInteractionSource() },
+                                                indication = null
+                                            ) {
+                                                isUnlockPillVisible = !isUnlockPillVisible
+                                            }
                                     ) {
-                                        Icon(
-                                            painter = painterResource(R.drawable.key_fill0),
-                                            contentDescription = "Key Icon",
-                                            tint = if (isUnlockPillVisible) colorScheme.onPrimaryContainer else colorScheme.primary,
-                                            modifier = Modifier.size(46.dp)
-                                        )
+                                        Box(
+                                            contentAlignment = Alignment.Center,
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .graphicsLayer { rotationZ = -cookieRotation } // Icon stays upright
+                                        ) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.key_fill0),
+                                                contentDescription = "Key Icon",
+                                                tint = if (isUnlockPillVisible) colorScheme.onPrimaryContainer else colorScheme.primary,
+                                                modifier = Modifier.size(46.dp)
+                                            )
+                                        }
                                     }
+
+                                    Spacer(Modifier.height(18.dp))
+
+                                    Text(
+                                        text = "Key",
+                                        style = typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = colorScheme.onSurface
+                                    )
+
+                                    Text(
+                                        text = if (lockedBags.isNotEmpty()) "${lockedBags.size} active locked bag${if (lockedBags.size > 1) "s" else ""}" else "Tap cookie to reveal unlock",
+                                        style = typography.bodyMedium,
+                                        color = colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = 6.dp)
+                                    )
                                 }
-
-                                Spacer(Modifier.height(18.dp))
-
-                                Text(
-                                    text = "Key",
-                                    style = typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = colorScheme.onSurface
-                                )
-
-                                Text(
-                                    text = if (lockedBags.isNotEmpty()) "${lockedBags.size} active locked bag${if (lockedBags.size > 1) "s" else ""}" else "Tap cookie to reveal unlock",
-                                    style = typography.bodyMedium,
-                                    color = colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(top = 6.dp)
-                                )
 
                                 Spacer(Modifier.height(24.dp))
 
-                                // Animated Unlock Pill
-                                AnimatedVisibility(
-                                    visible = isUnlockPillVisible,
-                                    enter = slideInVertically(
-                                        initialOffsetY = { -20 },
-                                        animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
-                                    ) + expandVertically() + fadeIn(),
-                                    exit = shrinkVertically() + fadeOut()
+                                // Unlock Pill - smooth fade & scale without layout jumps
+                                Box(
+                                    modifier = Modifier.height(52.dp),
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    Surface(
-                                        onClick = { showUnlockSheet = true },
-                                        shape = CircleShape,
-                                        color = colorScheme.primary,
-                                        shadowElevation = 8.dp,
-                                        modifier = Modifier.height(52.dp)
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.Center
+                                    if (pillAlpha > 0.01f) {
+                                        Surface(
+                                            onClick = { showUnlockSheet = true },
+                                            shape = CircleShape,
+                                            color = colorScheme.primary,
+                                            shadowElevation = (8 * pillAlpha).dp,
+                                            enabled = isUnlockPillVisible,
+                                            modifier = Modifier
+                                                .graphicsLayer {
+                                                    alpha = pillAlpha
+                                                    scaleX = pillScale
+                                                    scaleY = pillScale
+                                                    translationY = keySectionOffsetY.toPx()
+                                                }
+                                                .height(52.dp)
                                         ) {
-                                            Icon(
-                                                painter = painterResource(R.drawable.password_fill0),
-                                                contentDescription = null,
-                                                tint = colorScheme.onPrimary,
-                                                modifier = Modifier.size(22.dp)
-                                            )
-                                            Spacer(Modifier.width(10.dp))
-                                            Text(
-                                                text = "Unlock",
-                                                style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                                color = colorScheme.onPrimary
-                                            )
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.Center
+                                            ) {
+                                                Icon(
+                                                    painter = painterResource(R.drawable.password_fill0),
+                                                    contentDescription = null,
+                                                    tint = colorScheme.onPrimary,
+                                                    modifier = Modifier.size(22.dp)
+                                                )
+                                                Spacer(Modifier.width(10.dp))
+                                                Text(
+                                                    text = "Unlock",
+                                                    style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                                    color = colorScheme.onPrimary
+                                                )
+                                            }
                                         }
                                     }
                                 }
