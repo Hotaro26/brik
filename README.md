@@ -138,6 +138,20 @@ Brik operates across a **four-tier privilege hierarchy**, automatically detectin
 * **Android 8.0 (API level 26)** or higher.
 * A computer with **ADB** (*Android Debug Bridge*) installed, or an active **Shizuku** / **Dhizuku** environment.
 
+> [!WARNING]
+> **Disable Google Play Protect prior to installation:**
+> When sideloading Brik or installing via ADB, **Google Play Protect** may flag or block the installation with a security warning.
+>
+> **Why does this happen?**
+> Google Play Protect strictly restricts applications sideloaded outside the Google Play Store that declare high-privilege Android management APIs&mdash;such as **Device Policy Manager (DPM / Device Owner)**, system administrative receivers, or accessibility services. Because untrusted apps could theoretically abuse elevated management permissions, Play Protect heuristics automatically flag or block sideloaded management tools by default.
+>
+> **How to bypass/resolve:**
+> 1. Open the **Google Play Store** app.
+> 2. Tap your profile avatar in the upper right &rarr; **Play Protect**.
+> 3. Tap the **Settings (gear)** icon in the top right corner.
+> 4. Temporarily toggle off **Scan apps with Play Protect** (or tap *"Install anyway"* if prompted during sideloading).
+> 5. You can safely re-enable scanning after Brik is installed and provisioned.
+
 ---
 
 ### Provisioning Methods
