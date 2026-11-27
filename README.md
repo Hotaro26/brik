@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="brik_icon.png" width="128" height="128" alt="Brik Logo" style="border-radius: 28px;" />
+  <img src="brik_icon.png" width="300" height="300" alt="Brik Logo" style="border-radius: 28px;" />
 </p>
 
 <h1 align="center">Brik</h1>
@@ -15,10 +15,25 @@ Most mobile blockers fail because they rely on self-regulation at the exact mome
 Brik was built out of willpower: the realization that true focus in an attention-economy environment requires absolute, physical friction. By establishing an unyielding commitment through Android enterprise management APIs, Brik treats distractions as non-negotiable boundaries. Once a bag of applications is locked with a physical key or an external QR token, the friction required to reverse the decision forces intentionality and breaks compulsive dopamine feedback loops.
 
 ## Screenshots
-| | | | |
-| :---: | :---: | :---: | :---: |
-| <img width="160" alt="Screenshot_20261125-155044_Brik" src="https://github.com/user-attachments/assets/a65f9566-9260-4f36-8bfb-3154e36b4757" /> | <img width="160" alt="Screenshot_20261125-163327_Brik" src="https://github.com/user-attachments/assets/55d545e4-a27b-47b2-95f4-ccc6ad2b1fb4" /> | <img width="160" alt="Screenshot_20261125-164329_Brik" src="https://github.com/user-attachments/assets/16dcb4bb-ddb9-41d0-a722-84cd935c6fd4" /> | <img width="160" alt="Screenshot_20261125-164333_Brik" src="https://github.com/user-attachments/assets/17f6fc91-6078-4506-b029-31dd9445877c" /> |
-| <img width="160" alt="Screenshot_20261125-164338_Brik" src="https://github.com/user-attachments/assets/95cc7e78-4cb9-49af-9a92-3ea3be04ac61" /> | <img width="160" alt="Screenshot_20261125-164722_Brik" src="https://github.com/user-attachments/assets/e08147d6-336c-4b13-b309-c256819c4060" /> | <img width="160" alt="Screenshot_20261125-164903_Brik" src="https://github.com/user-attachments/assets/1af601d8-429f-4605-860f-618c6089d623" /> | <img width="160" alt="Screenshot_20261125-165011_Brik" src="https://github.com/user-attachments/assets/ad04ea08-53b6-42fc-8eb9-b2c654ee9db9" /> |
+<p align="center">
+  <table>
+  <tr>
+    <td align="center"><img src="https://github.com/user-attachments/assets/fa9aa4d5-20dd-4f31-b632-7519533623f9" width="220" /></td>
+    <td align="center"><img src="https://github.com/user-attachments/assets/0f17d88a-83cf-47c1-9f1e-9ba4fec8d8bc" width="220" /></td>
+    <td align="center"><img src="https://github.com/user-attachments/assets/e048f83e-7e75-45b3-8c84-dd8b9393cf26" width="220" /></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="https://github.com/user-attachments/assets/8cd19b49-43ed-4dc8-880f-d22f60d4aed3" width="220" /></td>
+    <td align="center"><img src="https://github.com/user-attachments/assets/1240e8cc-7e55-46dd-ad7c-555daf7396d9" width="220" /></td>
+    <td align="center"><img src="https://github.com/user-attachments/assets/45d89b65-f528-4ed1-9577-fe4491fa0dcd" width="220" /></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="https://github.com/user-attachments/assets/fd29c995-2478-444b-8fd0-27d65fd6ab55" width="220" /></td>
+    <td align="center"><img src="https://github.com/user-attachments/assets/e4da66bc-cfea-4136-ba82-9a4aee615180" width="220" /></td>
+    <td align="center"><img src="https://github.com/user-attachments/assets/0e9160d2-e178-43f9-bf49-2ff6f373fb69" width="220" /></td>
+  </tr>
+</table>
+</p>
 
 ## Privileged Architecture
 
