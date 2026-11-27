@@ -266,9 +266,15 @@ fun BagsWindow(
                     ) {
                         items(bags, key = { it.id }) { bag ->
                             val isLocked = keyViewModel.isBagLocked(bag.id)
+                            val focusModes by com.hotaro.brik.data.repository.TimeBlockRepository.focusModes.collectAsState()
+                            val routines by com.hotaro.brik.data.repository.TimeBlockRepository.routines.collectAsState()
+                            val isActiveInTimeBlock = focusModes.any { it.isRunning && it.targetBagIds.contains(bag.id) } ||
+                                routines.any { it.isActiveNow && it.targetBagIds.contains(bag.id) }
+                            val isBagActive = isLocked || isActiveInTimeBlock
                             SwipeableBagItemCard(
                                 bag = bag,
                                 isLocked = isLocked,
+                                isBagActive = isBagActive,
                                 viewModel = viewModel,
                                 onClick = { selectedBagForSheet = bag },
                                 onSwipeDelete = {
@@ -1680,6 +1686,7 @@ fun BagsWindow(
 private fun SwipeableBagItemCard(
     bag: AppBag,
     isLocked: Boolean,
+    isBagActive: Boolean = isLocked,
     viewModel: ToolsViewModel,
     onClick: () -> Unit,
     onSwipeDelete: () -> Unit
@@ -1771,22 +1778,22 @@ private fun SwipeableBagItemCard(
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
-                                if (isLocked) {
+                                if (isBagActive) {
                                     Spacer(Modifier.width(8.dp))
                                     Surface(
                                         shape = CircleShape,
                                         color = colorScheme.error
                                     ) {
                                         Text(
-                                            text = "LOCKED",
+                                            text = "Active",
                                             style = typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold, fontSize = 9.sp),
                                             color = colorScheme.onError,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                                         )
                                     }
 
                                     val isEmergencyActive by EmergencyManager.isEmergencyModeActive.collectAsState()
-                                    if (isEmergencyActive) {
+                                    if (isLocked && isEmergencyActive) {
                                         Spacer(Modifier.width(6.dp))
                                         Surface(
                                             shape = CircleShape,
