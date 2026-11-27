@@ -93,11 +93,17 @@ Brik operates across a **four-tier privilege hierarchy**, automatically detectin
 * **Random Cryptographic QR Token**: Generates a unique UUID token rendered as a QR code. Save the QR code onto a physical card, store it on a remote workstation, or print it out to establish deliberate physical friction.
 * **External Physical Object Pairing**: Pair an app bag with *any real-world barcode or QR code* (e.g., an ISBN barcode on a book in another room). The bag cannot be unlocked without physically walking over and scanning that designated object.
 
+> [!TIP]
+> **Physical Friction via Real-World QR Pairing:** Pair an app bag with a physical barcode on an item located in another room (e.g., an ISBN barcode on a book or an appliance in the kitchen). This breaks impulsive unlocking habits by requiring you to physically stand up and walk to the object to regain access.
+
 ### 3. Policy Enforcement Engines
 * **OS-Level Package Suspension**: Freezes applications at the Android OS layer. Suspended applications are grayed out by the launcher and cannot be launched by the user or background tasks.
 * **App Concealment (*Launcher Invisibility*)**: Unregisters launcher activities, causing distracting apps to completely vanish from the home screen and app drawer.
 * **Single-App Kiosk Mode**: Locks the device into a designated productive application, disabling home navigation, recent apps, and status bar expansion.
 * **Anti-Tamper Uninstallation Lockout**: Revoking Device Owner status strictly requires verifying your pre-configured security key (password or QR code). Non-DPM privilege switches are automatically concealed when Device Owner is active.
+
+> [!NOTE]
+> OS-level package suspension is completely non-destructive: all application data, logins, settings, and local user data remain preserved while the target application is frozen.
 
 ### 4. Privacy & Network Security
 * **System Private DNS (DNS-over-TLS)**: Manage global Android Private DNS settings directly within Brik.
@@ -112,6 +118,9 @@ Brik operates across a **four-tier privilege hierarchy**, automatically detectin
   ```
   *(Default code: `*#*#2745#*#*`)*
 * **Configurable Security PIN**: Customize your dialer sequence directly from the *Tools* window.
+
+> [!CAUTION]
+> **Record your secret code before enabling launcher concealment:** When "Hide Brik from Launcher" is toggled, Brik's icon will disappear from your app drawer. Ensure you remember or safely record your secret dialer code (`*#*#<dialer_code>#*#*`) before activating Stealth Mode.
 
 ### 6. Design & Motion Polish
 * **Material 3 Expressive UI**: Modern segmented container architecture, expressive toggle switches with animated checkmarks, and rounded squircle geometry.
@@ -179,6 +188,9 @@ If you already use Dhizuku to manage device administrator permissions:
 2. Open **Brik** and grant authorization when the Shizuku prompt appears.
 3. Brik will automatically utilize Shizuku for package suspension and concealment.
 
+> [!TIP]
+> On Android 11 and higher, you can start Shizuku completely on-device using native Wireless Debugging without needing a computer after initial Wi-Fi setup.
+
 </details>
 
 ---
@@ -189,6 +201,10 @@ If you already use Dhizuku to manage device administrator permissions:
 ```
 [ Tools Tab ] ──► [ Bags Manager ] ──► [ Select Apps ] ──► [ Choose Commitment ] ──► [ Sealed ]
 ```
+
+> [!WARNING]
+> **Safeguard your unlock credentials:** Because Brik enforces boundaries at the OS level, an active lock cannot be bypassed by clearing cache or rebooting your device. Ensure you know your password or have saved your QR token before sealing an application bag.
+
 1. Open **Brik** and navigate to the **Tools** tab.
 2. Tap **Bags** &rarr; **Create Bag**, then select the target applications.
 3. From the **Key** screen or **Bags** manager, tap **Lock**.
