@@ -51,7 +51,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
-import androidx.compose.material3.Switch
+import com.hotaro.brik.ui.component.BrikSwitch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -433,7 +433,7 @@ fun BagsWindow(
                                     color = if (isLocked) colorScheme.error else colorScheme.onSurface
                                 )
                                 Spacer(Modifier.width(4.dp))
-                                Switch(
+                                BrikSwitch(
                                     checked = isLocked,
                                     onCheckedChange = { shouldLock ->
                                         if (shouldLock) {

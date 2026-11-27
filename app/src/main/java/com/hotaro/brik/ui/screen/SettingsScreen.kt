@@ -52,7 +52,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
+import com.hotaro.brik.ui.component.BrikSwitch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -1218,7 +1218,7 @@ fun SettingsScreen(
                                     )
                                 }
 
-                                Switch(
+                                BrikSwitch(
                                     checked = isBagSuspended,
                                     onCheckedChange = { suspend ->
                                         settingsViewModel.suspendPackages(
@@ -1284,7 +1284,7 @@ fun SettingsScreen(
                                         color = colorScheme.onSurfaceVariant
                                     )
                                 }
-                                Switch(
+                                BrikSwitch(
                                     checked = isSuspended,
                                     onCheckedChange = { suspend ->
                                         settingsViewModel.suspendPackages(
@@ -1389,7 +1389,7 @@ fun SettingsScreen(
                                         color = colorScheme.onSurfaceVariant
                                     )
                                 }
-                                Switch(
+                                BrikSwitch(
                                     checked = isHidden,
                                     onCheckedChange = { hide ->
                                         settingsViewModel.toggleAppHidden(

@@ -26,7 +26,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.MaterialTheme.typography
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
+import com.hotaro.brik.ui.component.BrikSwitch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -186,7 +186,7 @@ fun SideloadLockWindow(onBack: () -> Unit) {
                         )
                     }
 
-                    Switch(
+                    BrikSwitch(
                         checked = isRestrictionActive,
                         onCheckedChange = { targetState ->
                             if (!isPrivileged) {
@@ -195,7 +195,7 @@ fun SideloadLockWindow(onBack: () -> Unit) {
                                     "Device Owner or Dhizuku privilege is required",
                                     Toast.LENGTH_SHORT
                                 ).show()
-                                return@Switch
+                                return@BrikSwitch
                             }
 
                             if (targetState) {
@@ -243,7 +243,7 @@ fun SideloadLockWindow(onBack: () -> Unit) {
                 leadingIcon = R.drawable.block_fill0,
                 shape = segmentedItemShape(0, 3),
                 trailingContent = {
-                    Switch(
+                    BrikSwitch(
                         checked = restrictUnknownSources,
                         onCheckedChange = { checked ->
                             if (isRestrictionActive && hasKey) {
@@ -263,7 +263,7 @@ fun SideloadLockWindow(onBack: () -> Unit) {
                 leadingIcon = R.drawable.apps_fill0,
                 shape = segmentedItemShape(1, 3),
                 trailingContent = {
-                    Switch(
+                    BrikSwitch(
                         checked = restrictPlayStore,
                         onCheckedChange = { checked ->
                             if (isRestrictionActive && hasKey) {
@@ -283,7 +283,7 @@ fun SideloadLockWindow(onBack: () -> Unit) {
                 leadingIcon = R.drawable.tools_fill0,
                 shape = segmentedItemShape(2, 3),
                 trailingContent = {
-                    Switch(
+                    BrikSwitch(
                         checked = restrictDeveloperOptions,
                         onCheckedChange = { checked ->
                             if (isRestrictionActive && hasKey) {

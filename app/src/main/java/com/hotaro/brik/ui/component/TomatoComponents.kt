@@ -18,7 +18,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchColors
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import com.hotaro.brik.R
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -188,3 +192,85 @@ fun TomatoSettingsItem(
         }
     }
 }
+
+/**
+ * Material 3 Expressive Switch with animated checkmark icon on checked state,
+ * compact outline track on unchecked state, and seamless primary accent theming.
+ */
+object BrikSwitchDefaults {
+    val IconSize: Dp = SwitchDefaults.IconSize
+
+    @Composable
+    fun colors(
+        checkedThumbColor: Color = MaterialTheme.colorScheme.onPrimary,
+        checkedTrackColor: Color = MaterialTheme.colorScheme.primary,
+        checkedBorderColor: Color = Color.Transparent,
+        checkedIconColor: Color = checkedTrackColor,
+        uncheckedThumbColor: Color = MaterialTheme.colorScheme.outline,
+        uncheckedTrackColor: Color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        uncheckedBorderColor: Color = MaterialTheme.colorScheme.outline,
+        disabledCheckedThumbColor: Color = MaterialTheme.colorScheme.surface.copy(alpha = 0.38f),
+        disabledCheckedTrackColor: Color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+        disabledUncheckedThumbColor: Color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+        disabledUncheckedTrackColor: Color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.12f),
+        disabledUncheckedBorderColor: Color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)
+    ): SwitchColors = SwitchDefaults.colors(
+        checkedThumbColor = checkedThumbColor,
+        checkedTrackColor = checkedTrackColor,
+        checkedBorderColor = checkedBorderColor,
+        checkedIconColor = checkedIconColor,
+        uncheckedThumbColor = uncheckedThumbColor,
+        uncheckedTrackColor = uncheckedTrackColor,
+        uncheckedBorderColor = uncheckedBorderColor,
+        disabledCheckedThumbColor = disabledCheckedThumbColor,
+        disabledCheckedTrackColor = disabledCheckedTrackColor,
+        disabledUncheckedThumbColor = disabledUncheckedThumbColor,
+        disabledUncheckedTrackColor = disabledUncheckedTrackColor,
+        disabledUncheckedBorderColor = disabledUncheckedBorderColor
+    )
+}
+
+typealias TomatoSwitchDefaults = BrikSwitchDefaults
+
+@Composable
+fun BrikSwitch(
+    checked: Boolean,
+    onCheckedChange: ((Boolean) -> Unit)?,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    thumbContent: (@Composable () -> Unit)? = if (checked) {
+        {
+            Icon(
+                painter = painterResource(R.drawable.check_fill0),
+                contentDescription = null,
+                modifier = Modifier.size(BrikSwitchDefaults.IconSize)
+            )
+        }
+    } else null,
+    colors: SwitchColors = BrikSwitchDefaults.colors(),
+    interactionSource: MutableInteractionSource? = null,
+) {
+    Switch(
+        checked = checked,
+        onCheckedChange = onCheckedChange,
+        modifier = modifier,
+        thumbContent = thumbContent,
+        enabled = enabled,
+        colors = colors,
+        interactionSource = interactionSource
+    )
+}
+
+@Composable
+fun TomatoSwitch(
+    checked: Boolean,
+    onCheckedChange: ((Boolean) -> Unit)?,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
+) = BrikSwitch(
+    checked = checked,
+    onCheckedChange = onCheckedChange,
+    modifier = modifier,
+    enabled = enabled
+)
+

@@ -29,7 +29,7 @@ import androidx.compose.material3.MaterialTheme.typography
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
+import com.hotaro.brik.ui.component.BrikSwitch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -182,7 +182,7 @@ fun EmergencyModeWindow(
                             }
                         }
 
-                        Switch(
+                        BrikSwitch(
                             checked = isEmergencyActive,
                             onCheckedChange = { active ->
                                 view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
@@ -325,7 +325,7 @@ fun EmergencyModeWindow(
                             }
                         }
 
-                        Switch(
+                        BrikSwitch(
                             checked = autoDeactivateOnLock,
                             onCheckedChange = { enabled ->
                                 view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
@@ -398,7 +398,7 @@ fun EmergencyModeWindow(
                             }
                         }
 
-                        Switch(
+                        BrikSwitch(
                             checked = allowCommonKeyDpm,
                             onCheckedChange = { enabled ->
                                 view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)

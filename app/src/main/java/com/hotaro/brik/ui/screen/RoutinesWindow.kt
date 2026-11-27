@@ -64,7 +64,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
+import com.hotaro.brik.ui.component.BrikSwitch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
@@ -563,7 +563,7 @@ fun RoutinesWindow(
                                                 }
                                             }
 
-                                            Switch(
+                                            BrikSwitch(
                                                 checked = routine.isEnabled,
                                                 onCheckedChange = { routineToToggle = routine }
                                             )
@@ -1876,7 +1876,7 @@ private fun RoutineDetailWindow(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        Switch(
+                                        BrikSwitch(
                                             checked = enableDns,
                                             onCheckedChange = { enableDns = it }
                                         )
@@ -2868,7 +2868,7 @@ private fun RoutineBreaksWindow(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
-                                        Switch(
+                                        BrikSwitch(
                                             checked = b.isEnabled,
                                             onCheckedChange = { checked ->
                                                 val updated = breaks.map {

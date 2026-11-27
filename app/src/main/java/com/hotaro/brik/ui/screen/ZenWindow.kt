@@ -85,7 +85,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
+import com.hotaro.brik.ui.component.BrikSwitch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -521,7 +521,7 @@ private fun InactiveZenConfigScreen(
                                             color = colorScheme.onSurfaceVariant
                                         )
                                     }
-                                    Switch(
+                                    BrikSwitch(
                                         checked = isInfiniteSelected,
                                         onCheckedChange = {
                                             isInfiniteSelected = it
@@ -814,7 +814,7 @@ private fun InactiveZenConfigScreen(
                         iconContainerColor = colorScheme.secondaryContainer,
                         iconTint = colorScheme.onSecondaryContainer,
                         trailingContent = {
-                            Switch(
+                            BrikSwitch(
                                 checked = useKiosk,
                                 onCheckedChange = { ZenManager.setUseKiosk(context, it) },
                                 colors = SwitchDefaults.colors(
@@ -840,7 +840,7 @@ private fun InactiveZenConfigScreen(
                             iconContainerColor = colorScheme.tertiaryContainer,
                             iconTint = colorScheme.onTertiaryContainer,
                             trailingContent = {
-                                Switch(
+                                BrikSwitch(
                                     checked = floatingControlsEnabled,
                                     onCheckedChange = { ZenManager.setFloatingControlsEnabled(context, it) },
                                     colors = SwitchDefaults.colors(

@@ -55,7 +55,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
+import com.hotaro.brik.ui.component.BrikSwitch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
@@ -208,7 +208,7 @@ fun WindDownWindow(
                     iconContainerColor = if (isWindDownActive) colorScheme.primary else colorScheme.primaryContainer,
                     iconTint = if (isWindDownActive) colorScheme.onPrimary else colorScheme.primary,
                     trailingContent = {
-                        Switch(
+                        BrikSwitch(
                             checked = isEnabled,
                             onCheckedChange = {
                                 WindDownManager.setEnabled(context, it, activity)
@@ -575,7 +575,7 @@ fun WindDownWindow(
                     iconContainerColor = colorScheme.primaryContainer,
                     iconTint = colorScheme.onPrimaryContainer,
                     trailingContent = {
-                        Switch(
+                        BrikSwitch(
                             checked = allowEmergencyUnlock,
                             onCheckedChange = {
                                 WindDownManager.setAllowEmergencyUnlock(context, it)
@@ -600,7 +600,7 @@ fun WindDownWindow(
                         iconContainerColor = colorScheme.tertiaryContainer,
                         iconTint = colorScheme.onTertiaryContainer,
                         trailingContent = {
-                            Switch(
+                            BrikSwitch(
                                 checked = floatingControlsEnabled,
                                 onCheckedChange = {
                                     WindDownManager.setFloatingControlsEnabled(context, it)

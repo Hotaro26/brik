@@ -49,7 +49,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
+import com.hotaro.brik.ui.component.BrikSwitch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -810,7 +810,7 @@ fun ToolsScreen(
                                 color = if (isAppHidden) colorScheme.error else colorScheme.onSurfaceVariant
                             )
                         }
-                        Switch(
+                        BrikSwitch(
                             checked = isAppHidden,
                             onCheckedChange = { hide ->
                                 StealthUtils.setAppHidden(context, hide)
@@ -1036,7 +1036,7 @@ fun ToolsScreen(
                                     )
                                 }
 
-                                Switch(
+                                BrikSwitch(
                                     checked = isVisible,
                                     onCheckedChange = { checked ->
                                         val newSet = if (checked) {
@@ -1191,7 +1191,7 @@ fun BagItemCard(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Switch(
+                    BrikSwitch(
                         checked = isLocked,
                         onCheckedChange = { onToggleLock(it) }
                     )

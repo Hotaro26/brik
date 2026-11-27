@@ -56,7 +56,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
+import com.hotaro.brik.ui.component.BrikSwitch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -429,7 +429,7 @@ fun GrayscaleWindow(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Switch(
+                            BrikSwitch(
                                 checked = isSystemwideEnabled,
                                 onCheckedChange = { targetState ->
                                     if (targetState && !hasWritePermission) {
@@ -583,7 +583,7 @@ fun GrayscaleWindow(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Switch(
+                            BrikSwitch(
                                 checked = isAppSpecificEnabled,
                                 onCheckedChange = { targetState ->
                                     if (targetState && !hasWritePermission) {
@@ -737,7 +737,7 @@ fun GrayscaleWindow(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Switch(
+                            BrikSwitch(
                                 checked = isKeyGuardEnabled,
                                 onCheckedChange = { targetState ->
                                     if (targetState) {
@@ -906,7 +906,7 @@ fun GrayscaleWindow(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Switch(
+                        BrikSwitch(
                             checked = tempEnabled,
                             onCheckedChange = { tempEnabled = it }
                         )
@@ -1097,7 +1097,7 @@ fun GrayscaleWindow(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Switch(
+                        BrikSwitch(
                             checked = tempEnabled,
                             onCheckedChange = { tempEnabled = it }
                         )

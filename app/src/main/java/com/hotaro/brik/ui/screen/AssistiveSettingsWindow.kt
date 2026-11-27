@@ -27,7 +27,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.MaterialTheme.typography
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
+import com.hotaro.brik.ui.component.BrikSwitch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -159,7 +159,7 @@ fun AssistiveSettingsWindow(onBack: () -> Unit) {
                         )
                     }
 
-                    Switch(
+                    BrikSwitch(
                         checked = enabled,
                         onCheckedChange = { AssistivePreferences.setEnabled(context, it) }
                     )
@@ -320,7 +320,7 @@ fun AssistiveSettingsWindow(onBack: () -> Unit) {
                             )
                         }
 
-                        Switch(
+                        BrikSwitch(
                             checked = item.checked,
                             onCheckedChange = item.onToggle
                         )

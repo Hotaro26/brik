@@ -62,7 +62,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
+import com.hotaro.brik.ui.component.BrikSwitch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -1920,7 +1920,7 @@ private fun ModeDetailWindow(
                                     iconContainerColor = colorScheme.secondaryContainer,
                                     iconTint = colorScheme.onSecondaryContainer,
                                     trailingContent = {
-                                        Switch(
+                                        BrikSwitch(
                                             checked = enableFloatingControls,
                                             onCheckedChange = { enableFloatingControls = it }
                                         )
@@ -1998,7 +1998,7 @@ private fun ModeDetailWindow(
                         iconContainerColor = colorScheme.primaryContainer,
                         iconTint = colorScheme.onPrimaryContainer,
                         trailingContent = {
-                            Switch(checked = enableDns, onCheckedChange = { enableDns = it })
+                            BrikSwitch(checked = enableDns, onCheckedChange = { enableDns = it })
                         },
                         shape = segmentedItemShape(0, 2),
                         onClick = { enableDns = !enableDns }
