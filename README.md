@@ -49,19 +49,19 @@ Most mobile screen-time blockers fail because they rely on *self-regulation* at 
 <div align="center">
   <table>
     <tr>
-      <td align="center"><img src="https://github.com/user-attachments/assets/fa9aa4d5-20dd-4f31-b632-7519533623f9" width="220" alt="Home Screen" /><br /><sub><b>Home & Bags Overview</b></sub></td>
-      <td align="center"><img src="https://github.com/user-attachments/assets/0f17d88a-83cf-47c1-9f1e-9ba4fec8d8bc" width="220" alt="Key Unlock Mechanism" /><br /><sub><b>Interactive Key Unlock</b></sub></td>
-      <td align="center"><img src="https://github.com/user-attachments/assets/e048f83e-7e75-45b3-8c84-dd8b9393cf26" width="220" alt="App Bag Creator" /><br /><sub><b>Bag Package Selection</b></sub></td>
+      <td align="center"><img src="https://github.com/user-attachments/assets/fa9aa4d5-20dd-4f31-b632-7519533623f9" width="220" alt="Home Screen" /><br /><sub><b></b></sub></td>
+      <td align="center"><img src="https://github.com/user-attachments/assets/0f17d88a-83cf-47c1-9f1e-9ba4fec8d8bc" width="220" alt="Key Unlock Mechanism" /><br /><sub><b></b></sub></td>
+      <td align="center"><img src="https://github.com/user-attachments/assets/e048f83e-7e75-45b3-8c84-dd8b9393cf26" width="220" alt="App Bag Creator" /><br /><sub><b></b></sub></td>
     </tr>
     <tr>
-      <td align="center"><img src="https://github.com/user-attachments/assets/8cd19b49-43ed-4dc8-880f-d22f60d4aed3" width="220" alt="Lock Options" /><br /><sub><b>Commitment Types</b></sub></td>
-      <td align="center"><img src="https://github.com/user-attachments/assets/1240e8cc-7e55-46dd-ad7c-555daf7396d9" width="220" alt="Tools & Security" /><br /><sub><b>Tools & System Security</b></sub></td>
-      <td align="center"><img src="https://github.com/user-attachments/assets/45d89b65-f528-4ed1-9577-fe4491fa0dcd" width="220" alt="Private DNS" /><br /><sub><b>Private DNS (DoT)</b></sub></td>
+      <td align="center"><img src="https://github.com/user-attachments/assets/8cd19b49-43ed-4dc8-880f-d22f60d4aed3" width="220" alt="Lock Options" /><br /><sub><b></b></sub></td>
+      <td align="center"><img src="https://github.com/user-attachments/assets/1240e8cc-7e55-46dd-ad7c-555daf7396d9" width="220" alt="Tools & Security" /><br /><sub><b></b></sub></td>
+      <td align="center"><img src="https://github.com/user-attachments/assets/45d89b65-f528-4ed1-9577-fe4491fa0dcd" width="220" alt="Private DNS" /><br /><sub><b></b></sub></td>
     </tr>
     <tr>
-      <td align="center"><img src="https://github.com/user-attachments/assets/fd29c995-2478-444b-8fd0-27d65fd6ab55" width="220" alt="Color Themes" /><br /><sub><b>Curated Color Palettes</b></sub></td>
-      <td align="center"><img src="https://github.com/user-attachments/assets/e4da66bc-cfea-4136-ba82-9a4aee615180" width="220" alt="About Window" /><br /><sub><b>About & Dynamic Shapes</b></sub></td>
-      <td align="center"><img src="https://github.com/user-attachments/assets/0e9160d2-e178-43f9-bf49-2ff6f373fb69" width="220" alt="Material Shapes Settings" /><br /><sub><b>Expressive Shapes Config</b></sub></td>
+      <td align="center"><img src="https://github.com/user-attachments/assets/fd29c995-2478-444b-8fd0-27d65fd6ab55" width="220" alt="Color Themes" /><br /><sub><b></b></sub></td>
+      <td align="center"><img src="https://github.com/user-attachments/assets/e4da66bc-cfea-4136-ba82-9a4aee615180" width="220" alt="About Window" /><br /><sub><b></b></sub></td>
+      <td align="center"><img src="https://github.com/user-attachments/assets/0e9160d2-e178-43f9-bf49-2ff6f373fb69" width="220" alt="Material Shapes Settings" /><br /><sub><b></b></sub></td>
     </tr>
   </table>
 </div>
