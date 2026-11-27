@@ -1,6 +1,7 @@
 package com.hotaro.brik.util
 
 import android.app.AppOpsManager
+import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.os.Process
@@ -8,9 +9,13 @@ import com.hotaro.brik.data.model.KeyType
 import com.hotaro.brik.data.repository.AppLimitRepository
 import com.hotaro.brik.data.repository.KeyRepository
 import com.hotaro.brik.policy.PolicyBridgeManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import java.util.Calendar
 
 object AppLimitManager {
@@ -119,8 +124,14 @@ object AppLimitManager {
         return mode == AppOpsManager.MODE_ALLOWED
     }
 
-    fun getUsageMinutesToday(context: Context, packageName: String): Int {
-        val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager ?: return 0
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    @Volatile
+    private var lastEnforceMs: Long = 0L
+
+    fun getUsageMapToday(context: Context): Map<String, Int> {
+        if (!hasUsageStatsPermission(context)) return emptyMap()
+        val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager ?: return emptyMap()
         val cal = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, 0)
             set(Calendar.MINUTE, 0)
@@ -129,10 +140,51 @@ object AppLimitManager {
         }
         val startTime = cal.timeInMillis
         val endTime = System.currentTimeMillis()
+        if (endTime <= startTime) return emptyMap()
 
-        val stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, startTime, endTime) ?: return 0
-        val totalMs = stats.filter { it.packageName == packageName }.sumOf { it.totalTimeInForeground }
-        return (totalMs / 1000 / 60).toInt()
+        val lastResumed = mutableMapOf<String, Long>()
+        val totalMs = mutableMapOf<String, Long>()
+
+        try {
+            val events = usm.queryEvents(startTime, endTime)
+            val event = UsageEvents.Event()
+            while (events.hasNextEvent()) {
+                events.getNextEvent(event)
+                val pkg = event.packageName ?: continue
+                when (event.eventType) {
+                    UsageEvents.Event.ACTIVITY_RESUMED -> {
+                        lastResumed[pkg] = event.timeStamp
+                    }
+                    UsageEvents.Event.ACTIVITY_PAUSED,
+                    UsageEvents.Event.ACTIVITY_STOPPED -> {
+                        val resumeTs = lastResumed.remove(pkg)
+                        if (resumeTs != null && event.timeStamp >= resumeTs) {
+                            totalMs[pkg] = (totalMs[pkg] ?: 0L) + (event.timeStamp - resumeTs)
+                        }
+                    }
+                }
+            }
+            for ((pkg, resumeTs) in lastResumed) {
+                if (endTime >= resumeTs) {
+                    totalMs[pkg] = (totalMs[pkg] ?: 0L) + (endTime - resumeTs)
+                }
+            }
+        } catch (_: Exception) {
+        }
+
+        if (totalMs.isNotEmpty()) {
+            return totalMs.mapValues { (_, ms) -> (ms / 60_000L).toInt() }
+        }
+
+        val stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, startTime, endTime).orEmpty()
+        return stats
+            .filter { it.lastTimeUsed >= startTime && it.totalTimeInForeground > 0L }
+            .groupBy { it.packageName }
+            .mapValues { (_, list) -> (list.maxOf { it.totalTimeInForeground } / 60_000L).toInt() }
+    }
+
+    fun getUsageMinutesToday(context: Context, packageName: String): Int {
+        return getUsageMapToday(context)[packageName] ?: 0
     }
 
     fun enforceAppRestriction(
@@ -154,30 +206,23 @@ object AppLimitManager {
         }
     }
 
-    fun checkAndEnforceLimits(context: Context) {
-        val repo = AppLimitRepository(context)
-        val limits = repo.limits.value
-        if (limits.isEmpty()) return
+    fun checkAndEnforceLimits(context: Context, force: Boolean = false) {
+        val now = System.currentTimeMillis()
+        if (!force && now - lastEnforceMs < 1500L) return
+        lastEnforceMs = now
 
-        val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
-        val cal = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }
-        val startTime = cal.timeInMillis
-        val endTime = System.currentTimeMillis()
+        val appContext = context.applicationContext
+        scope.launch {
+            val repo = AppLimitRepository(appContext)
+            val limits = repo.limits.value
+            if (limits.isEmpty()) return@launch
 
-        val stats = usm?.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, startTime, endTime).orEmpty()
-        val usageMap = stats.groupBy { it.packageName }.mapValues { (_, list) ->
-            (list.sumOf { it.totalTimeInForeground } / 1000 / 60).toInt()
-        }
-
-        for (limit in limits.values) {
-            val usedMinutes = usageMap[limit.packageName] ?: 0
-            if (limit.isRestricted || limit.dailyLimitMinutes == 0 || usedMinutes >= limit.dailyLimitMinutes) {
-                enforceAppRestriction(context, limit.packageName, limit.blockMode, true)
+            val usageMap = getUsageMapToday(appContext)
+            for (limit in limits.values) {
+                val usedMinutes = usageMap[limit.packageName] ?: 0
+                if (limit.isRestricted || limit.dailyLimitMinutes == 0 || usedMinutes >= limit.dailyLimitMinutes) {
+                    enforceAppRestriction(appContext, limit.packageName, limit.blockMode, true)
+                }
             }
         }
     }

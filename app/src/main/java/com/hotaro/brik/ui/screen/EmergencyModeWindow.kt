@@ -219,6 +219,7 @@ fun EmergencyModeWindow(
                         .padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    val isEmergencyCommonKey = com.hotaro.brik.util.CommonKeyManager.isFollowingAndReady(context, "emergency_key")
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
@@ -230,14 +231,14 @@ fun EmergencyModeWindow(
                         ) {
                             Surface(
                                 shape = CircleShape,
-                                color = if (hasEmergencyKey) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                color = if (hasEmergencyKey || isEmergencyCommonKey) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
                                 modifier = Modifier.size(38.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(
                                         painter = painterResource(R.drawable.password_fill0),
                                         contentDescription = null,
-                                        tint = if (hasEmergencyKey) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                                        tint = if (hasEmergencyKey || isEmergencyCommonKey) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
@@ -245,30 +246,32 @@ fun EmergencyModeWindow(
                             Spacer(Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = if (hasEmergencyKey) "Emergency Key Configured" else "No Emergency Key Set",
+                                    text = if (isEmergencyCommonKey) "Common Key Configured" else if (hasEmergencyKey) "Emergency Key Configured" else "No Emergency Key Set",
                                     style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                                     color = colorScheme.onSurface
                                 )
                                 Text(
-                                    text = if (hasEmergencyKey) "Required to activate emergency mode" else "Must configure a key before activating",
+                                    text = if (isEmergencyCommonKey) "Common Key configured for this" else if (hasEmergencyKey) "Required to activate emergency mode" else "Must configure a key before activating",
                                     style = typography.bodySmall,
                                     color = colorScheme.onSurfaceVariant
                                 )
                             }
                         }
 
-                        Button(
-                            onClick = {
-                                if (!hasEmergencyKey) {
-                                    showSetKeyDialog = true
-                                } else {
-                                    isChangingKey = true
-                                    showVerifyKeyDialog = true
-                                }
-                            },
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Text(if (hasEmergencyKey) "Change" else "Set Key", style = typography.labelSmall)
+                        if (!isEmergencyCommonKey) {
+                            Button(
+                                onClick = {
+                                    if (!hasEmergencyKey) {
+                                        showSetKeyDialog = true
+                                    } else {
+                                        isChangingKey = true
+                                        showVerifyKeyDialog = true
+                                    }
+                                },
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Text(if (hasEmergencyKey) "Change" else "Set Key", style = typography.labelSmall)
+                            }
                         }
                     }
                 }

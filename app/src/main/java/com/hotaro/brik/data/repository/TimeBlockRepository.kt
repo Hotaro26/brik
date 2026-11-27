@@ -18,6 +18,7 @@ import com.hotaro.brik.service.TimeBlockService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.util.Calendar
@@ -395,16 +396,25 @@ class TimeBlockRepository(private val context: Context) {
 
         // 4. Enforce app suspension via PolicyBridgeManager
         val allBags = bagRepository.bags.value
+        val appLimitRestricted = AppLimitRepository(context).limits.value.values
+            .filter { it.isRestricted || it.dailyLimitMinutes == 0 }
+            .map { it.packageName }
+            .toSet()
         val allKnownPackages = allBags.flatMap { it.packageNames }.toSet() + packagesToSuspend
-        val packagesToUnsuspend = allKnownPackages - packagesToSuspend
+        val packagesToUnsuspend = allKnownPackages - packagesToSuspend - appLimitRestricted
 
-        if (packagesToSuspend.isNotEmpty()) {
-            PolicyBridgeManager.suspendPackages(context, packagesToSuspend.toList(), true)
-            PolicyBridgeManager.setUninstallBlocked(context, packagesToSuspend.toList(), true)
-        }
-        if (packagesToUnsuspend.isNotEmpty()) {
-            PolicyBridgeManager.suspendPackages(context, packagesToUnsuspend.toList(), false)
-            PolicyBridgeManager.setUninstallBlocked(context, packagesToUnsuspend.toList(), false)
+        val suspendList = packagesToSuspend.toList()
+        val unsuspendList = packagesToUnsuspend.toList()
+        val appCtx = context.applicationContext
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO).launch {
+            if (suspendList.isNotEmpty()) {
+                PolicyBridgeManager.suspendPackages(appCtx, suspendList, true)
+                PolicyBridgeManager.setUninstallBlocked(appCtx, suspendList, true)
+            }
+            if (unsuspendList.isNotEmpty()) {
+                PolicyBridgeManager.suspendPackages(appCtx, unsuspendList, false)
+                PolicyBridgeManager.setUninstallBlocked(appCtx, unsuspendList, false)
+            }
         }
 
         // 5. Enforce DNS Blocking

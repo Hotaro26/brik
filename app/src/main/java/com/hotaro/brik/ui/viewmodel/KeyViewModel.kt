@@ -91,12 +91,20 @@ class KeyViewModel(application: Application) : AndroidViewModel(application) {
             val valid = repository.verifyAndUnlock(lock.id, inputSecret)
             if (valid) {
                 withContext(Dispatchers.IO) {
-                    // Only release packages that are not locked in another active bag
+                    // Only release packages that are not locked in another active bag, Focus Mode, Routine, or App Manager restriction
                     val remainingLockedPackages = repository.activeLocks.value
                         .filter { it.id != lock.id }
                         .flatMap { it.packageNames }
                         .toSet()
-                    val packagesToRelease = lock.packageNames.filterNot { remainingLockedPackages.contains(it) }
+                    val activeTimeBlockPackages = TimeBlockRepository.getInstance(context)
+                        .activeSession.value?.packagesSuspended.orEmpty().toSet()
+                    val appLimitRestricted = com.hotaro.brik.data.repository.AppLimitRepository(context)
+                        .limits.value.values
+                        .filter { it.isRestricted || it.dailyLimitMinutes == 0 }
+                        .map { it.packageName }
+                        .toSet()
+                    val protectedPackages = remainingLockedPackages + activeTimeBlockPackages + appLimitRestricted
+                    val packagesToRelease = lock.packageNames.filterNot { protectedPackages.contains(it) }
 
                     if (packagesToRelease.isNotEmpty()) {
                         if (lock.actionType == com.hotaro.brik.data.model.BagAction.HIDE) {

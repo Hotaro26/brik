@@ -301,9 +301,12 @@ fun SideloadLockWindow(onBack: () -> Unit) {
             // SECTION 2: SECURITY & AUTHENTICATION
             TomatoSectionHeader(title = "SECURITY KEY")
 
+            val isSideloadCommonKey = com.hotaro.brik.util.CommonKeyManager.isFollowingAndReady(context, "sideload_adb_lock")
             TomatoSettingsItem(
-                title = if (hasKey) "Security Key Configured" else "Configure Security Key",
-                subtitle = if (hasKey) {
+                title = if (isSideloadCommonKey) "Common Key Configured" else if (hasKey) "Security Key Configured" else "Configure Security Key",
+                subtitle = if (isSideloadCommonKey) {
+                    "Common Key configured for this"
+                } else if (hasKey) {
                     "Guards toggles and prevents unauthorized deactivation • Tap to reconfigure"
                 } else {
                     "Set a password or QR key required to lift lockdown"
@@ -313,19 +316,21 @@ fun SideloadLockWindow(onBack: () -> Unit) {
                 trailingContent = {
                     Surface(
                         shape = RoundedCornerShape(10.dp),
-                        color = if (hasKey) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                        color = if (hasKey || isSideloadCommonKey) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
                         modifier = Modifier.padding(vertical = 4.dp)
                     ) {
                         Text(
-                            text = if (hasKey) "Active" else "Not Set",
+                            text = if (isSideloadCommonKey) "Common Key" else if (hasKey) "Active" else "Not Set",
                             style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = if (hasKey) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                            color = if (hasKey || isSideloadCommonKey) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                         )
                     }
                 },
                 onClick = {
-                    if (isRestrictionActive && hasKey) {
+                    if (isSideloadCommonKey) {
+                        Toast.makeText(context, "Common Key configured for this", Toast.LENGTH_SHORT).show()
+                    } else if (isRestrictionActive && hasKey) {
                         Toast.makeText(context, "Lift restrictions first to modify the key", Toast.LENGTH_SHORT).show()
                     } else if (hasKey) {
                         showVerifyBeforeReconfigureDialog = true

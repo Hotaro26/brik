@@ -1,6 +1,16 @@
 package com.hotaro.brik.ui.screen
 
+import android.content.Intent
+import android.provider.Settings
 import android.widget.Toast
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.hotaro.brik.util.CommonKeyManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
@@ -120,8 +130,45 @@ fun AppManagerWindow(
 
     val isKeyGuardEnabled by AppLimitManager.isKeyGuardEnabled.collectAsState()
     val hasSecurityKey by AppLimitManager.hasSecurityKey.collectAsState()
+    val isUsingCommonKey = remember(context) {
+        CommonKeyManager.isFollowingAndReady(context, AppLimitManager.SYSTEM_KEY_ID)
+    }
     val keyRepository = remember(context) { KeyRepository(context) }
     val savedKeys by keyRepository.savedKeys.collectAsState()
+
+    var hasUsagePermission by remember { mutableStateOf(AppLimitManager.hasUsageStatsPermission(context)) }
+    var showUsagePermissionDialog by remember { mutableStateOf(!hasUsagePermission) }
+    var usageMinutesMap by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                val granted = AppLimitManager.hasUsageStatsPermission(context)
+                hasUsagePermission = granted
+                if (granted) {
+                    showUsagePermissionDialog = false
+                    AppLimitManager.checkAndEnforceLimits(context, force = true)
+                    coroutineScope.launch {
+                        usageMinutesMap = withContext(Dispatchers.IO) {
+                            AppLimitManager.getUsageMapToday(context)
+                        }
+                    }
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(hasUsagePermission) {
+        if (hasUsagePermission) {
+            AppLimitManager.checkAndEnforceLimits(context, force = true)
+            usageMinutesMap = withContext(Dispatchers.IO) {
+                AppLimitManager.getUsageMapToday(context)
+            }
+        }
+    }
 
     var showKeyLockSheet by remember { mutableStateOf(false) }
     var showSetKeyDialog by remember { mutableStateOf(false) }
@@ -290,6 +337,45 @@ fun AppManagerWindow(
 
                 Spacer(Modifier.height(14.dp))
 
+                if (!hasUsagePermission) {
+                    Surface(
+                        onClick = {
+                            context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+                        },
+                        shape = RoundedCornerShape(16.dp),
+                        color = colorScheme.errorContainer,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f).padding(end = 10.dp)) {
+                                Text(
+                                    text = "Usage Access Required",
+                                    style = typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                    color = colorScheme.onErrorContainer
+                                )
+                                Text(
+                                    text = "Grant Usage Access so Brik can read app screen time and enforce daily limits.",
+                                    style = typography.bodySmall,
+                                    color = colorScheme.onErrorContainer.copy(alpha = 0.85f)
+                                )
+                            }
+                            Text(
+                                text = "Grant",
+                                style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = colorScheme.onErrorContainer
+                            )
+                        }
+                    }
+                }
+
                 // App list
                 if (isLoadingApps) {
                     Box(
@@ -352,11 +438,13 @@ fun AppManagerWindow(
                         items(filteredApps, key = { it.packageName }) { app ->
                             val isExpanded = expandedPackage == app.packageName
                             val currentLimit = appLimits[app.packageName]
+                            val usedMins = usageMinutesMap[app.packageName] ?: 0
 
                             ExpressiveAppCard(
                                 app = app,
                                 isExpanded = isExpanded,
                                 currentLimit = currentLimit,
+                                usedMinutesToday = usedMins,
                                 onToggleExpand = {
                                     expandedPackage = if (isExpanded) null else app.packageName
                                 },
@@ -510,37 +598,99 @@ fun AppManagerWindow(
                     }
                 }
 
-                Button(
-                    onClick = {
-                        if (hasSecurityKey) {
-                            showVerifyBeforeChangeKeyDialog = true
-                        } else {
-                            showSetKeyDialog = true
+                if (isUsingCommonKey) {
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = colorScheme.secondaryContainer,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.key_fill0),
+                                contentDescription = null,
+                                tint = colorScheme.onSecondaryContainer,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = "Common Key configured for this. Manage or toggle it in Keys & Analytics.",
+                                style = typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                                color = colorScheme.onSecondaryContainer
+                            )
                         }
-                    },
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(if (hasSecurityKey) "Change Security Key" else "Configure Security Key")
-                }
-
-                if (hasSecurityKey) {
-                    OutlinedButton(
+                    }
+                } else {
+                    Button(
                         onClick = {
-                            performGuardedAction {
-                                AppLimitManager.clearSecurityKey(context)
-                                Toast.makeText(context, "App Manager key removed", Toast.LENGTH_SHORT).show()
+                            if (hasSecurityKey) {
+                                showVerifyBeforeChangeKeyDialog = true
+                            } else {
+                                showSetKeyDialog = true
                             }
                         },
                         shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = colorScheme.error),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Remove Security Key")
+                        Text(if (hasSecurityKey) "Change Security Key" else "Configure Security Key")
+                    }
+
+                    if (hasSecurityKey) {
+                        OutlinedButton(
+                            onClick = {
+                                performGuardedAction {
+                                    AppLimitManager.clearSecurityKey(context)
+                                    Toast.makeText(context, "App Manager key removed", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = colorScheme.error),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Remove Security Key")
+                        }
                     }
                 }
             }
         }
+    }
+
+    if (showUsagePermissionDialog && !hasUsagePermission) {
+        AlertDialog(
+            onDismissRequest = { showUsagePermissionDialog = false },
+            title = {
+                Text(
+                    text = "Usage Access Needed",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "To track each app's daily screen time and block apps when they exceed their limit, please grant Usage Access to Brik."
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showUsagePermissionDialog = false
+                        context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+                    }
+                ) {
+                    Text("Grant Access")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showUsagePermissionDialog = false }) {
+                    Text("Later")
+                }
+            },
+            shape = RoundedCornerShape(24.dp),
+            containerColor = colorScheme.surfaceContainerHigh
+        )
     }
 
     if (showSetKeyDialog) {
@@ -599,6 +749,7 @@ fun ExpressiveAppCard(
     app: AppInfo,
     isExpanded: Boolean,
     currentLimit: AppLimit?,
+    usedMinutesToday: Int = 0,
     onToggleExpand: () -> Unit,
     onToggleRestrict: (mode: String, restrict: Boolean) -> Unit,
     onSaveLimit: (minutes: Int, mode: String, isRestricted: Boolean) -> Unit,
@@ -715,7 +866,7 @@ fun ExpressiveAppCard(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
-                            text = app.packageName,
+                            text = if (usedMinutesToday > 0) "${usedMinutesToday}m today • ${app.packageName}" else app.packageName,
                             style = typography.bodySmall.copy(
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 11.sp
@@ -1035,7 +1186,7 @@ fun ExpressiveAppCard(
                         }
                     }
 
-                    Spacer(Modifier.height(14.dp))
+                        Spacer(Modifier.height(14.dp))
 
                     // Action Buttons Row: Remove Limit & Save Limit
                     Row(

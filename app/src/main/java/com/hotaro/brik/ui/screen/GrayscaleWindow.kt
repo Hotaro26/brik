@@ -809,13 +809,16 @@ fun GrayscaleWindow(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
+                                val isCommonKey = com.hotaro.brik.util.CommonKeyManager.isFollowingAndReady(context, "grayscale_security_key")
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = "Grayscale Security Key",
                                         style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                                         color = colorScheme.onSurface
                                     )
-                                    val grayKeyName = if (hasSecurityKey) {
+                                    val grayKeyName = if (isCommonKey) {
+                                        "Common Key configured for this"
+                                    } else if (hasSecurityKey) {
                                         val qrToken = context.getSharedPreferences("brik_grayscale_preferences", Context.MODE_PRIVATE)
                                             .getString("pref_grayscale_qr_token", null)
                                         if (!qrToken.isNullOrBlank()) {
@@ -827,24 +830,26 @@ fun GrayscaleWindow(
                                         "Uses System Emergency Key"
                                     }
                                     Text(
-                                        text = if (hasSecurityKey) "Configured • $grayKeyName" else "Uses System Emergency Key",
+                                        text = if (isCommonKey) "Common Key configured for this" else if (hasSecurityKey) "Configured • $grayKeyName" else "Uses System Emergency Key",
                                         style = typography.bodySmall,
                                         color = colorScheme.onSurfaceVariant
                                     )
                                 }
 
-                                Button(
-                                    onClick = {
-                                        if (hasSecurityKey) {
-                                            showVerifyBeforeChangeKeyDialog = true
-                                        } else {
-                                            showSetKeyDialog = true
-                                        }
-                                    },
-                                    shape = CircleShape,
-                                    colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary)
-                                ) {
-                                    Text(if (hasSecurityKey) "Change" else "Configure")
+                                if (!isCommonKey) {
+                                    Button(
+                                        onClick = {
+                                            if (hasSecurityKey) {
+                                                showVerifyBeforeChangeKeyDialog = true
+                                            } else {
+                                                showSetKeyDialog = true
+                                            }
+                                        },
+                                        shape = CircleShape,
+                                        colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary)
+                                    ) {
+                                        Text(if (hasSecurityKey) "Change" else "Configure")
+                                    }
                                 }
                             }
                         }

@@ -667,32 +667,39 @@ fun WindDownWindow(
                 }
 
                 // Protection Key
+                val isWindDownCommonKey = com.hotaro.brik.util.CommonKeyManager.isFollowingAndReady(context, "wind_down_security_key")
                 TomatoSettingsItem(
-                    title = "Protection Key",
-                    subtitle = if (hasSecurityKey) {
+                    title = if (isWindDownCommonKey) "Common Key Configured" else "Protection Key",
+                    subtitle = if (isWindDownCommonKey) {
+                        "Common Key configured for this"
+                    } else if (hasSecurityKey) {
                         "Configured (${WindDownManager.getKeyType(context).name}) • Required to exit"
                     } else {
                         "Using system emergency key • Tap to configure"
                     },
                     leadingIcon = R.drawable.key_fill0,
-                    iconContainerColor = if (hasSecurityKey) colorScheme.primaryContainer else colorScheme.surfaceContainerHighest,
-                    iconTint = if (hasSecurityKey) colorScheme.primary else colorScheme.onSurfaceVariant,
+                    iconContainerColor = if (hasSecurityKey || isWindDownCommonKey) colorScheme.primaryContainer else colorScheme.surfaceContainerHighest,
+                    iconTint = if (hasSecurityKey || isWindDownCommonKey) colorScheme.primary else colorScheme.onSurfaceVariant,
                     trailingContent = {
-                        Surface(
-                            shape = CircleShape,
-                            color = if (hasSecurityKey) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest
-                        ) {
-                            Text(
-                                text = if (hasSecurityKey) "Change" else "Configure",
-                                style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = if (hasSecurityKey) colorScheme.onPrimaryContainer else colorScheme.primary,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                            )
+                        if (!isWindDownCommonKey) {
+                            Surface(
+                                shape = CircleShape,
+                                color = if (hasSecurityKey) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest
+                            ) {
+                                Text(
+                                    text = if (hasSecurityKey) "Change" else "Configure",
+                                    style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = if (hasSecurityKey) colorScheme.onPrimaryContainer else colorScheme.primary,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                )
+                            }
                         }
                     },
                     shape = segmentedItemShape(2, 3),
                     onClick = {
-                        showSetKeyDialog = true
+                        if (!isWindDownCommonKey) {
+                            showSetKeyDialog = true
+                        }
                     }
                 )
             }

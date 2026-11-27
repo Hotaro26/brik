@@ -11,13 +11,25 @@ import java.util.UUID
 
 class BagRepository(context: Context) {
     private val prefs = context.getSharedPreferences("brik_bags_pref", Context.MODE_PRIVATE)
-    private val json = Json { ignoreUnknownKeys = true }
+    companion object {
+        private val json = Json { ignoreUnknownKeys = true }
+        private val _bags = MutableStateFlow<List<AppBag>>(emptyList())
 
-    private val _bags = MutableStateFlow<List<AppBag>>(emptyList())
+        @Volatile
+        private var isLoaded = false
+    }
+
     val bags: StateFlow<List<AppBag>> = _bags.asStateFlow()
 
     init {
-        loadBags()
+        if (!isLoaded) {
+            synchronized(BagRepository::class.java) {
+                if (!isLoaded) {
+                    loadBags()
+                    isLoaded = true
+                }
+            }
+        }
     }
 
     private fun loadBags() {

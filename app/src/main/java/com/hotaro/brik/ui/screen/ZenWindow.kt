@@ -905,23 +905,26 @@ private fun InactiveZenConfigScreen(
                     }
 
                     // 3. Security Key Protection Item
+                    val isZenCommonKey = com.hotaro.brik.util.CommonKeyManager.isFollowingAndReady(context, "zen_security_key")
                     TomatoSettingsItem(
-                        title = if (hasKey) "Security Key Active" else "Security Key Required",
-                        subtitle = if (hasKey) "Guards early exit • $activeKeyName" else "Configure key to enable Zen Mode",
-                        leadingIcon = if (hasKey) R.drawable.check_fill0 else R.drawable.shield_fill0,
-                        iconContainerColor = if (hasKey) colorScheme.primaryContainer else colorScheme.errorContainer,
-                        iconTint = if (hasKey) colorScheme.onPrimaryContainer else colorScheme.onErrorContainer,
+                        title = if (isZenCommonKey) "Common Key Configured" else if (hasKey) "Security Key Active" else "Security Key Required",
+                        subtitle = if (isZenCommonKey) "Common Key configured for this" else if (hasKey) "Guards early exit • $activeKeyName" else "Configure key to enable Zen Mode",
+                        leadingIcon = if (hasKey || isZenCommonKey) R.drawable.check_fill0 else R.drawable.shield_fill0,
+                        iconContainerColor = if (hasKey || isZenCommonKey) colorScheme.primaryContainer else colorScheme.errorContainer,
+                        iconTint = if (hasKey || isZenCommonKey) colorScheme.onPrimaryContainer else colorScheme.onErrorContainer,
                         trailingContent = {
-                            Button(
-                                onClick = onSetKeyRequested,
-                                shape = CircleShape,
-                                colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary)
-                            ) {
-                                Text(if (hasKey) "Change" else "Configure", style = typography.labelSmall)
+                            if (!isZenCommonKey) {
+                                Button(
+                                    onClick = onSetKeyRequested,
+                                    shape = CircleShape,
+                                    colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary)
+                                ) {
+                                    Text(if (hasKey) "Change" else "Configure", style = typography.labelSmall)
+                                }
                             }
                         },
                         shape = segmentedItemShape(2, 3),
-                        onClick = onSetKeyRequested
+                        onClick = { if (!isZenCommonKey) onSetKeyRequested() }
                     )
                 }
 
