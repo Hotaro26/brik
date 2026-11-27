@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="brik_icon.png" width="220" height="220" alt="Brik Logo" style="border-radius: 44px;" />
+  <img src="icon/brik_icon.png" width="220" height="220" alt="Brik Logo" style="border-radius: 44px;" />
 </p>
 
 <h1 align="center">Brik</h1>
