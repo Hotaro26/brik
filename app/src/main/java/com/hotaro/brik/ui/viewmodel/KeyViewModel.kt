@@ -81,6 +81,48 @@ class KeyViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun lockBagWithCommonKey(
+        context: Context,
+        bag: AppBag,
+        onResult: (Boolean, String?) -> Unit
+    ) {
+        val secretHash = com.hotaro.brik.util.CommonKeyManager.getSecretHash(context)
+        if (secretHash.isNullOrBlank()) {
+            onResult(false, "Common Key is not configured")
+            return
+        }
+        val keyType = com.hotaro.brik.util.CommonKeyManager.getKeyType(context)
+        val qrToken = com.hotaro.brik.util.CommonKeyManager.getQrToken(context)
+        viewModelScope.launch {
+            val pkgList = bag.packageNames.toList()
+            val actionResult = withContext(Dispatchers.IO) {
+                val res = if (bag.actionType == com.hotaro.brik.data.model.BagAction.HIDE) {
+                    PolicyBridgeManager.setPackagesHidden(context, pkgList, true)
+                } else {
+                    PolicyBridgeManager.suspendPackages(context, pkgList, true)
+                }
+                if (res.isSuccess) {
+                    PolicyBridgeManager.setUninstallBlocked(context, pkgList, true)
+                }
+                res
+            }
+            if (actionResult.isSuccess) {
+                repository.lockBagWithHash(
+                    bagId = bag.id,
+                    bagName = bag.name,
+                    packages = bag.packageNames,
+                    keyType = keyType,
+                    secretHash = secretHash,
+                    qrToken = qrToken,
+                    actionType = bag.actionType
+                )
+                onResult(true, null)
+            } else {
+                onResult(false, actionResult.exceptionOrNull()?.message ?: "Failed to enforce bag policy")
+            }
+        }
+    }
+
     fun unlockBag(
         context: Context,
         lock: BagLock,

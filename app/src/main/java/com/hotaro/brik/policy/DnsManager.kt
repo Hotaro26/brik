@@ -172,11 +172,17 @@ object DnsManager {
     private const val KEY_DNS_KEY_HASH = "dns_key_hash"
 
     fun hasKeyLock(context: Context): Boolean {
+        if (com.hotaro.brik.util.CommonKeyManager.isFollowingAndReady(context, "dns_lock")) {
+            return true
+        }
         val prefs = context.getSharedPreferences(PREFS_DNS_LOCK, Context.MODE_PRIVATE)
         return prefs.getBoolean(KEY_DNS_LOCK_ENABLED, false) && !prefs.getString(KEY_DNS_KEY_HASH, null).isNullOrBlank()
     }
 
     fun getKeyType(context: Context): KeyType {
+        if (com.hotaro.brik.util.CommonKeyManager.isFollowingAndReady(context, "dns_lock")) {
+            return com.hotaro.brik.util.CommonKeyManager.getKeyType(context)
+        }
         val prefs = context.getSharedPreferences(PREFS_DNS_LOCK, Context.MODE_PRIVATE)
         val name = prefs.getString(KEY_DNS_KEY_TYPE, KeyType.PASSWORD.name) ?: KeyType.PASSWORD.name
         return try { KeyType.valueOf(name) } catch (e: Exception) { KeyType.PASSWORD }
@@ -209,6 +215,9 @@ object DnsManager {
     }
 
     fun verifySecurityKey(context: Context, input: String): Boolean {
+        if (com.hotaro.brik.util.CommonKeyManager.isFollowingAndReady(context, "dns_lock")) {
+            return com.hotaro.brik.util.CommonKeyManager.verifyCommonKey(context, input)
+        }
         val prefs = context.getSharedPreferences(PREFS_DNS_LOCK, Context.MODE_PRIVATE)
         val storedHash = prefs.getString(KEY_DNS_KEY_HASH, null) ?: return true
         val inputHash = QrUtils.sha256(input)

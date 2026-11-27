@@ -14,5 +14,6 @@ data class AppBag(
     val name: String,
     val packageNames: Set<String>,
     val createdAt: Long = System.currentTimeMillis(),
-    val actionType: BagAction = BagAction.SUSPEND
+    val actionType: BagAction = BagAction.SUSPEND,
+    val useCommonKey: Boolean? = null
 )

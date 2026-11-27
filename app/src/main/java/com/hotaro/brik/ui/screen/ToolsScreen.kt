@@ -123,7 +123,10 @@ fun ToolsScreen(
     }
 
     var dnsStatus by remember { mutableStateOf(DnsManager.getCurrentDns(context)) }
-    var hasDnsLock by remember { mutableStateOf(DnsManager.hasKeyLock(context)) }
+    val commonFollowingMap by com.hotaro.brik.util.CommonKeyManager.followingMap.collectAsState()
+    val hasCommonKey by com.hotaro.brik.util.CommonKeyManager.hasCommonKey.collectAsState()
+    val isDnsCommonKey = (commonFollowingMap["dns_lock"] == true) && hasCommonKey
+    var hasDnsLock by remember(isDnsCommonKey) { mutableStateOf(DnsManager.hasKeyLock(context)) }
     var showSetDnsKeyDialog by remember { mutableStateOf(false) }
     var showVerifyDnsKeyDialog by remember { mutableStateOf(false) }
     var pendingDnsAction by remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -618,12 +621,14 @@ fun ToolsScreen(
                             Spacer(Modifier.width(10.dp))
                             Column {
                                 Text(
-                                    text = "Protection Key (Optional)",
+                                    text = if (isDnsCommonKey) "Common Key Configured" else "Protection Key (Optional)",
                                     style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                                     color = colorScheme.onSurface
                                 )
                                 Text(
-                                    text = if (hasDnsLock) {
+                                    text = if (isDnsCommonKey) {
+                                        "Common Key configured for this"
+                                    } else if (hasDnsLock) {
                                         "Locked (${DnsManager.getKeyType(context).name.lowercase().replaceFirstChar { it.uppercase() }}) • Key required to change"
                                     } else {
                                         "Optional key guard • None set"
@@ -634,36 +639,38 @@ fun ToolsScreen(
                             }
                         }
 
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (hasDnsLock) {
-                                TextButton(
-                                    onClick = {
-                                        pendingDnsAction = {
-                                            DnsManager.clearSecurityKey(context)
-                                            hasDnsLock = false
-                                            Toast.makeText(context, "DNS protection key removed", Toast.LENGTH_SHORT).show()
+                        if (!isDnsCommonKey) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (hasDnsLock) {
+                                    TextButton(
+                                        onClick = {
+                                            pendingDnsAction = {
+                                                DnsManager.clearSecurityKey(context)
+                                                hasDnsLock = false
+                                                Toast.makeText(context, "DNS protection key removed", Toast.LENGTH_SHORT).show()
+                                            }
+                                            showVerifyDnsKeyDialog = true
                                         }
-                                        showVerifyDnsKeyDialog = true
+                                    ) {
+                                        Text("Remove", color = colorScheme.error, fontWeight = FontWeight.Bold)
                                     }
-                                ) {
-                                    Text("Remove", color = colorScheme.error, fontWeight = FontWeight.Bold)
                                 }
-                            }
-                            Button(
-                                onClick = {
-                                    if (hasDnsLock) {
-                                        pendingDnsAction = {
+                                Button(
+                                    onClick = {
+                                        if (hasDnsLock) {
+                                            pendingDnsAction = {
+                                                showSetDnsKeyDialog = true
+                                            }
+                                            showVerifyDnsKeyDialog = true
+                                        } else {
                                             showSetDnsKeyDialog = true
                                         }
-                                        showVerifyDnsKeyDialog = true
-                                    } else {
-                                        showSetDnsKeyDialog = true
-                                    }
-                                },
-                                shape = CircleShape,
-                                colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary)
-                            ) {
-                                Text(if (hasDnsLock) "Change" else "Set Key")
+                                    },
+                                    shape = CircleShape,
+                                    colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary)
+                                ) {
+                                    Text(if (hasDnsLock) "Change" else "Set Key")
+                                }
                             }
                         }
                     }

@@ -95,6 +95,7 @@ import com.hotaro.brik.ui.component.SetEmergencyKeyDialog
 import com.hotaro.brik.ui.component.VerifyEmergencyKeyDialog
 import com.hotaro.brik.ui.viewmodel.KeyViewModel
 import com.hotaro.brik.ui.viewmodel.ToolsViewModel
+import com.hotaro.brik.util.CommonKeyManager
 import com.hotaro.brik.util.EmergencyManager
 import com.hotaro.brik.util.QrUtils
 import kotlinx.coroutines.launch
@@ -330,6 +331,9 @@ fun BagsWindow(
     if (selectedBagForSheet != null) {
         val activeBag = bags.find { it.id == selectedBagForSheet!!.id } ?: selectedBagForSheet!!
         val isLocked = keyViewModel.isBagLocked(activeBag.id)
+        val hasCommonKey by CommonKeyManager.hasCommonKey.collectAsState()
+        val commonFollowingMap by CommonKeyManager.followingMap.collectAsState()
+        val usesCommonKey = hasCommonKey && (activeBag.useCommonKey ?: (commonFollowingMap["bags_common_key"] == true))
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
         ModalBottomSheet(
@@ -409,41 +413,43 @@ fun BagsWindow(
                             }
                         }
 
-                        // Toggle Switch Pill at top
-                        Surface(
-                            shape = CircleShape,
-                            color = if (isLocked) colorScheme.errorContainer else colorScheme.surfaceContainerHighest,
-                            border = BorderStroke(1.dp, if (isLocked) colorScheme.error else colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                            modifier = Modifier.height(38.dp)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 10.dp)
+                        if (!usesCommonKey) {
+                            // Toggle Switch Pill at top
+                            Surface(
+                                shape = CircleShape,
+                                color = if (isLocked) colorScheme.errorContainer else colorScheme.surfaceContainerHighest,
+                                border = BorderStroke(1.dp, if (isLocked) colorScheme.error else colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                modifier = Modifier.height(38.dp)
                             ) {
-                                Icon(
-                                    painter = painterResource(if (isLocked) R.drawable.block_fill0 else R.drawable.backpack_fill0),
-                                    contentDescription = null,
-                                    tint = if (isLocked) colorScheme.error else colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(Modifier.width(6.dp))
-                                Text(
-                                    text = if (isLocked) "Locked" else "Lock",
-                                    style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = if (isLocked) colorScheme.error else colorScheme.onSurface
-                                )
-                                Spacer(Modifier.width(4.dp))
-                                BrikSwitch(
-                                    checked = isLocked,
-                                    onCheckedChange = { shouldLock ->
-                                        if (shouldLock) {
-                                            bagToLock = activeBag
-                                        } else {
-                                            Toast.makeText(context, "Go to Key window to unlock '${activeBag.name}'", Toast.LENGTH_SHORT).show()
-                                        }
-                                    },
-                                    modifier = Modifier.scale(0.75f)
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 10.dp)
+                                ) {
+                                    Icon(
+                                        painter = painterResource(if (isLocked) R.drawable.block_fill0 else R.drawable.backpack_fill0),
+                                        contentDescription = null,
+                                        tint = if (isLocked) colorScheme.error else colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        text = if (isLocked) "Locked" else "Lock",
+                                        style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = if (isLocked) colorScheme.error else colorScheme.onSurface
+                                    )
+                                    Spacer(Modifier.width(4.dp))
+                                    BrikSwitch(
+                                        checked = isLocked,
+                                        onCheckedChange = { shouldLock ->
+                                            if (shouldLock) {
+                                                bagToLock = activeBag
+                                            } else {
+                                                Toast.makeText(context, "Go to Key window to unlock '${activeBag.name}'", Toast.LENGTH_SHORT).show()
+                                            }
+                                        },
+                                        modifier = Modifier.scale(0.75f)
+                                    )
+                                }
                             }
                         }
 
@@ -472,7 +478,102 @@ fun BagsWindow(
                     }
                 }
 
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(14.dp))
+
+                if (hasCommonKey) {
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = if (usesCommonKey) colorScheme.primaryContainer.copy(alpha = 0.5f) else colorScheme.surfaceContainerLowest,
+                        border = BorderStroke(
+                            1.dp,
+                            if (usesCommonKey) colorScheme.primary.copy(alpha = 0.4f) else colorScheme.outlineVariant.copy(alpha = 0.4f)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.key_fill0),
+                                        contentDescription = null,
+                                        tint = if (usesCommonKey) colorScheme.primary else colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(Modifier.width(10.dp))
+                                    Column {
+                                        Text(
+                                            text = "Common Key",
+                                            style = typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                            color = colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = if (usesCommonKey) {
+                                                if (isLocked) "Common Key • Locked" else "Common Key"
+                                            } else {
+                                                "Off • Set custom key via Lock pill"
+                                            },
+                                            style = typography.bodySmall,
+                                            color = colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                                BrikSwitch(
+                                    checked = usesCommonKey,
+                                    onCheckedChange = { enable ->
+                                        if (isLocked) {
+                                            Toast.makeText(
+                                                context,
+                                                "Go to Key window to unlock '${activeBag.name}' first",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        } else {
+                                            viewModel.updateBag(activeBag.copy(useCommonKey = enable))
+                                        }
+                                    }
+                                )
+                            }
+
+                            if (usesCommonKey) {
+                                if (!isLocked) {
+                                    Button(
+                                        onClick = {
+                                            keyViewModel.lockBagWithCommonKey(context, activeBag) { success, err ->
+                                                if (success) {
+                                                    Toast.makeText(context, "'${activeBag.name}' locked with Common Key!", Toast.LENGTH_SHORT).show()
+                                                } else {
+                                                    Toast.makeText(context, err ?: "Failed to lock bag", Toast.LENGTH_SHORT).show()
+                                                }
+                                            }
+                                        },
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text("Lock Bag with Common Key", fontWeight = FontWeight.Bold)
+                                    }
+                                } else {
+                                    Text(
+                                        text = "Locked with Common Key • Unlock in Keys & Analytics",
+                                        style = typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                        color = colorScheme.error
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(14.dp))
+                }
 
                 // Segmented Buttons for Activation Mode (Suspend vs Hide)
                 Text(

@@ -71,6 +71,12 @@ object CommonKeyManager {
             title = "Emergency Master Key",
             subtitle = "Require key for emergency unlock override",
             iconRes = R.drawable.key_fill0
+        ),
+        CommonKeyOption(
+            id = "bags_common_key",
+            title = "App Bags",
+            subtitle = "Follow Common Key by default for app bags",
+            iconRes = R.drawable.backpack_fill0
         )
     )
 
@@ -120,6 +126,16 @@ object CommonKeyManager {
         return runCatching {
             if (typeStr != null) KeyType.valueOf(typeStr) else KeyType.PASSWORD
         }.getOrDefault(KeyType.PASSWORD)
+    }
+
+    fun getSecretHash(context: Context): String? {
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(KEY_SECRET_HASH, null)
+    }
+
+    fun getQrToken(context: Context): String? {
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(KEY_QR_TOKEN, null)
     }
 
     fun verifyCommonKey(context: Context, input: String): Boolean {
@@ -236,6 +252,7 @@ object CommonKeyManager {
             }
             "dns_lock" -> {
                 context.getSharedPreferences("brik_dns_lock_prefs", Context.MODE_PRIVATE).edit()
+                    .putBoolean("dns_lock_enabled", true)
                     .putString("dns_key_type", keyType.name)
                     .putString("dns_key_hash", hash)
                     .apply()

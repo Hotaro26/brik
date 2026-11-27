@@ -220,14 +220,33 @@ class KeyRepository(private val context: Context) {
         secret: String,
         actionType: com.hotaro.brik.data.model.BagAction = com.hotaro.brik.data.model.BagAction.SUSPEND
     ): BagLock {
-        val hash = QrUtils.sha256(secret)
+        return lockBagWithHash(
+            bagId = bagId,
+            bagName = bagName,
+            packages = packages,
+            keyType = keyType,
+            secretHash = QrUtils.sha256(secret),
+            qrToken = if (keyType == KeyType.QR_CODE) secret else null,
+            actionType = actionType
+        )
+    }
+
+    fun lockBagWithHash(
+        bagId: String,
+        bagName: String,
+        packages: Set<String>,
+        keyType: KeyType,
+        secretHash: String,
+        qrToken: String? = null,
+        actionType: com.hotaro.brik.data.model.BagAction = com.hotaro.brik.data.model.BagAction.SUSPEND
+    ): BagLock {
         val lock = BagLock(
             id = UUID.randomUUID().toString(),
             bagId = bagId,
             bagName = bagName,
             keyType = keyType,
-            secretHash = hash,
-            qrToken = if (keyType == KeyType.QR_CODE) secret else null,
+            secretHash = secretHash,
+            qrToken = qrToken,
             lockedAt = System.currentTimeMillis(),
             packageNames = packages,
             actionType = actionType
