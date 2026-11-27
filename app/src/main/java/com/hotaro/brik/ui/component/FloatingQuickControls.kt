@@ -146,10 +146,6 @@ fun FloatingQuickControls(
     val showBluetooth by AssistivePreferences.showBluetooth.collectAsState()
     val showDnd by AssistivePreferences.showDnd.collectAsState()
     val showPhone by AssistivePreferences.showPhone.collectAsState()
-    val showQuickSettings by AssistivePreferences.showQuickSettings.collectAsState()
-    val showNotifications by AssistivePreferences.showNotifications.collectAsState()
-    val notifPreviewMode by AssistivePreferences.notifPreviewMode.collectAsState()
-    val allowControlPanelsStatusBar by com.hotaro.brik.util.KioskPreferences.allowControlPanelsStatusBar.collectAsState()
 
     var isExpanded by remember { mutableStateOf(false) }
     var isDraggingBall by remember { mutableStateOf(false) }
@@ -497,8 +493,8 @@ fun FloatingQuickControls(
         val errorColor = colorScheme.error
 
         val activeTiles = remember(
-            showWifi, showData, showHotspot, showFlashlight, showBluetooth, showDnd, showPhone, showQuickSettings,
-            allowControlPanelsStatusBar, isWifiEnabled, isDataEnabled, isHotspotEnabled, isBtEnabled,
+            showWifi, showData, showHotspot, showFlashlight, showBluetooth, showDnd, showPhone,
+            isWifiEnabled, isDataEnabled, isHotspotEnabled, isBtEnabled,
             isDndOn, isFlashlightOn, primaryColor, secondaryColor, tertiaryColor, errorColor
         ) {
             val list = mutableListOf<QuickTileData>()
@@ -667,38 +663,12 @@ fun FloatingQuickControls(
                 )
             }
 
-            // Quick Setting card: Quick Settings / Status Bar Swipe
-            if (showQuickSettings) {
-                list.add(
-                    QuickTileData(
-                        iconRes = R.drawable.ic_status_bar_shade,
-                        title = "Quick Settings",
-                        statusText = if (allowControlPanelsStatusBar) "Swiping Allowed" else "Swiping Locked",
-                        isActive = allowControlPanelsStatusBar,
-                        activeColor = primaryColor,
-                        onClick = {
-                            lastInteractionTime = System.currentTimeMillis()
-                            val target = !allowControlPanelsStatusBar
-                            com.hotaro.brik.util.KioskPreferences.setAllowControlPanelsStatusBar(context, target)
-                            try {
-                                com.hotaro.brik.policy.PolicyBridgeManager.setLockTaskFeatures(
-                                    context = context,
-                                    disableSystemGestures = !com.hotaro.brik.util.KioskPreferences.allowSystemGestures.value,
-                                    lockdownNotificationShade = !target
-                                )
-                            } catch (_: Exception) {}
-                        }
-                    )
-                )
-            }
-
             list
         }
 
         val tileRows = ((activeTiles.size + 1) / 2).coerceAtLeast(1)
-        val notifHeight = if (showNotifications) (if (notifPreviewMode == "preview") 56.dp else 40.dp) else 0.dp
         val maxBoxHeightDp = ((screenHeightPx / density.density) - 100f).coerceIn(240f, 440f).dp
-        val naturalHeightDp = (68.dp + (tileRows * 94).dp + notifHeight + 16.dp)
+        val naturalHeightDp = (68.dp + (tileRows * 94).dp + 16.dp)
         val boxHeightDp = minOf(naturalHeightDp, maxBoxHeightDp)
         val boxHeightPx = with(density) { boxHeightDp.toPx() }
 

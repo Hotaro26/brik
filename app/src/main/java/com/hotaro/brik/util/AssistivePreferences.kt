@@ -16,9 +16,6 @@ object AssistivePreferences {
     private const val KEY_SHOW_BLUETOOTH = "pref_assistive_show_bluetooth"
     private const val KEY_SHOW_DND = "pref_assistive_show_dnd"
     private const val KEY_SHOW_PHONE = "pref_assistive_show_phone"
-    private const val KEY_SHOW_QUICK_SETTINGS = "pref_assistive_show_quick_settings"
-    private const val KEY_SHOW_NOTIFICATIONS = "pref_assistive_show_notifications"
-    private const val KEY_NOTIF_PREVIEW_MODE = "pref_assistive_notif_preview_mode"
 
     private val _enabled = MutableStateFlow(true)
     val enabled: StateFlow<Boolean> = _enabled.asStateFlow()
@@ -47,15 +44,6 @@ object AssistivePreferences {
     private val _showPhone = MutableStateFlow(true)
     val showPhone: StateFlow<Boolean> = _showPhone.asStateFlow()
 
-    private val _showQuickSettings = MutableStateFlow(false)
-    val showQuickSettings: StateFlow<Boolean> = _showQuickSettings.asStateFlow()
-
-    private val _showNotifications = MutableStateFlow(true)
-    val showNotifications: StateFlow<Boolean> = _showNotifications.asStateFlow()
-
-    private val _notifPreviewMode = MutableStateFlow("badge") // "badge" or "preview"
-    val notifPreviewMode: StateFlow<String> = _notifPreviewMode.asStateFlow()
-
     fun init(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         _enabled.value = prefs.getBoolean(KEY_ENABLED, true)
@@ -67,9 +55,6 @@ object AssistivePreferences {
         _showBluetooth.value = prefs.getBoolean(KEY_SHOW_BLUETOOTH, true)
         _showDnd.value = prefs.getBoolean(KEY_SHOW_DND, false)
         _showPhone.value = prefs.getBoolean(KEY_SHOW_PHONE, true)
-        _showQuickSettings.value = prefs.getBoolean(KEY_SHOW_QUICK_SETTINGS, false)
-        _showNotifications.value = prefs.getBoolean(KEY_SHOW_NOTIFICATIONS, true)
-        _notifPreviewMode.value = prefs.getString(KEY_NOTIF_PREVIEW_MODE, "badge") ?: "badge"
     }
 
     fun setEnabled(context: Context, value: Boolean) {
@@ -124,23 +109,5 @@ object AssistivePreferences {
         _showPhone.value = value
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit().putBoolean(KEY_SHOW_PHONE, value).apply()
-    }
-
-    fun setShowQuickSettings(context: Context, value: Boolean) {
-        _showQuickSettings.value = value
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit().putBoolean(KEY_SHOW_QUICK_SETTINGS, value).apply()
-    }
-
-    fun setShowNotifications(context: Context, value: Boolean) {
-        _showNotifications.value = value
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit().putBoolean(KEY_SHOW_NOTIFICATIONS, value).apply()
-    }
-
-    fun setNotifPreviewMode(context: Context, mode: String) {
-        _notifPreviewMode.value = mode
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit().putString(KEY_NOTIF_PREVIEW_MODE, mode).apply()
     }
 }

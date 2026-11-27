@@ -61,9 +61,6 @@ fun AssistiveSettingsWindow(onBack: () -> Unit) {
     val showBluetooth by AssistivePreferences.showBluetooth.collectAsState()
     val showDnd by AssistivePreferences.showDnd.collectAsState()
     val showPhone by AssistivePreferences.showPhone.collectAsState()
-    val showQuickSettings by AssistivePreferences.showQuickSettings.collectAsState()
-    val showNotifications by AssistivePreferences.showNotifications.collectAsState()
-    val notifPreviewMode by AssistivePreferences.notifPreviewMode.collectAsState()
 
     Column(
         modifier = Modifier.fillMaxSize()
@@ -271,13 +268,6 @@ fun AssistiveSettingsWindow(onBack: () -> Unit) {
                     iconRes = R.drawable.call_fill0,
                     checked = showPhone,
                     onToggle = { AssistivePreferences.setShowPhone(context, it) }
-                ),
-                TileConfig(
-                    title = "Quick Settings & Status Bar",
-                    subtitle = "Allow pulling down quick settings & notifications from top",
-                    iconRes = R.drawable.ic_status_bar_shade,
-                    checked = showQuickSettings,
-                    onToggle = { AssistivePreferences.setShowQuickSettings(context, it) }
                 )
             )
 
@@ -326,122 +316,6 @@ fun AssistiveSettingsWindow(onBack: () -> Unit) {
                             checked = item.checked,
                             onCheckedChange = item.onToggle
                         )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(16.dp))
-
-            // SECTION: NOTIFICATIONS
-            TomatoSectionHeader(title = "NOTIFICATIONS IN QUICK CONTROLS")
-
-            // Enable Notifications Switch
-            Surface(
-                shape = RoundedCornerShape(18.dp),
-                color = colorScheme.surfaceContainerLow,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = colorScheme.secondaryContainer,
-                            modifier = Modifier.size(42.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_notifications),
-                                    contentDescription = null,
-                                    tint = colorScheme.onSecondaryContainer,
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                        }
-
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Show Notifications Bar",
-                                style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                color = colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Displays notification summary inside the expanded card",
-                                style = typography.bodySmall,
-                                color = colorScheme.onSurfaceVariant
-                            )
-                        }
-
-                        Switch(
-                            checked = showNotifications,
-                            onCheckedChange = { AssistivePreferences.setShowNotifications(context, it) }
-                        )
-                    }
-
-                    if (showNotifications) {
-                        Text(
-                            text = "Notification Preview Style",
-                            style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                            color = colorScheme.onSurfaceVariant
-                        )
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            FilterChip(
-                                selected = notifPreviewMode == "badge",
-                                onClick = { AssistivePreferences.setNotifPreviewMode(context, "badge") },
-                                label = { Text("Badge Count", fontWeight = FontWeight.SemiBold) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = colorScheme.primaryContainer,
-                                    selectedLabelColor = colorScheme.onPrimaryContainer
-                                ),
-                                modifier = Modifier.weight(1f)
-                            )
-
-                            FilterChip(
-                                selected = notifPreviewMode == "preview",
-                                onClick = { AssistivePreferences.setNotifPreviewMode(context, "preview") },
-                                label = { Text("Banner Preview", fontWeight = FontWeight.SemiBold) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = colorScheme.primaryContainer,
-                                    selectedLabelColor = colorScheme.onPrimaryContainer
-                                ),
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-
-                        FilledTonalButton(
-                            onClick = {
-                                try {
-                                    context.startActivity(
-                                        Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
-                                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    )
-                                } catch (_: Exception) {
-                                    context.startActivity(
-                                        Intent(Settings.ACTION_SETTINGS)
-                                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    )
-                                }
-                            },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.filledTonalButtonColors(
-                                containerColor = colorScheme.surfaceContainerHigh
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("System Notification Access Settings", fontSize = 13.sp)
-                        }
                     }
                 }
             }
