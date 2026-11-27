@@ -1,4 +1,8 @@
-# Brik
+<p align="center">
+  <img src="brik_icon.png" width="128" height="128" alt="Brik Logo" style="border-radius: 28px;" />
+</p>
+
+<h1 align="center">Brik</h1>
 
 Brik is a privileged Android digital enforcement and focus application designed to eliminate digital distractions through immutable commitment. Rather than relying on easily bypassable timers, accessibility services, or overlay permissions, Brik interfaces directly with Android platform management APIs--including Device Policy Manager (Device Owner), Dhizuku, Shizuku, and Root--to enforce package suspension, app concealment, and uninstallation protection.
 
