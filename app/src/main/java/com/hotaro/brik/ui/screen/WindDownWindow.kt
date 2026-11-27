@@ -116,6 +116,7 @@ fun WindDownWindow(
     val allowEmergencyUnlock by WindDownManager.allowEmergencyUnlock.collectAsState()
     val hasSecurityKey by WindDownManager.hasSecurityKey.collectAsState()
     val isWindDownActive by WindDownManager.isWindDownActive.collectAsState()
+    val use24Hour by com.hotaro.brik.ui.theme.ThemePreferences.use24HourClock.collectAsState()
 
     var showSleepPicker by remember { mutableStateOf(false) }
     var showWakePicker by remember { mutableStateOf(false) }
@@ -200,7 +201,7 @@ fun WindDownWindow(
                     subtitle = if (isWindDownActive) {
                         "Active now • Bedtime lockdown engaged"
                     } else if (isEnabled) {
-                        "Enabled • Daily ${String.format(Locale.getDefault(), "%02d:%02d", sleepHour, sleepMinute)} to ${String.format(Locale.getDefault(), "%02d:%02d", wakeHour, wakeMinute)}"
+                        "Enabled • Daily ${com.hotaro.brik.ui.theme.ThemePreferences.formatTime(sleepHour, sleepMinute, use24Hour)} to ${com.hotaro.brik.ui.theme.ThemePreferences.formatTime(wakeHour, wakeMinute, use24Hour)}"
                     } else {
                         "Disabled"
                     },
@@ -228,7 +229,7 @@ fun WindDownWindow(
 
                 TomatoSettingsItem(
                     title = "Bedtime Schedule",
-                    subtitle = "Sleep at ${String.format(Locale.getDefault(), "%02d:%02d", sleepHour, sleepMinute)} • Wake at ${String.format(Locale.getDefault(), "%02d:%02d", wakeHour, wakeMinute)}",
+                    subtitle = "Sleep at ${com.hotaro.brik.ui.theme.ThemePreferences.formatTime(sleepHour, sleepMinute, use24Hour)} • Wake at ${com.hotaro.brik.ui.theme.ThemePreferences.formatTime(wakeHour, wakeMinute, use24Hour)}",
                     leadingIcon = R.drawable.schedule_fill0,
                     iconContainerColor = colorScheme.secondaryContainer,
                     iconTint = colorScheme.onSecondaryContainer,
@@ -242,7 +243,7 @@ fun WindDownWindow(
                                 color = colorScheme.surfaceContainerLowest
                             ) {
                                 Text(
-                                    text = "${String.format(Locale.getDefault(), "%02d:%02d", sleepHour, sleepMinute)} - ${String.format(Locale.getDefault(), "%02d:%02d", wakeHour, wakeMinute)}",
+                                    text = "${com.hotaro.brik.ui.theme.ThemePreferences.formatTime(sleepHour, sleepMinute, use24Hour)} - ${com.hotaro.brik.ui.theme.ThemePreferences.formatTime(wakeHour, wakeMinute, use24Hour)}",
                                     style = typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace),
                                     color = colorScheme.onSurface,
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
@@ -309,7 +310,7 @@ fun WindDownWindow(
                                         )
                                         Spacer(Modifier.height(4.dp))
                                         Text(
-                                            text = String.format(Locale.getDefault(), "%02d:%02d", sleepHour, sleepMinute),
+                                            text = com.hotaro.brik.ui.theme.ThemePreferences.formatTime(sleepHour, sleepMinute, use24Hour),
                                             style = typography.titleLarge.copy(
                                                 fontWeight = FontWeight.Bold,
                                                 fontFamily = FontFamily.Monospace
@@ -335,7 +336,7 @@ fun WindDownWindow(
                                         )
                                         Spacer(Modifier.height(4.dp))
                                         Text(
-                                            text = String.format(Locale.getDefault(), "%02d:%02d", wakeHour, wakeMinute),
+                                            text = com.hotaro.brik.ui.theme.ThemePreferences.formatTime(wakeHour, wakeMinute, use24Hour),
                                             style = typography.titleLarge.copy(
                                                 fontWeight = FontWeight.Bold,
                                                 fontFamily = FontFamily.Monospace
@@ -730,7 +731,7 @@ fun WindDownWindow(
         val sleepTimeState = rememberTimePickerState(
             initialHour = sleepHour,
             initialMinute = sleepMinute,
-            is24Hour = true
+            is24Hour = use24Hour
         )
         AlertDialog(
             onDismissRequest = { showSleepPicker = false },
@@ -762,7 +763,7 @@ fun WindDownWindow(
         val wakeTimeState = rememberTimePickerState(
             initialHour = wakeHour,
             initialMinute = wakeMinute,
-            is24Hour = true
+            is24Hour = use24Hour
         )
         AlertDialog(
             onDismissRequest = { showWakePicker = false },

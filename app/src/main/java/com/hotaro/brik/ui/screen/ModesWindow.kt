@@ -1031,62 +1031,80 @@ fun ModesWindow(
     // --- Delete Focus Mode Dialog ---
     if (modeToDelete != null) {
         val mode = modeToDelete!!
-        var enteredSecret by remember { mutableStateOf("") }
-
-        AlertDialog(
-            onDismissRequest = { modeToDelete = null },
-            title = {
-                Text(
-                    text = "Delete '${mode.name}'?",
-                    fontWeight = FontWeight.Bold,
-                    color = colorScheme.error
-                )
-            },
-            text = {
-                Column(modifier = Modifier.fillMaxWidth()) {
+        if (mode.isRunning) {
+            AlertDialog(
+                onDismissRequest = { modeToDelete = null },
+                title = {
                     Text(
-                        text = if (mode.isRunning) "This mode is currently running. Key is required to abort and delete." else "Are you sure you want to delete this focus profile?",
+                        text = "Focus Mode is Active",
+                        fontWeight = FontWeight.Bold,
+                        color = colorScheme.error
+                    )
+                },
+                text = {
+                    Text(
+                        text = "'${mode.name}' is currently running. Please stop and disable the focus mode first so all restricted apps and bags are restored before deleting it.",
                         style = typography.bodyMedium,
                         color = colorScheme.onSurfaceVariant
                     )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = { modeToDelete = null },
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Got it")
+                    }
+                },
+                shape = RoundedCornerShape(24.dp),
+                containerColor = colorScheme.surfaceContainerHigh
+            )
+        } else {
+            var enteredSecret by remember { mutableStateOf("") }
 
-                    if (mode.isRunning) {
-                        Spacer(Modifier.height(12.dp))
-                        OutlinedTextField(
-                            value = enteredSecret,
-                            onValueChange = { enteredSecret = it },
-                            label = { Text("Mode Key") },
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth()
+            AlertDialog(
+                onDismissRequest = { modeToDelete = null },
+                title = {
+                    Text(
+                        text = "Delete '${mode.name}'?",
+                        fontWeight = FontWeight.Bold,
+                        color = colorScheme.error
+                    )
+                },
+                text = {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = "Are you sure you want to delete this focus profile?",
+                            style = typography.bodyMedium,
+                            color = colorScheme.onSurfaceVariant
                         )
                     }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.deleteFocusMode(mode.id, enteredSecret) { ok, err ->
-                            if (ok) {
-                                Toast.makeText(context, "Deleted '${mode.name}'", Toast.LENGTH_SHORT).show()
-                                modeToDelete = null
-                            } else {
-                                Toast.makeText(context, err ?: "Failed to delete", Toast.LENGTH_SHORT).show()
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModel.deleteFocusMode(mode.id, enteredSecret) { ok, err ->
+                                if (ok) {
+                                    Toast.makeText(context, "Deleted '${mode.name}'", Toast.LENGTH_SHORT).show()
+                                    modeToDelete = null
+                                } else {
+                                    Toast.makeText(context, err ?: "Failed to delete", Toast.LENGTH_SHORT).show()
+                                }
                             }
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = colorScheme.error),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text("Delete")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { modeToDelete = null }) { Text("Cancel") }
-            },
-            shape = RoundedCornerShape(24.dp),
-            containerColor = colorScheme.surfaceContainerHigh
-        )
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = colorScheme.error),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Delete")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { modeToDelete = null }) { Text("Cancel") }
+                },
+                shape = RoundedCornerShape(24.dp),
+                containerColor = colorScheme.surfaceContainerHigh
+            )
+        }
     }
 }
 

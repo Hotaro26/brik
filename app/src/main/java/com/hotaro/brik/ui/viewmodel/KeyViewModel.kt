@@ -142,6 +142,9 @@ class KeyViewModel(application: Application) : AndroidViewModel(application) {
                 lock.id == "zen_security_key" -> {
                     ZenManager.clearSecurityKey(context)
                 }
+                lock.id == "app_manager_security_key" -> {
+                    com.hotaro.brik.util.AppLimitManager.clearSecurityKey(context)
+                }
                 lock.id.startsWith("focus_mode_") -> {
                     val modeId = lock.id.removePrefix("focus_mode_")
                     TimeBlockRepository(context).clearFocusModeKey(modeId)
@@ -231,5 +234,9 @@ class KeyViewModel(application: Application) : AndroidViewModel(application) {
 
     fun removeDpmUninstallLock() {
         repository.removeDpmUninstallLock()
+    }
+
+    fun syncExistingSystemKeys() {
+        repository.syncExistingSystemKeys(getApplication())
     }
 }

@@ -158,6 +158,16 @@ class KeyRepository(private val context: Context) {
             registerSystemKeyIfMissing("zen_security_key", "Zen Mode Security Key", keyType, zenHash, zenQr)
         }
 
+        // 5b. App Manager
+        val amPrefs = context.getSharedPreferences("brik_app_manager_prefs", Context.MODE_PRIVATE)
+        val amHash = amPrefs.getString("pref_app_manager_secret_hash", null)
+        val amTypeStr = amPrefs.getString("pref_app_manager_key_type", null)
+        val amQr = amPrefs.getString("pref_app_manager_qr_token", null)
+        if (!amHash.isNullOrBlank()) {
+            val keyType = if (amTypeStr == KeyType.QR_CODE.name) KeyType.QR_CODE else KeyType.PASSWORD
+            registerSystemKeyIfMissing("app_manager_security_key", "App Manager Security Key", keyType, amHash, amQr)
+        }
+
         // 6. Automated Routines
         val timeBlockPrefs = context.getSharedPreferences("brik_time_block_pref", Context.MODE_PRIVATE)
         val serializedRoutines = timeBlockPrefs.getString("saved_routines", null)

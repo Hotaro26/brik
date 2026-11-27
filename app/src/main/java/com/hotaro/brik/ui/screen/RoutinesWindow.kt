@@ -468,7 +468,7 @@ fun RoutinesWindow(
                                 subtitle = if (isWindDownActive) {
                                     "Active now • Bedtime lockdown engaged"
                                 } else if (isWindDownEnabled) {
-                                    "Daily ${String.format(Locale.getDefault(), "%02d:%02d", windDownSleepH, windDownSleepM)} - ${String.format(Locale.getDefault(), "%02d:%02d", windDownWakeH, windDownWakeM)} • ${if (isWindDownNoApps) "Pure Rest" else "${windDownAllowedApps.size} apps"}"
+                                    "Daily ${com.hotaro.brik.ui.theme.ThemePreferences.formatTime(windDownSleepH, windDownSleepM, use24Hour)} - ${com.hotaro.brik.ui.theme.ThemePreferences.formatTime(windDownWakeH, windDownWakeM, use24Hour)} • ${if (isWindDownNoApps) "Pure Rest" else "${windDownAllowedApps.size} apps"}"
                                 } else {
                                     "Off • Bedtime minimal kiosk lockdown"
                                 },
@@ -1150,61 +1150,91 @@ fun RoutinesWindow(
     // --- Delete Routine Dialog ---
     if (routineToDelete != null) {
         val routine = routineToDelete!!
-        var enteredSecret by remember { mutableStateOf("") }
-
-        AlertDialog(
-            onDismissRequest = { routineToDelete = null },
-            title = {
-                Text(
-                    text = "Delete '${routine.name}'?",
-                    fontWeight = FontWeight.Bold,
-                    color = colorScheme.error
-                )
-            },
-            text = {
-                Column(modifier = Modifier.fillMaxWidth()) {
+        if (routine.isEnabled) {
+            AlertDialog(
+                onDismissRequest = { routineToDelete = null },
+                title = {
                     Text(
-                        text = "Are you sure you want to delete this routine? Key verification is required.",
+                        text = "Routine is Active",
+                        fontWeight = FontWeight.Bold,
+                        color = colorScheme.error
+                    )
+                },
+                text = {
+                    Text(
+                        text = "'${routine.name}' is currently enabled/running. Please disable the routine first so all app groups and restrictions are lifted before deleting it.",
                         style = typography.bodyMedium,
                         color = colorScheme.onSurfaceVariant
                     )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = { routineToDelete = null },
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Got it")
+                    }
+                },
+                shape = RoundedCornerShape(24.dp),
+                containerColor = colorScheme.surfaceContainerHigh
+            )
+        } else {
+            var enteredSecret by remember { mutableStateOf("") }
 
-                    Spacer(Modifier.height(12.dp))
-
-                    OutlinedTextField(
-                        value = enteredSecret,
-                        onValueChange = { enteredSecret = it },
-                        label = { Text("Routine Key") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
+            AlertDialog(
+                onDismissRequest = { routineToDelete = null },
+                title = {
+                    Text(
+                        text = "Delete '${routine.name}'?",
+                        fontWeight = FontWeight.Bold,
+                        color = colorScheme.error
                     )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.deleteRoutine(routine.id, enteredSecret) { ok, err ->
-                            if (ok) {
-                                Toast.makeText(context, "Deleted routine!", Toast.LENGTH_SHORT).show()
-                                routineToDelete = null
-                            } else {
-                                Toast.makeText(context, err ?: "Incorrect key", Toast.LENGTH_SHORT).show()
+                },
+                text = {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = "Are you sure you want to delete this routine? Key verification is required.",
+                            style = typography.bodyMedium,
+                            color = colorScheme.onSurfaceVariant
+                        )
+
+                        Spacer(Modifier.height(12.dp))
+
+                        OutlinedTextField(
+                            value = enteredSecret,
+                            onValueChange = { enteredSecret = it },
+                            label = { Text("Routine Key") },
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModel.deleteRoutine(routine.id, enteredSecret) { ok, err ->
+                                if (ok) {
+                                    Toast.makeText(context, "Deleted routine!", Toast.LENGTH_SHORT).show()
+                                    routineToDelete = null
+                                } else {
+                                    Toast.makeText(context, err ?: "Incorrect key", Toast.LENGTH_SHORT).show()
+                                }
                             }
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = colorScheme.error),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text("Delete")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { routineToDelete = null }) { Text("Cancel") }
-            },
-            shape = RoundedCornerShape(24.dp),
-            containerColor = colorScheme.surfaceContainerHigh
-        )
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = colorScheme.error),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Delete")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { routineToDelete = null }) { Text("Cancel") }
+                },
+                shape = RoundedCornerShape(24.dp),
+                containerColor = colorScheme.surfaceContainerHigh
+            )
+        }
     }
 }
 

@@ -7,8 +7,9 @@ import kotlinx.coroutines.flow.asStateFlow
 
 data class AppLimit(
     val packageName: String,
-    val dailyLimitMinutes: Int,   // 0 = no limit
-    val blockMode: String         // "hide" or "suspend"
+    val dailyLimitMinutes: Int,   // 0 = immediate / no timer
+    val blockMode: String,        // "hide" or "suspend"
+    val isRestricted: Boolean = false
 )
 
 class AppLimitRepository(private val context: Context) {
@@ -26,12 +27,13 @@ class AppLimitRepository(private val context: Context) {
             if (parts.size < 2) return@mapNotNull null
             val minutes = parts[0].toIntOrNull() ?: return@mapNotNull null
             val mode = parts[1]
-            key to AppLimit(key, minutes, mode)
+            val restricted = parts.getOrNull(2)?.toBooleanStrictOrNull() ?: false
+            key to AppLimit(key, minutes, mode, restricted)
         }.toMap()
     }
 
-    fun setLimit(packageName: String, dailyLimitMinutes: Int, blockMode: String) {
-        prefs.edit().putString(packageName, "$dailyLimitMinutes$DELIM$blockMode").apply()
+    fun setLimit(packageName: String, dailyLimitMinutes: Int, blockMode: String, isRestricted: Boolean = false) {
+        prefs.edit().putString(packageName, "$dailyLimitMinutes$DELIM$blockMode$DELIM$isRestricted").apply()
         _limits.value = load()
     }
 

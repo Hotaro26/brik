@@ -87,8 +87,13 @@ import com.google.accompanist.drawablepainter.rememberDrawablePainter
 import com.hotaro.brik.R
 import com.hotaro.brik.data.model.AppInfo
 import com.hotaro.brik.data.repository.AppLimit
+import com.hotaro.brik.data.repository.KeyRepository
+import com.hotaro.brik.ui.component.BrikSwitch
 import com.hotaro.brik.ui.component.RoundedPullRefreshPage
+import com.hotaro.brik.ui.component.SetEmergencyKeyDialog
+import com.hotaro.brik.ui.component.VerifyEmergencyKeyDialog
 import com.hotaro.brik.ui.viewmodel.ToolsViewModel
+import com.hotaro.brik.util.AppLimitManager
 import kotlinx.coroutines.launch
 
 /**
@@ -112,6 +117,26 @@ fun AppManagerWindow(
 
     var isRefreshing by remember { mutableStateOf(false) }
     var expandedPackage by remember { mutableStateOf<String?>(null) }
+
+    val isKeyGuardEnabled by AppLimitManager.isKeyGuardEnabled.collectAsState()
+    val hasSecurityKey by AppLimitManager.hasSecurityKey.collectAsState()
+    val keyRepository = remember(context) { KeyRepository(context) }
+    val savedKeys by keyRepository.savedKeys.collectAsState()
+
+    var showKeyLockSheet by remember { mutableStateOf(false) }
+    var showSetKeyDialog by remember { mutableStateOf(false) }
+    var showVerifyKeyDialog by remember { mutableStateOf(false) }
+    var showVerifyBeforeChangeKeyDialog by remember { mutableStateOf(false) }
+    var pendingGuardedAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+
+    val performGuardedAction: (() -> Unit) -> Unit = { action ->
+        if (isKeyGuardEnabled && hasSecurityKey) {
+            pendingGuardedAction = action
+            showVerifyKeyDialog = true
+        } else {
+            action()
+        }
+    }
 
     RoundedPullRefreshPage(
         isRefreshing = isRefreshing,
@@ -184,6 +209,25 @@ fun AppManagerWindow(
                                 text = "Collapse",
                                 color = colorScheme.primary,
                                 fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                    Surface(
+                        shape = CircleShape,
+                        color = if (isKeyGuardEnabled && hasSecurityKey) colorScheme.primaryContainer else colorScheme.surfaceContainerHigh,
+                        modifier = Modifier
+                            .padding(end = 12.dp)
+                            .size(40.dp),
+                        onClick = { showKeyLockSheet = true }
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                painter = painterResource(
+                                    if (isKeyGuardEnabled && hasSecurityKey) R.drawable.shield_fill0 else R.drawable.key_fill0
+                                ),
+                                contentDescription = "App Manager Key Lock",
+                                tint = if (isKeyGuardEnabled && hasSecurityKey) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }
@@ -316,13 +360,53 @@ fun AppManagerWindow(
                                 onToggleExpand = {
                                     expandedPackage = if (isExpanded) null else app.packageName
                                 },
-                                onSaveLimit = { minutes, mode ->
-                                    viewModel.setAppLimit(app.packageName, minutes, mode)
-                                    Toast.makeText(context, "Limit saved for ${app.label}", Toast.LENGTH_SHORT).show()
+                                onToggleRestrict = { mode, restrict ->
+                                    if (!restrict) {
+                                        performGuardedAction {
+                                            viewModel.toggleAppRestrict(app.packageName, mode, false) { ok, err ->
+                                                Toast.makeText(
+                                                    context,
+                                                    if (ok) "Unrestricted ${app.label}" else (err ?: "Failed to unrestrict ${app.label}"),
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                            }
+                                        }
+                                    } else {
+                                        viewModel.toggleAppRestrict(app.packageName, mode, true) { ok, err ->
+                                            Toast.makeText(
+                                                context,
+                                                if (ok) "${if (mode == "hide") "Hidden" else "Locked"} ${app.label}" else (err ?: "Failed to restrict ${app.label}"),
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    }
+                                },
+                                onSaveLimit = { minutes, mode, restricted ->
+                                    val isRelaxing = currentLimit != null && (
+                                        (currentLimit.isRestricted && !restricted) ||
+                                            (minutes > currentLimit.dailyLimitMinutes && currentLimit.dailyLimitMinutes == 0)
+                                    )
+                                    val doSave: () -> Unit = {
+                                        viewModel.setAppLimit(app.packageName, minutes, mode, restricted) { ok, err ->
+                                            if (ok) {
+                                                Toast.makeText(context, "Settings saved for ${app.label}", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                Toast.makeText(context, err ?: "Saved, but bridge failed to enforce", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    }
+                                    if (isRelaxing) performGuardedAction(doSave) else doSave()
                                 },
                                 onClearLimit = {
-                                    viewModel.clearAppLimit(app.packageName)
-                                    Toast.makeText(context, "Limit removed for ${app.label}", Toast.LENGTH_SHORT).show()
+                                    performGuardedAction {
+                                        viewModel.clearAppLimit(app.packageName) { ok, err ->
+                                            Toast.makeText(
+                                                context,
+                                                if (ok) "Limit removed for ${app.label}" else (err ?: "Limit removed, bridge unrestrict failed"),
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    }
                                 }
                             )
                         }
@@ -330,6 +414,180 @@ fun AppManagerWindow(
                 }
             }
         }
+    }
+
+    if (showKeyLockSheet) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { showKeyLockSheet = false },
+            sheetState = sheetState,
+            containerColor = colorScheme.surfaceContainerLow,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = colorScheme.primaryContainer,
+                        modifier = Modifier.size(44.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                painter = painterResource(R.drawable.key_fill0),
+                                contentDescription = null,
+                                tint = colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+                    Column {
+                        Text(
+                            text = "App Manager Key Lock",
+                            style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Optional lock required to disable or modify app restrictions",
+                            style = typography.bodySmall,
+                            color = colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = colorScheme.surfaceContainerHigh,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Require Key Lock",
+                                style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = colorScheme.onSurface
+                            )
+                            Text(
+                                text = if (isKeyGuardEnabled && hasSecurityKey) "Active • Key required to turn off restrictions"
+                                else if (!hasSecurityKey) "Configure a key below to enable protection"
+                                else "Off • Changes allowed freely",
+                                style = typography.bodySmall,
+                                color = colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        BrikSwitch(
+                            checked = isKeyGuardEnabled && hasSecurityKey,
+                            onCheckedChange = { enable ->
+                                if (enable) {
+                                    if (hasSecurityKey) {
+                                        AppLimitManager.setKeyGuardEnabled(context, true)
+                                    } else {
+                                        showSetKeyDialog = true
+                                    }
+                                } else {
+                                    performGuardedAction {
+                                        AppLimitManager.setKeyGuardEnabled(context, false)
+                                        Toast.makeText(context, "App Manager Key Lock disabled", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
+                        )
+                    }
+                }
+
+                Button(
+                    onClick = {
+                        if (hasSecurityKey) {
+                            showVerifyBeforeChangeKeyDialog = true
+                        } else {
+                            showSetKeyDialog = true
+                        }
+                    },
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (hasSecurityKey) "Change Security Key" else "Configure Security Key")
+                }
+
+                if (hasSecurityKey) {
+                    OutlinedButton(
+                        onClick = {
+                            performGuardedAction {
+                                AppLimitManager.clearSecurityKey(context)
+                                Toast.makeText(context, "App Manager key removed", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = colorScheme.error),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Remove Security Key")
+                    }
+                }
+            }
+        }
+    }
+
+    if (showSetKeyDialog) {
+        SetEmergencyKeyDialog(
+            savedKeys = savedKeys,
+            title = "App Manager Security Key",
+            subtitle = "Set a password or QR key required to turn off app restrictions or change App Manager settings.",
+            onDismiss = { showSetKeyDialog = false },
+            onSaveKey = { keyType, secret ->
+                AppLimitManager.setSecurityKey(context, keyType, secret)
+                AppLimitManager.setKeyGuardEnabled(context, true)
+                Toast.makeText(context, "App Manager Key Lock configured", Toast.LENGTH_SHORT).show()
+            },
+            onKeySet = { showSetKeyDialog = false }
+        )
+    }
+
+    if (showVerifyBeforeChangeKeyDialog) {
+        VerifyEmergencyKeyDialog(
+            title = "Verify Current Key",
+            subtitle = "Enter or scan your current App Manager key to change it.",
+            keyTypeOverride = AppLimitManager.getKeyType(context),
+            onVerifyCustom = { input -> AppLimitManager.verifySecurityKey(context, input) },
+            onDismiss = { showVerifyBeforeChangeKeyDialog = false },
+            onVerified = {
+                showVerifyBeforeChangeKeyDialog = false
+                showSetKeyDialog = true
+            }
+        )
+    }
+
+    if (showVerifyKeyDialog) {
+        VerifyEmergencyKeyDialog(
+            title = "App Manager Locked",
+            subtitle = "Verify your security key to modify or disable app restrictions.",
+            keyTypeOverride = AppLimitManager.getKeyType(context),
+            onVerifyCustom = { input -> AppLimitManager.verifySecurityKey(context, input) },
+            onDismiss = {
+                showVerifyKeyDialog = false
+                pendingGuardedAction = null
+            },
+            onVerified = {
+                showVerifyKeyDialog = false
+                pendingGuardedAction?.invoke()
+                pendingGuardedAction = null
+            }
+        )
     }
 }
 
@@ -342,7 +600,8 @@ fun ExpressiveAppCard(
     isExpanded: Boolean,
     currentLimit: AppLimit?,
     onToggleExpand: () -> Unit,
-    onSaveLimit: (minutes: Int, mode: String) -> Unit,
+    onToggleRestrict: (mode: String, restrict: Boolean) -> Unit,
+    onSaveLimit: (minutes: Int, mode: String, isRestricted: Boolean) -> Unit,
     onClearLimit: () -> Unit
 ) {
     val containerColor by animateColorAsState(
@@ -369,6 +628,7 @@ fun ExpressiveAppCard(
     var blockMode by remember(currentLimit, isExpanded) {
         mutableStateOf(currentLimit?.blockMode ?: "suspend")
     }
+    val isRestricted = currentLimit?.isRestricted == true
 
     Surface(
         onClick = onToggleExpand,
@@ -471,6 +731,7 @@ fun ExpressiveAppCard(
                             val hours = currentLimit.dailyLimitMinutes / 60
                             val mins = currentLimit.dailyLimitMinutes % 60
                             val limitLabel = when {
+                                currentLimit.isRestricted -> "Restricted"
                                 hours > 0 && mins > 0 -> "${hours}h ${mins}m"
                                 hours > 0 -> "${hours}h"
                                 else -> "${mins}m"
@@ -479,7 +740,7 @@ fun ExpressiveAppCard(
 
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
-                                color = colorScheme.primaryContainer,
+                                color = if (currentLimit.isRestricted) colorScheme.errorContainer else colorScheme.primaryContainer,
                                 modifier = Modifier.padding(start = 2.dp)
                             ) {
                                 Row(
@@ -487,9 +748,11 @@ fun ExpressiveAppCard(
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 ) {
                                     Icon(
-                                        painter = painterResource(R.drawable.schedule_fill0),
+                                        painter = painterResource(
+                                            if (currentLimit.isRestricted) R.drawable.block_fill0 else R.drawable.schedule_fill0
+                                        ),
                                         contentDescription = null,
-                                        tint = colorScheme.onPrimaryContainer,
+                                        tint = if (currentLimit.isRestricted) colorScheme.onErrorContainer else colorScheme.onPrimaryContainer,
                                         modifier = Modifier.size(10.dp)
                                     )
                                     Spacer(Modifier.width(3.dp))
@@ -499,7 +762,7 @@ fun ExpressiveAppCard(
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 9.sp
                                         ),
-                                        color = colorScheme.onPrimaryContainer
+                                        color = if (currentLimit.isRestricted) colorScheme.onErrorContainer else colorScheme.onPrimaryContainer
                                     )
                                 }
                             }
@@ -543,6 +806,47 @@ fun ExpressiveAppCard(
                         color = colorScheme.outlineVariant.copy(alpha = 0.4f),
                         thickness = 1.dp
                     )
+
+                    Spacer(Modifier.height(12.dp))
+
+                    // Immediate App Restrict Toggle (Lock/Suspend or Hide right now)
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = if (isRestricted) colorScheme.errorContainer.copy(alpha = 0.45f) else colorScheme.surfaceContainerHighest,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "App Restrict",
+                                    style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = colorScheme.onSurface
+                                )
+                                Text(
+                                    text = if (isRestricted) {
+                                        "Active • Currently ${if (blockMode == "hide") "hidden from launcher" else "locked & suspended"}"
+                                    } else {
+                                        "Immediately ${if (blockMode == "hide") "hide" else "suspend"} this app"
+                                    },
+                                    style = typography.bodySmall.copy(fontSize = 11.sp),
+                                    color = colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            BrikSwitch(
+                                checked = isRestricted,
+                                onCheckedChange = { checked ->
+                                    onToggleRestrict(blockMode, checked)
+                                }
+                            )
+                        }
+                    }
 
                     Spacer(Modifier.height(12.dp))
 
@@ -753,7 +1057,7 @@ fun ExpressiveAppCard(
                         }
 
                         Button(
-                            onClick = { onSaveLimit(limitMinutes, blockMode) },
+                            onClick = { onSaveLimit(limitMinutes, blockMode, isRestricted) },
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = colorScheme.primary,

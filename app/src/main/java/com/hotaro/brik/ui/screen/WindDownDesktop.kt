@@ -75,10 +75,11 @@ fun WindDownDesktop() {
     val allowedPackages by WindDownManager.allowedPackages.collectAsState()
     val isPreviewMode by WindDownManager.isPreviewMode.collectAsState()
     val allowEmergencyUnlock by WindDownManager.allowEmergencyUnlock.collectAsState()
+    val use24Hour by com.hotaro.brik.ui.theme.ThemePreferences.use24HourClock.collectAsState()
     var showEmergencyUnlockDialog by remember { mutableStateOf(false) }
 
-    val wakeTimeFormatted = remember(wakeHour, wakeMinute) {
-        String.format(Locale.getDefault(), "%02d:%02d", wakeHour, wakeMinute)
+    val wakeTimeFormatted = remember(wakeHour, wakeMinute, use24Hour) {
+        com.hotaro.brik.ui.theme.ThemePreferences.formatTime(wakeHour, wakeMinute, use24Hour)
     }
 
     // Intercept back key: offers emergency key unlock if allowed, or exits preview mode
@@ -106,7 +107,6 @@ fun WindDownDesktop() {
         }
     }
 
-    val use24Hour by com.hotaro.brik.ui.theme.ThemePreferences.use24HourClock.collectAsState()
     val timeDigitsFormat = remember(use24Hour) { SimpleDateFormat(if (use24Hour) "HH:mm" else "h:mm", Locale.getDefault()) }
     val amPmFormat = remember(use24Hour) { if (use24Hour) null else SimpleDateFormat("a", Locale.getDefault()) }
     val dateFormat = remember { SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()) }

@@ -1022,7 +1022,7 @@ fun BagsWindow(
         )
     }
 
-    // --- RUNNING BAG EDIT PROTECTION DIALOG ---
+    // --- RUNNING BAG EDIT/DELETE PROTECTION DIALOG ---
     if (bagLockedEditAttempt != null) {
         val lockedBag = bagLockedEditAttempt!!
         AlertDialog(
@@ -1044,7 +1044,7 @@ fun BagsWindow(
             },
             text = {
                 Text(
-                    text = "'${lockedBag.name}' is currently active and locked. Adding apps, removing apps, or changing the activation mode is protected. Please unlock or disable this bag in the Key tab first using its key.",
+                    text = "'${lockedBag.name}' is currently active and locked. Adding apps, removing apps, deleting, or changing the activation mode is protected. Please unlock or disable this bag in the Key tab first using its key so its apps are restored.",
                     style = typography.bodyMedium,
                     color = colorScheme.onSurfaceVariant
                 )

@@ -6,7 +6,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import com.hotaro.brik.ui.theme.ThemePreferences
+import com.hotaro.brik.util.AppLimitManager
 import com.hotaro.brik.util.AssistivePreferences
+import com.hotaro.brik.util.CommonKeyManager
 import com.hotaro.brik.util.EmergencyManager
 import com.hotaro.brik.util.GrayscaleManager
 import com.hotaro.brik.util.KioskPreferences
@@ -35,6 +37,8 @@ class BrikApp : Application() {
         ZenManager.init(this)
         WindDownManager.init(this)
         GrayscaleManager.init(this)
+        CommonKeyManager.init(this)
+        AppLimitManager.init(this)
 
         val screenLockFilter = IntentFilter(Intent.ACTION_SCREEN_OFF)
         registerReceiver(object : BroadcastReceiver() {

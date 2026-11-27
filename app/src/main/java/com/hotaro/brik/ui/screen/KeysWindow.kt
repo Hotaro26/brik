@@ -79,6 +79,7 @@ import com.hotaro.brik.data.model.KeyType
 import com.hotaro.brik.data.model.SavedKey
 import com.hotaro.brik.data.repository.TimeBlockRepository
 import com.hotaro.brik.policy.DnsManager
+import com.hotaro.brik.ui.component.BrikSwitch
 import com.hotaro.brik.ui.component.QrScannerView
 import com.hotaro.brik.ui.component.RoundedPullRefreshPage
 import com.hotaro.brik.ui.component.SetEmergencyKeyDialog
@@ -86,6 +87,8 @@ import com.hotaro.brik.ui.component.TomatoSectionHeader
 import com.hotaro.brik.ui.component.VerifyEmergencyKeyDialog
 import com.hotaro.brik.ui.component.segmentedItemShape
 import com.hotaro.brik.ui.viewmodel.KeyViewModel
+import com.hotaro.brik.util.AppLimitManager
+import com.hotaro.brik.util.CommonKeyManager
 import com.hotaro.brik.util.EmergencyManager
 import com.hotaro.brik.util.GrayscaleManager
 import com.hotaro.brik.util.QrUtils
@@ -125,6 +128,14 @@ fun KeysWindow(
     var systemLockToEdit by remember { mutableStateOf<BagLock?>(null) }
     var showVerifyBeforeEditSystemKeyDialog by remember { mutableStateOf(false) }
     var showEditSystemKeyDialog by remember { mutableStateOf(false) }
+
+    var isCommonKeysExpanded by remember { mutableStateOf(false) }
+    val hasCommonKey by CommonKeyManager.hasCommonKey.collectAsState()
+    val commonKeyType by CommonKeyManager.commonKeyType.collectAsState()
+    val commonFollowingMap by CommonKeyManager.followingMap.collectAsState()
+    var showSetCommonKeyDialog by remember { mutableStateOf(false) }
+    var showVerifyCommonKeyDialog by remember { mutableStateOf(false) }
+    var pendingCommonKeyAction by remember { mutableStateOf<String?>(null) }
 
     var qrOptionMode by remember { mutableStateOf(0) } // 0: Random, 1: Scan External
     var randomQrKey by remember { mutableStateOf(UUID.randomUUID().toString()) }
@@ -507,6 +518,7 @@ fun KeysWindow(
                         lock.id == "dns_lock" -> R.drawable.dns_fill0
                         lock.id == "grayscale_security_key" -> R.drawable.contrast_fill0
                         lock.id == "zen_security_key" -> R.drawable.self_improvement_fill0
+                        lock.id == "app_manager_security_key" -> R.drawable.apps_fill0
                         lock.id.startsWith("focus_mode_") || lock.id.startsWith("routine_") -> R.drawable.schedule_fill0
                         else -> R.drawable.key_fill0
                     }
@@ -517,6 +529,7 @@ fun KeysWindow(
                         "dns_lock" -> "Private DNS Guard • Required to alter DNS protection rules"
                         "grayscale_security_key" -> "Screen Grayscale Guard • Required to disable monochrome filter"
                         "zen_security_key" -> "Zen Mode Security Key • Required to abort running zen session"
+                        "app_manager_security_key" -> "App Manager Guard • Required to change app restrictions or limits"
                         else -> {
                             if (lock.id.startsWith("focus_mode_")) {
                                 "Focus Mode Protection • Key required to abort focus session"
@@ -683,6 +696,193 @@ fun KeysWindow(
                 }
                 } // end else activeLocks.isNotEmpty
             } // end if isActiveKeysExpanded
+
+            // ==========================================
+            // SECTION 2.5: COMMON KEYS
+            // ==========================================
+            item {
+                Surface(
+                    onClick = { isCommonKeysExpanded = !isCommonKeysExpanded },
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color.Transparent,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        TomatoSectionHeader(title = "COMMON KEYS")
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Surface(
+                                shape = CircleShape,
+                                color = if (hasCommonKey) colorScheme.primaryContainer else colorScheme.surfaceContainerHigh,
+                                modifier = Modifier.padding(end = 6.dp)
+                            ) {
+                                Text(
+                                    text = if (hasCommonKey) "Set" else "Off",
+                                    style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = if (hasCommonKey) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp)
+                                )
+                            }
+                            Icon(
+                                painter = painterResource(R.drawable.arrow_forward_big),
+                                contentDescription = if (isCommonKeysExpanded) "Collapse" else "Expand",
+                                tint = colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .graphicsLayer {
+                                        rotationZ = if (isCommonKeysExpanded) 270f else 90f
+                                    }
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (isCommonKeysExpanded) {
+                item {
+                    ElevatedCard(
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.elevatedCardColors(
+                            containerColor = colorScheme.surfaceContainerHigh
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (hasCommonKey) colorScheme.primaryContainer
+                                            else colorScheme.surfaceContainerHighest
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        painter = painterResource(id = R.drawable.key_fill0),
+                                        contentDescription = null,
+                                        tint = if (hasCommonKey) colorScheme.primary else colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = if (hasCommonKey) "Common Key (${commonKeyType.name})" else "No Common Key Configured",
+                                        style = typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                                        color = colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = if (hasCommonKey) {
+                                            "Any toggled feature below will automatically use this key."
+                                        } else {
+                                            "Set one master key and apply it across any feature."
+                                        },
+                                        style = typography.bodySmall,
+                                        color = colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                FilledTonalButton(
+                                    onClick = {
+                                        if (hasCommonKey) {
+                                            pendingCommonKeyAction = "edit"
+                                            showVerifyCommonKeyDialog = true
+                                        } else {
+                                            showSetCommonKeyDialog = true
+                                        }
+                                    },
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(if (hasCommonKey) "Change Common Key" else "Configure Common Key")
+                                }
+                                if (hasCommonKey) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            pendingCommonKeyAction = "remove"
+                                            showVerifyCommonKeyDialog = true
+                                        },
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            contentColor = colorScheme.error
+                                        )
+                                    ) {
+                                        Text("Remove")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                itemsIndexed(
+                    CommonKeyManager.ALL_OPTIONS,
+                    key = { _, opt -> "common_opt_${opt.id}" }
+                ) { index, option ->
+                    val isFollowing = commonFollowingMap[option.id] == true
+                    Surface(
+                        shape = segmentedItemShape(index, CommonKeyManager.ALL_OPTIONS.size),
+                        color = colorScheme.surfaceContainer,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                                Text(
+                                    text = option.title,
+                                    style = typography.titleSmall.copy(fontWeight = FontWeight.Medium),
+                                    color = colorScheme.onSurface
+                                )
+                                Text(
+                                    text = option.subtitle,
+                                    style = typography.bodySmall,
+                                    color = colorScheme.onSurfaceVariant
+                                )
+                            }
+                            BrikSwitch(
+                                checked = isFollowing,
+                                onCheckedChange = { checked ->
+                                    if (checked && !hasCommonKey) {
+                                        Toast.makeText(
+                                            context,
+                                            "Configure a Common Key first",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                        showSetCommonKeyDialog = true
+                                    } else {
+                                        CommonKeyManager.setFollowing(context, option.id, checked)
+                                        keyViewModel.syncExistingSystemKeys()
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+            }
 
             // ==========================================
             // SECTION 3: SAVED KEYS VAULT
@@ -1804,6 +2004,7 @@ fun KeysWindow(
             "dns_lock" -> DnsManager.getKeyType(context)
             "grayscale_security_key" -> GrayscaleManager.getKeyType(context)
             "zen_security_key" -> ZenManager.getKeyType(context)
+            "app_manager_security_key" -> AppLimitManager.getKeyType(context)
             else -> lock.keyType
         }
 
@@ -1822,6 +2023,7 @@ fun KeysWindow(
                     "dns_lock" -> DnsManager.verifySecurityKey(context, input)
                     "grayscale_security_key" -> GrayscaleManager.verifySecurityKey(context, input)
                     "zen_security_key" -> ZenManager.verifySecurityKey(context, input)
+                    "app_manager_security_key" -> AppLimitManager.verifySecurityKey(context, input)
                     else -> keyViewModel.verifySystemSecurityKey(lock.id, input)
                 }
             },
@@ -1864,6 +2066,10 @@ fun KeysWindow(
                     lock.id == "zen_security_key" -> {
                         ZenManager.setSecurityKey(context, keyType, secret)
                     }
+                    lock.id == "app_manager_security_key" -> {
+                        AppLimitManager.setSecurityKey(context, keyType, secret)
+                        keyViewModel.syncExistingSystemKeys()
+                    }
                     lock.id.startsWith("focus_mode_") -> {
                         val modeId = lock.id.removePrefix("focus_mode_")
                         TimeBlockRepository(context).updateFocusModeKey(modeId, keyType, secret)
@@ -1882,6 +2088,52 @@ fun KeysWindow(
                 showEditSystemKeyDialog = false
                 systemLockToEdit = null
             }
+        )
+    }
+
+    if (showVerifyCommonKeyDialog) {
+        VerifyEmergencyKeyDialog(
+            title = "Verify Common Key",
+            subtitle = if (commonKeyType == KeyType.QR_CODE) {
+                "Scan or enter your current Common Key QR to proceed."
+            } else {
+                "Enter your current Common Key password to proceed."
+            },
+            keyTypeOverride = commonKeyType,
+            onVerifyCustom = { input ->
+                CommonKeyManager.verifyCommonKey(context, input)
+            },
+            onDismiss = {
+                showVerifyCommonKeyDialog = false
+                pendingCommonKeyAction = null
+            },
+            onVerified = {
+                showVerifyCommonKeyDialog = false
+                when (pendingCommonKeyAction) {
+                    "edit" -> showSetCommonKeyDialog = true
+                    "remove" -> {
+                        CommonKeyManager.clearCommonKey(context)
+                        keyViewModel.syncExistingSystemKeys()
+                        Toast.makeText(context, "Common Key removed", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                pendingCommonKeyAction = null
+            }
+        )
+    }
+
+    if (showSetCommonKeyDialog) {
+        SetEmergencyKeyDialog(
+            savedKeys = savedKeys,
+            title = if (hasCommonKey) "Change Common Key" else "Configure Common Key",
+            subtitle = "This key will automatically apply to all features toggled on under Common Keys.",
+            onDismiss = { showSetCommonKeyDialog = false },
+            onSaveKey = { keyType, secret ->
+                CommonKeyManager.setCommonKey(context, keyType, secret)
+                keyViewModel.syncExistingSystemKeys()
+                Toast.makeText(context, "Common Key saved and synced!", Toast.LENGTH_SHORT).show()
+            },
+            onKeySet = { showSetCommonKeyDialog = false }
         )
     }
 }

@@ -176,12 +176,56 @@ class ToolsViewModel(application: Application) : AndroidViewModel(application) {
         return _installedApps.value.find { it.packageName == packageName }
     }
 
-    fun setAppLimit(packageName: String, dailyLimitMinutes: Int, blockMode: String) {
-        appLimitRepository.setLimit(packageName, dailyLimitMinutes, blockMode)
+    fun setAppLimit(
+        packageName: String,
+        dailyLimitMinutes: Int,
+        blockMode: String,
+        isRestricted: Boolean = dailyLimitMinutes == 0,
+        onResult: ((Boolean, String?) -> Unit)? = null
+    ) {
+        appLimitRepository.setLimit(packageName, dailyLimitMinutes, blockMode, isRestricted)
+        viewModelScope.launch(Dispatchers.IO) {
+            val app = getApplication<Application>()
+            val shouldRestrictNow = isRestricted || dailyLimitMinutes == 0 ||
+                com.hotaro.brik.util.AppLimitManager.getUsageMinutesToday(app, packageName) >= dailyLimitMinutes
+            val res = com.hotaro.brik.util.AppLimitManager.enforceAppRestriction(app, packageName, blockMode, shouldRestrictNow)
+            withContext(Dispatchers.Main) {
+                onResult?.invoke(res.isSuccess, res.exceptionOrNull()?.message)
+            }
+        }
     }
 
-    fun clearAppLimit(packageName: String) {
+    fun toggleAppRestrict(
+        packageName: String,
+        blockMode: String,
+        restrict: Boolean,
+        onResult: ((Boolean, String?) -> Unit)? = null
+    ) {
+        val existing = appLimitRepository.getLimit(packageName)
+        val minutes = existing?.dailyLimitMinutes ?: 0
+        appLimitRepository.setLimit(packageName, minutes, blockMode, restrict)
+        viewModelScope.launch(Dispatchers.IO) {
+            val res = com.hotaro.brik.util.AppLimitManager.enforceAppRestriction(getApplication(), packageName, blockMode, restrict)
+            withContext(Dispatchers.Main) {
+                onResult?.invoke(res.isSuccess, res.exceptionOrNull()?.message)
+            }
+        }
+    }
+
+    fun clearAppLimit(packageName: String, onResult: ((Boolean, String?) -> Unit)? = null) {
+        val existing = appLimitRepository.getLimit(packageName)
         appLimitRepository.clearLimit(packageName)
+        viewModelScope.launch(Dispatchers.IO) {
+            val res = com.hotaro.brik.util.AppLimitManager.enforceAppRestriction(
+                getApplication(),
+                packageName,
+                existing?.blockMode ?: "suspend",
+                false
+            )
+            withContext(Dispatchers.Main) {
+                onResult?.invoke(res.isSuccess, res.exceptionOrNull()?.message)
+            }
+        }
     }
 
     fun createBagFromPackages(name: String, packages: Set<String>): Boolean {
