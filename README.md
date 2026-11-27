@@ -236,6 +236,12 @@ If you already use Dhizuku to manage device administrator permissions:
 | **Binary Optimization** | R8 / ProGuard | Strict keep rules for IPC interfaces & reflection-free serialization |
 
 ---
+## Donate
+You can support brik development through [buy me a coffee](https://buymeacoffee.com/oi.hotaro)
+
+<a href="https://buymeacoffee.com/oi.hotaro">
+  <img src="https://github.com/user-attachments/assets/f62638ee-9ad9-42c6-b275-a620b4cabe25" width="128" />
+</a>
 
 ## Star History
 
