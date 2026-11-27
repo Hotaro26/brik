@@ -1482,8 +1482,8 @@ private fun ActiveZenDesktop(
 
                 androidx.compose.animation.AnimatedVisibility(
                     visible = isControlsRevealed,
-                    enter = fadeIn() + expandVertically(),
-                    exit = fadeOut() + shrinkVertically()
+                    enter = fadeIn(animationSpec = tween(350)),
+                    exit = fadeOut(animationSpec = tween(250))
                 ) {
                     Surface(
                         shape = CircleShape,
@@ -1655,8 +1655,8 @@ private fun ActiveZenDesktop(
 
                 androidx.compose.animation.AnimatedVisibility(
                     visible = isControlsRevealed,
-                    enter = fadeIn() + expandVertically(),
-                    exit = fadeOut() + shrinkVertically()
+                    enter = fadeIn(animationSpec = tween(350)),
+                    exit = fadeOut(animationSpec = tween(250))
                 ) {
                     Surface(
                         onClick = {

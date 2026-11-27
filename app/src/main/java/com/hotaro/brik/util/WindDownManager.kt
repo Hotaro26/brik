@@ -268,6 +268,11 @@ object WindDownManager {
                 (_allowedPackages.value + context.packageName).toList()
             }
             PolicyBridgeManager.setLockTaskPackages(context, packagesToAllow)
+            PolicyBridgeManager.setLockTaskFeatures(
+                context = context,
+                disableSystemGestures = true,
+                lockdownNotificationShade = !KioskPreferences.allowControlPanelsStatusBar.value
+            )
             activity?.startLockTask()
         } catch (e: Exception) {
             e.printStackTrace()

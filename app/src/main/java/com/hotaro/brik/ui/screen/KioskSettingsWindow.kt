@@ -53,7 +53,6 @@ fun KioskSettingsWindow(onBack: () -> Unit) {
     val allowControlPanelsStatusBar by KioskPreferences.allowControlPanelsStatusBar.collectAsState()
     val showBatteryIndicator by KioskPreferences.showBatteryIndicator.collectAsState()
     val appNamesAlignment by KioskPreferences.appNamesAlignment.collectAsState()
-    val allowSystemGestures by KioskPreferences.allowSystemGestures.collectAsState()
     val exitHoldSeconds by KioskPreferences.exitHoldSeconds.collectAsState()
 
     Column(
@@ -187,18 +186,18 @@ fun KioskSettingsWindow(onBack: () -> Unit) {
 
             val lockdownItems = listOf(
                 KioskToggleItem(
-                    title = "Control Panels & Status Bar",
-                    subtitle = "Allow pulling down status bar, notifications and control panels",
+                    title = "Status Bar",
+                    subtitle = "Show status bar info (time, battery, network) during kiosk mode",
                     iconRes = R.drawable.ic_status_bar_shade,
                     checked = allowControlPanelsStatusBar,
-                    onToggle = { KioskPreferences.setAllowControlPanelsStatusBar(context, it) }
-                ),
-                KioskToggleItem(
-                    title = "Allow System Gestures",
-                    subtitle = "Permit system edge swipe gestures if supported by device admin",
-                    iconRes = R.drawable.screen_lock_portrait_fill0,
-                    checked = allowSystemGestures,
-                    onToggle = { KioskPreferences.setAllowSystemGestures(context, it) }
+                    onToggle = {
+                        KioskPreferences.setAllowControlPanelsStatusBar(context, it)
+                        com.hotaro.brik.policy.PolicyBridgeManager.setLockTaskFeatures(
+                            context = context,
+                            disableSystemGestures = true,
+                            lockdownNotificationShade = !it
+                        )
+                    }
                 )
             )
 

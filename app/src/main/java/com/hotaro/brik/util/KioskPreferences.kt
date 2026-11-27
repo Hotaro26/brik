@@ -13,7 +13,6 @@ object KioskPreferences {
     private const val KEY_LOCKDOWN_NOTIFICATION_SHADE = "pref_kiosk_lockdown_notification_shade"
     private const val KEY_ALLOW_CONTROL_PANELS_STATUS_BAR = "pref_kiosk_allow_control_panels_status_bar"
     private const val KEY_SHOW_BATTERY_INDICATOR = "pref_kiosk_show_battery_indicator"
-    private const val KEY_ALLOW_SYSTEM_GESTURES = "pref_kiosk_allow_system_gestures"
     private const val KEY_EXIT_HOLD_SECONDS = "pref_kiosk_exit_hold_seconds"
     private const val KEY_APP_NAMES_ALIGNMENT = "pref_kiosk_app_names_alignment"
 
@@ -38,9 +37,6 @@ object KioskPreferences {
     private val _appNamesAlignment = MutableStateFlow("center")
     val appNamesAlignment: StateFlow<String> = _appNamesAlignment.asStateFlow()
 
-    private val _allowSystemGestures = MutableStateFlow(true)
-    val allowSystemGestures: StateFlow<Boolean> = _allowSystemGestures.asStateFlow()
-
     private val _exitHoldSeconds = MutableStateFlow(3)
     val exitHoldSeconds: StateFlow<Int> = _exitHoldSeconds.asStateFlow()
 
@@ -53,7 +49,6 @@ object KioskPreferences {
         _lockdownNotificationShade.value = prefs.getBoolean(KEY_LOCKDOWN_NOTIFICATION_SHADE, !_allowControlPanelsStatusBar.value)
         _showBatteryIndicator.value = prefs.getBoolean(KEY_SHOW_BATTERY_INDICATOR, true)
         _appNamesAlignment.value = prefs.getString(KEY_APP_NAMES_ALIGNMENT, "center") ?: "center"
-        _allowSystemGestures.value = prefs.getBoolean(KEY_ALLOW_SYSTEM_GESTURES, true)
         _exitHoldSeconds.value = prefs.getInt(KEY_EXIT_HOLD_SECONDS, 3)
     }
 
@@ -105,12 +100,6 @@ object KioskPreferences {
         _appNamesAlignment.value = value
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit().putString(KEY_APP_NAMES_ALIGNMENT, value).apply()
-    }
-
-    fun setAllowSystemGestures(context: Context, value: Boolean) {
-        _allowSystemGestures.value = value
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit().putBoolean(KEY_ALLOW_SYSTEM_GESTURES, value).apply()
     }
 
     fun setExitHoldSeconds(context: Context, value: Int) {

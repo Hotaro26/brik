@@ -4,6 +4,7 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.content.IntentFilter
 import android.hardware.camera2.CameraManager
@@ -48,6 +49,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.MaterialTheme.typography
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -55,6 +58,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -146,6 +150,14 @@ fun FloatingQuickControls(
     val showBluetooth by AssistivePreferences.showBluetooth.collectAsState()
     val showDnd by AssistivePreferences.showDnd.collectAsState()
     val showPhone by AssistivePreferences.showPhone.collectAsState()
+    val showBrightnessSlider by AssistivePreferences.showBrightnessSlider.collectAsState()
+
+    var currentBrightness by remember {
+        val initialSys = runCatching {
+            Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS)
+        }.getOrDefault(128)
+        mutableFloatStateOf((initialSys / 255f).coerceIn(0.05f, 1f))
+    }
 
     var isExpanded by remember { mutableStateOf(false) }
     var isDraggingBall by remember { mutableStateOf(false) }
@@ -667,8 +679,9 @@ fun FloatingQuickControls(
         }
 
         val tileRows = ((activeTiles.size + 1) / 2).coerceAtLeast(1)
-        val maxBoxHeightDp = ((screenHeightPx / density.density) - 100f).coerceIn(240f, 440f).dp
-        val naturalHeightDp = (68.dp + (tileRows * 94).dp + 16.dp)
+        val brightnessHeight = if (showBrightnessSlider) 54.dp else 0.dp
+        val maxBoxHeightDp = ((screenHeightPx / density.density) - 100f).coerceIn(240f, 480f).dp
+        val naturalHeightDp = (68.dp + (tileRows * 94).dp + brightnessHeight + 16.dp)
         val boxHeightDp = minOf(naturalHeightDp, maxBoxHeightDp)
         val boxHeightPx = with(density) { boxHeightDp.toPx() }
 
@@ -1049,12 +1062,79 @@ fun FloatingQuickControls(
                                     }
                                 }
                             }
+
+                            if (showBrightnessSlider) {
+                                Surface(
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = colorScheme.surfaceContainerHigh.copy(alpha = 0.85f),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 12.dp, vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.ic_brightness_medium),
+                                            contentDescription = "Brightness",
+                                            tint = primaryColor,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+
+                                        Slider(
+                                            value = currentBrightness,
+                                            onValueChange = { newVal ->
+                                                currentBrightness = newVal
+                                                lastInteractionTime = System.currentTimeMillis()
+                                                val activity = context.findActivity()
+                                                if (activity != null) {
+                                                    val lp = activity.window.attributes
+                                                    lp.screenBrightness = newVal.coerceIn(0.01f, 1f)
+                                                    activity.window.attributes = lp
+                                                }
+                                                runCatching {
+                                                    Settings.System.putInt(
+                                                        context.contentResolver,
+                                                        Settings.System.SCREEN_BRIGHTNESS,
+                                                        (newVal * 255).toInt().coerceIn(1, 255)
+                                                    )
+                                                }
+                                            },
+                                            valueRange = 0.05f..1f,
+                                            modifier = Modifier.weight(1f),
+                                            colors = SliderDefaults.colors(
+                                                thumbColor = primaryColor,
+                                                activeTrackColor = primaryColor,
+                                                inactiveTrackColor = colorScheme.surfaceContainerHighest
+                                            )
+                                        )
+
+                                        Text(
+                                            text = "${(currentBrightness * 100).toInt()}%",
+                                            style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                            color = colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.width(36.dp),
+                                            textAlign = androidx.compose.ui.text.style.TextAlign.End
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
         }
     }
+}
+
+private tailrec fun Context.findActivity(): android.app.Activity? = when (this) {
+    is android.app.Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 private data class QuickTileData(

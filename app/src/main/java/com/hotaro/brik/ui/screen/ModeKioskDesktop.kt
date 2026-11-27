@@ -14,6 +14,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.ui.draw.clip
@@ -489,8 +490,8 @@ fun ModeKioskDesktop(
         // Hold-to-Reveal Controls Overlay (Reveals for 2 seconds after 3s continuous press)
         AnimatedVisibility(
             visible = isControlsRevealed,
-            enter = fadeIn(),
-            exit = fadeOut(),
+            enter = fadeIn(animationSpec = tween(350)),
+            exit = fadeOut(animationSpec = tween(250)),
             modifier = Modifier.align(Alignment.BottomCenter)
         ) {
             Surface(

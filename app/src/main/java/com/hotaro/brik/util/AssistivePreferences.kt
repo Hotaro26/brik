@@ -16,6 +16,7 @@ object AssistivePreferences {
     private const val KEY_SHOW_BLUETOOTH = "pref_assistive_show_bluetooth"
     private const val KEY_SHOW_DND = "pref_assistive_show_dnd"
     private const val KEY_SHOW_PHONE = "pref_assistive_show_phone"
+    private const val KEY_SHOW_BRIGHTNESS_SLIDER = "pref_assistive_show_brightness_slider"
 
     private val _enabled = MutableStateFlow(true)
     val enabled: StateFlow<Boolean> = _enabled.asStateFlow()
@@ -44,6 +45,9 @@ object AssistivePreferences {
     private val _showPhone = MutableStateFlow(true)
     val showPhone: StateFlow<Boolean> = _showPhone.asStateFlow()
 
+    private val _showBrightnessSlider = MutableStateFlow(true)
+    val showBrightnessSlider: StateFlow<Boolean> = _showBrightnessSlider.asStateFlow()
+
     fun init(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         _enabled.value = prefs.getBoolean(KEY_ENABLED, true)
@@ -55,6 +59,7 @@ object AssistivePreferences {
         _showBluetooth.value = prefs.getBoolean(KEY_SHOW_BLUETOOTH, true)
         _showDnd.value = prefs.getBoolean(KEY_SHOW_DND, false)
         _showPhone.value = prefs.getBoolean(KEY_SHOW_PHONE, true)
+        _showBrightnessSlider.value = prefs.getBoolean(KEY_SHOW_BRIGHTNESS_SLIDER, true)
     }
 
     fun setEnabled(context: Context, value: Boolean) {
@@ -109,5 +114,11 @@ object AssistivePreferences {
         _showPhone.value = value
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit().putBoolean(KEY_SHOW_PHONE, value).apply()
+    }
+
+    fun setShowBrightnessSlider(context: Context, value: Boolean) {
+        _showBrightnessSlider.value = value
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().putBoolean(KEY_SHOW_BRIGHTNESS_SLIDER, value).apply()
     }
 }

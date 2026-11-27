@@ -19,6 +19,15 @@ class BrikApp : Application() {
         super.onCreate()
         ThemePreferences.init(this)
         com.hotaro.brik.policy.PolicyBridgeManager.updateStatus(this)
+
+        try {
+            val dpm = getSystemService(android.app.admin.DevicePolicyManager::class.java)
+            val dar = com.hotaro.brik.admin.BrikAdminReceiver.getComponentName(this)
+            if (dpm != null && dpm.isDeviceOwnerApp(packageName)) {
+                dpm.setPermissionGrantState(dar, packageName, android.Manifest.permission.READ_PHONE_STATE, android.app.admin.DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED)
+            }
+        } catch (_: Exception) {}
+
         AssistivePreferences.init(this)
         KioskPreferences.init(this)
         EmergencyManager.init(this)

@@ -13,7 +13,24 @@ class BrikAdminReceiver : DeviceAdminReceiver() {
             try {
                 val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? android.app.admin.DevicePolicyManager
                 val dar = getComponentName(context)
-                dpm?.setLockTaskPackages(dar, arrayOf(context.packageName, "com.android.settings", "com.google.android.dialer", "com.android.dialer"))
+                val defaultDialer = (context.getSystemService(Context.TELECOM_SERVICE) as? android.telecom.TelecomManager)?.defaultDialerPackage
+                val allowedPackages = listOfNotNull(
+                    context.packageName,
+                    "com.android.settings",
+                    defaultDialer,
+                    "com.google.android.dialer",
+                    "com.android.dialer",
+                    "com.android.phone",
+                    "com.android.server.telecom",
+                    "com.android.incallui",
+                    "com.samsung.android.dialer",
+                    "com.samsung.android.incallui",
+                    "com.samsung.android.app.telephonyui",
+                    "com.miui.telephony",
+                    "com.miui.phone",
+                    "com.qti.phone"
+                ).distinct().toTypedArray()
+                dpm?.setLockTaskPackages(dar, allowedPackages)
             } catch (e: Exception) {
                 e.printStackTrace()
             }

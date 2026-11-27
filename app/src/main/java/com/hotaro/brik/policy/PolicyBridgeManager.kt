@@ -313,7 +313,16 @@ object PolicyBridgeManager {
                 "com.android.settings",
                 defaultDialer,
                 "com.google.android.dialer",
-                "com.android.dialer"
+                "com.android.dialer",
+                "com.android.phone",
+                "com.android.server.telecom",
+                "com.android.incallui",
+                "com.samsung.android.dialer",
+                "com.samsung.android.incallui",
+                "com.samsung.android.app.telephonyui",
+                "com.miui.telephony",
+                "com.miui.phone",
+                "com.qti.phone"
             )
             val fullPackages = (packages + systemPackages).distinct().toTypedArray()
 
@@ -353,9 +362,8 @@ object PolicyBridgeManager {
                 DevicePolicyManager.LOCK_TASK_FEATURE_OVERVIEW
         }
         if (!lockdownNotificationShade) {
-            flags = flags or
-                DevicePolicyManager.LOCK_TASK_FEATURE_NOTIFICATIONS or
-                DevicePolicyManager.LOCK_TASK_FEATURE_SYSTEM_INFO
+            // Only enable SYSTEM_INFO so the status bar is visible without forcing LOCK_TASK_FEATURE_HOME (which enables the bottom home gesture).
+            flags = flags or DevicePolicyManager.LOCK_TASK_FEATURE_SYSTEM_INFO
         }
         return runCatching {
             when (status.activeBridge) {

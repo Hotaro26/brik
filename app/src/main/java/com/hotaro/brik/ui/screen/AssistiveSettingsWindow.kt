@@ -61,6 +61,7 @@ fun AssistiveSettingsWindow(onBack: () -> Unit) {
     val showBluetooth by AssistivePreferences.showBluetooth.collectAsState()
     val showDnd by AssistivePreferences.showDnd.collectAsState()
     val showPhone by AssistivePreferences.showPhone.collectAsState()
+    val showBrightnessSlider by AssistivePreferences.showBrightnessSlider.collectAsState()
 
     Column(
         modifier = Modifier.fillMaxSize()
@@ -268,6 +269,13 @@ fun AssistiveSettingsWindow(onBack: () -> Unit) {
                     iconRes = R.drawable.call_fill0,
                     checked = showPhone,
                     onToggle = { AssistivePreferences.setShowPhone(context, it) }
+                ),
+                TileConfig(
+                    title = "Brightness Slider",
+                    subtitle = "Screen brightness slider at bottom of quick controls",
+                    iconRes = R.drawable.ic_brightness_medium,
+                    checked = showBrightnessSlider,
+                    onToggle = { AssistivePreferences.setShowBrightnessSlider(context, it) }
                 )
             )
 

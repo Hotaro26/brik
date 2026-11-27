@@ -117,7 +117,6 @@ class MainActivity : ComponentActivity() {
                 val isWindDownActive by com.hotaro.brik.util.WindDownManager.isWindDownActive.collectAsState()
                 val isZenActive by com.hotaro.brik.util.ZenManager.isZenActive.collectAsState()
                 val allowControlPanelsStatusBar by com.hotaro.brik.util.KioskPreferences.allowControlPanelsStatusBar.collectAsState()
-                val allowSystemGestures by com.hotaro.brik.util.KioskPreferences.allowSystemGestures.collectAsState()
                 val timeBlockRepo = remember { com.hotaro.brik.data.repository.TimeBlockRepository.getInstance(applicationContext) }
                 val activeSession by timeBlockRepo.activeSession.collectAsState()
                 val focusModes by timeBlockRepo.focusModes.collectAsState()
@@ -127,7 +126,7 @@ class MainActivity : ComponentActivity() {
                     } else null
                 }
 
-                androidx.compose.runtime.LaunchedEffect(isWindDownActive, isZenActive, activeKioskFocusMode, allowControlPanelsStatusBar, allowSystemGestures) {
+                androidx.compose.runtime.LaunchedEffect(isWindDownActive, isZenActive, activeKioskFocusMode, allowControlPanelsStatusBar) {
                     if (activeKioskFocusMode != null) {
                         try {
                             val defaultDialer = (getSystemService(android.content.Context.TELECOM_SERVICE) as? android.telecom.TelecomManager)?.defaultDialerPackage
@@ -137,17 +136,35 @@ class MainActivity : ComponentActivity() {
                                 defaultDialer,
                                 "com.google.android.dialer",
                                 "com.android.dialer",
-                                "com.samsung.android.dialer"
+                                "com.android.phone",
+                                "com.android.server.telecom",
+                                "com.android.incallui",
+                                "com.samsung.android.dialer",
+                                "com.samsung.android.incallui",
+                                "com.samsung.android.app.telephonyui",
+                                "com.miui.telephony",
+                                "com.miui.phone",
+                                "com.qti.phone"
                             )
                             val packagesToAllow = (activeKioskFocusMode.kioskAllowedPackages + systemPackages).distinct()
                             com.hotaro.brik.policy.PolicyBridgeManager.setLockTaskPackages(this@MainActivity, packagesToAllow)
-                            val disableGestures = !allowSystemGestures || activeKioskFocusMode.kioskDisableSystemGestures
+                            val disableGestures = activeKioskFocusMode.kioskDisableSystemGestures
                             com.hotaro.brik.policy.PolicyBridgeManager.setLockTaskFeatures(
                                 this@MainActivity,
                                 disableSystemGestures = disableGestures,
                                 lockdownNotificationShade = !allowControlPanelsStatusBar
                             )
                             startLockTask()
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    } else if (isWindDownActive || (isZenActive && com.hotaro.brik.util.ZenManager.useKiosk.value)) {
+                        try {
+                            com.hotaro.brik.policy.PolicyBridgeManager.setLockTaskFeatures(
+                                this@MainActivity,
+                                disableSystemGestures = true,
+                                lockdownNotificationShade = !allowControlPanelsStatusBar
+                            )
                         } catch (e: Exception) {
                             e.printStackTrace()
                         }
