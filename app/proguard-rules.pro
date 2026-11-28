@@ -31,5 +31,9 @@
 -keep interface com.rosan.dhizuku.** { *; }
 -keep class org.lsposed.hiddenapibypass.** { *; }
 -keep class com.google.zxing.** { *; }
+-keep class com.google.mlkit.** { *; }
+-keep interface com.google.mlkit.** { *; }
+-keep class com.google.android.gms.** { *; }
+-keep interface com.google.android.gms.** { *; }
 -keep class com.hotaro.brik.data.model.** { *; }
 -keepclassmembers class com.hotaro.brik.data.model.** { *; }

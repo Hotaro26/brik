@@ -89,12 +89,12 @@ object QrUtils {
 
     @OptIn(ExperimentalGetImage::class)
     fun decodeWithMlKit(image: ImageProxy): String? {
-        val mediaImage = image.image ?: return null
-        val inputImage = InputImage.fromMediaImage(mediaImage, image.imageInfo.rotationDegrees)
         return try {
+            val mediaImage = image.image ?: return null
+            val inputImage = InputImage.fromMediaImage(mediaImage, image.imageInfo.rotationDegrees)
             val barcodes = Tasks.await(mlKitScanner.process(inputImage))
             barcodes.firstOrNull { !it.rawValue.isNullOrBlank() }?.rawValue
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
             null
         }
     }
