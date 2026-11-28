@@ -61,18 +61,6 @@ object CommonKeyManager {
             iconRes = R.drawable.dns_fill0
         ),
         CommonKeyOption(
-            id = "dpm_uninstall_lock",
-            title = "Device Owner Uninstall",
-            subtitle = "Require key to revoke Device Owner admin privileges",
-            iconRes = R.drawable.shield_fill0
-        ),
-        CommonKeyOption(
-            id = "emergency_key",
-            title = "Emergency Master Key",
-            subtitle = "Require key for emergency unlock override",
-            iconRes = R.drawable.key_fill0
-        ),
-        CommonKeyOption(
             id = "bags_common_key",
             title = "App Bags",
             subtitle = "Follow Common Key by default for app bags",
@@ -217,8 +205,6 @@ object CommonKeyManager {
             }
             "sideload_adb_lock" -> SideloadLockManager.clearSecurityKey(context)
             "dns_lock" -> DnsManager.clearSecurityKey(context)
-            "dpm_uninstall_lock" -> KeyRepository(context).removeDpmUninstallLock()
-            "emergency_key" -> EmergencyManager.clearEmergencyKey(context)
         }
     }
 
@@ -230,12 +216,6 @@ object CommonKeyManager {
             "wind_down_security_key" -> WindDownManager.setSecurityKey(context, keyType, secret)
             "sideload_adb_lock" -> SideloadLockManager.setSecurityKey(context, keyType, secret)
             "dns_lock" -> DnsManager.setSecurityKey(context, keyType, secret)
-            "dpm_uninstall_lock" -> {
-                KeyRepository(context).setDpmUninstallLock(keyType, secret)
-            }
-            "emergency_key" -> {
-                EmergencyManager.setEmergencyKey(context, keyType, secret)
-            }
         }
     }
 
@@ -290,21 +270,6 @@ object CommonKeyManager {
                     .putString("dns_key_hash", hash)
                     .apply()
                 repo.registerSystemKeyIfMissing("dns_lock", "DNS Protection Key", keyType, hash, qrToken)
-            }
-            "dpm_uninstall_lock" -> {
-                context.getSharedPreferences("brik_admin_pref", Context.MODE_PRIVATE).edit()
-                    .putString("pref_dpm_uninstall_key_type", keyType.name)
-                    .putString("pref_dpm_uninstall_secret_hash", hash)
-                    .putString("pref_dpm_uninstall_qr_token", qrToken)
-                    .apply()
-                repo.registerSystemKeyIfMissing("dpm_uninstall_lock", "Device Owner Uninstall Key", keyType, hash, qrToken)
-            }
-            "emergency_key" -> {
-                context.getSharedPreferences("brik_emergency_prefs", Context.MODE_PRIVATE).edit()
-                    .putString("pref_emergency_key_type", keyType.name)
-                    .putString("pref_emergency_secret_hash", hash)
-                    .putString("pref_emergency_qr_token", qrToken)
-                    .apply()
             }
         }
     }

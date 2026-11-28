@@ -72,7 +72,6 @@ fun EmergencyModeWindow(
     val isEmergencyActive by EmergencyManager.isEmergencyModeActive.collectAsState()
     val hasEmergencyKey by EmergencyManager.hasEmergencyKey.collectAsState()
     val autoDeactivateOnLock by EmergencyManager.autoDeactivateOnScreenLock.collectAsState()
-    val allowCommonKeyDpm by EmergencyManager.allowCommonKeyDpm.collectAsState()
     val savedKeys by keyViewModel.savedKeys.collectAsState()
 
     var showSetKeyDialog by remember { mutableStateOf(false) }
@@ -175,7 +174,7 @@ fun EmergencyModeWindow(
                                     color = if (isEmergencyActive) colorScheme.error else colorScheme.onSurface
                                 )
                                 Text(
-                                    text = if (isEmergencyActive) "Override active - saved keys revealed" else "Standard lockdown rules enforced",
+                                    text = if (isEmergencyActive) "Override active - Emergency unfreeze available" else "Standard lockdown rules enforced",
                                     style = typography.bodySmall,
                                     color = colorScheme.onSurfaceVariant
                                 )
@@ -219,7 +218,6 @@ fun EmergencyModeWindow(
                         .padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    val isEmergencyCommonKey = com.hotaro.brik.util.CommonKeyManager.isFollowingAndReady(context, "emergency_key")
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
@@ -231,14 +229,14 @@ fun EmergencyModeWindow(
                         ) {
                             Surface(
                                 shape = CircleShape,
-                                color = if (hasEmergencyKey || isEmergencyCommonKey) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
+                                color = if (hasEmergencyKey) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
                                 modifier = Modifier.size(38.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(
-                                        painter = painterResource(R.drawable.password_fill0),
+                                        painter = painterResource(R.drawable.qr_code_fill0),
                                         contentDescription = null,
-                                        tint = if (hasEmergencyKey || isEmergencyCommonKey) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                                        tint = if (hasEmergencyKey) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
@@ -246,32 +244,30 @@ fun EmergencyModeWindow(
                             Spacer(Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = if (isEmergencyCommonKey) "Common Key Configured" else if (hasEmergencyKey) "Emergency Key Configured" else "No Emergency Key Set",
+                                    text = if (hasEmergencyKey) "Emergency QR Key Set" else "No Emergency Key Set",
                                     style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                                     color = colorScheme.onSurface
                                 )
                                 Text(
-                                    text = if (isEmergencyCommonKey) "Common Key configured for this" else if (hasEmergencyKey) "Required to activate emergency mode" else "Must configure a key before activating",
+                                    text = if (hasEmergencyKey) "Physical QR key required to activate emergency mode" else "Must configure a physical QR key before activating",
                                     style = typography.bodySmall,
                                     color = colorScheme.onSurfaceVariant
                                 )
                             }
                         }
 
-                        if (!isEmergencyCommonKey) {
-                            Button(
-                                onClick = {
-                                    if (!hasEmergencyKey) {
-                                        showSetKeyDialog = true
-                                    } else {
-                                        isChangingKey = true
-                                        showVerifyKeyDialog = true
-                                    }
-                                },
-                                shape = RoundedCornerShape(10.dp)
-                            ) {
-                                Text(if (hasEmergencyKey) "Change" else "Set Key", style = typography.labelSmall)
-                            }
+                        Button(
+                            onClick = {
+                                if (!hasEmergencyKey) {
+                                    showSetKeyDialog = true
+                                } else {
+                                    isChangingKey = true
+                                    showVerifyKeyDialog = true
+                                }
+                            },
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text(if (hasEmergencyKey) "Change" else "Set Key", style = typography.labelSmall)
                         }
                     }
                 }
@@ -347,109 +343,6 @@ fun EmergencyModeWindow(
                         style = typography.bodySmall,
                         color = colorScheme.onSurfaceVariant
                     )
-                }
-            }
-
-            // --- Section: Common Key & DPM Override ---
-            TomatoSectionHeader(title = "COMMON KEY & DPM OVERRIDE")
-            ElevatedCard(
-                shape = RoundedCornerShape(20.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(colorScheme.surfaceContainerHigh)
-                        .padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Surface(
-                                shape = CircleShape,
-                                color = colorScheme.secondaryContainer,
-                                modifier = Modifier.size(38.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.shield_fill0),
-                                        contentDescription = null,
-                                        tint = colorScheme.onSecondaryContainer,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
-                            Spacer(Modifier.width(12.dp))
-                            Column {
-                                Text(
-                                    text = "Common Key & Disable DPM",
-                                    style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "Unlock emergency mode & disable DPM with common key",
-                                    style = typography.bodySmall,
-                                    color = colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-
-                        BrikSwitch(
-                            checked = allowCommonKeyDpm,
-                            onCheckedChange = { enabled ->
-                                view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                                EmergencyManager.setAllowCommonKeyDpm(context, enabled)
-                                Toast.makeText(
-                                    context,
-                                    if (enabled) "Common key & DPM override enabled" else "Common key & DPM override disabled",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                        )
-                    }
-
-                    Text(
-                        text = "When enabled, any configured protection key can unlock emergency mode, and Device Owner (DPM) can be deactivated directly during an active emergency session.",
-                        style = typography.bodySmall,
-                        color = colorScheme.onSurfaceVariant
-                    )
-
-                    if (isEmergencyActive && allowCommonKeyDpm) {
-                        Spacer(Modifier.height(4.dp))
-                        OutlinedButton(
-                            onClick = {
-                                val res = com.hotaro.brik.policy.PolicyBridgeManager.clearDeviceOwner(context)
-                                keyViewModel.removeDpmUninstallLock()
-                                if (res.isSuccess) {
-                                    Toast.makeText(context, "Device Owner (DPM) disabled successfully", Toast.LENGTH_SHORT).show()
-                                } else {
-                                    Toast.makeText(context, "DPM status updated", Toast.LENGTH_SHORT).show()
-                                }
-                            },
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(
-                                painter = painterResource(R.drawable.delete_fill0),
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp),
-                                tint = colorScheme.error
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                text = "Disable Device Owner (DPM) Now",
-                                color = colorScheme.error,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
                 }
             }
 
@@ -573,6 +466,9 @@ fun EmergencyModeWindow(
     if (showSetKeyDialog) {
         SetEmergencyKeyDialog(
             savedKeys = savedKeys,
+            title = if (hasEmergencyKey) "Change Emergency Key" else "Set Emergency Key",
+            subtitle = "Configure your physical QR key to guard Emergency Mode.",
+            forceQrOnly = true,
             onDismiss = {
                 showSetKeyDialog = false
                 isChangingKey = false

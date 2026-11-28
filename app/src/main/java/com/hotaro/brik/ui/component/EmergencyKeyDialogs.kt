@@ -64,13 +64,14 @@ import java.util.UUID
 fun SetEmergencyKeyDialog(
     savedKeys: List<SavedKey> = emptyList(),
     title: String = "Set Emergency Key",
-    subtitle: String = "Configure a secure key to guard Emergency Mode. This key will be required whenever you trigger or activate Emergency Mode.",
+    subtitle: String = "Configure a secure physical QR key to guard Emergency Mode.",
+    forceQrOnly: Boolean = false,
     onDismiss: () -> Unit,
     onSaveKey: ((KeyType, String) -> Unit)? = null,
     onKeySet: () -> Unit
 ) {
     val context = LocalContext.current
-    var selectedKeyType by remember { mutableStateOf(KeyType.PASSWORD) }
+    var selectedKeyType by remember { mutableStateOf(if (forceQrOnly) KeyType.QR_CODE else KeyType.PASSWORD) }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
@@ -105,50 +106,76 @@ fun SetEmergencyKeyDialog(
 
                 Spacer(Modifier.height(16.dp))
 
-                // Key Type Segmented Buttons
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(colorScheme.surfaceContainerLowest)
-                        .padding(4.dp)
-                ) {
-                    Surface(
-                        onClick = {
-                            selectedKeyType = KeyType.PASSWORD
-                            errorMessage = null
-                        },
-                        shape = RoundedCornerShape(10.dp),
-                        color = if (selectedKeyType == KeyType.PASSWORD) colorScheme.primaryContainer else Color.Transparent,
+                if (!forceQrOnly) {
+                    // Key Type Segmented Buttons
+                    Row(
                         modifier = Modifier
-                            .weight(1f)
-                            .height(38.dp)
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(colorScheme.surfaceContainerLowest)
+                            .padding(4.dp)
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text(
-                                text = "Password",
-                                style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                color = if (selectedKeyType == KeyType.PASSWORD) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
-                            )
+                        Surface(
+                            onClick = {
+                                selectedKeyType = KeyType.PASSWORD
+                                errorMessage = null
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (selectedKeyType == KeyType.PASSWORD) colorScheme.primaryContainer else Color.Transparent,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(38.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = "Password",
+                                    style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = if (selectedKeyType == KeyType.PASSWORD) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        Surface(
+                            onClick = {
+                                selectedKeyType = KeyType.QR_CODE
+                                errorMessage = null
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (selectedKeyType == KeyType.QR_CODE) colorScheme.primaryContainer else Color.Transparent,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(38.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = "QR Code",
+                                    style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = if (selectedKeyType == KeyType.QR_CODE) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
-
+                } else {
                     Surface(
-                        onClick = {
-                            selectedKeyType = KeyType.QR_CODE
-                            errorMessage = null
-                        },
-                        shape = RoundedCornerShape(10.dp),
-                        color = if (selectedKeyType == KeyType.QR_CODE) colorScheme.primaryContainer else Color.Transparent,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(38.dp)
+                        shape = RoundedCornerShape(12.dp),
+                        color = colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.qr_code_fill0),
+                                contentDescription = null,
+                                tint = colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(Modifier.width(10.dp))
                             Text(
-                                text = "QR Code",
+                                text = "Physical QR / Barcode Key Enforced",
                                 style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                color = if (selectedKeyType == KeyType.QR_CODE) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
+                                color = colorScheme.onSurface
                             )
                         }
                     }

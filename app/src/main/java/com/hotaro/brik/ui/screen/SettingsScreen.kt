@@ -337,7 +337,7 @@ fun SettingsScreen(
                     val isEmergencyActive by EmergencyManager.isEmergencyModeActive.collectAsState()
                     TomatoSettingsItem(
                         title = "Emergency Mode",
-                        subtitle = if (isEmergencyActive) "Active • Overrides and saved keys revealed" else "Inactive • Pull down 3x in Keys to trigger",
+                        subtitle = if (isEmergencyActive) "Active • Emergency unfreeze available" else "Inactive • Pull down 3x in Keys to trigger",
                         leadingIcon = R.drawable.shield_fill0,
                         iconContainerColor = if (isEmergencyActive) colorScheme.errorContainer else colorScheme.secondaryContainer,
                         iconTint = if (isEmergencyActive) colorScheme.onErrorContainer else colorScheme.onSecondaryContainer,
@@ -657,8 +657,6 @@ fun SettingsScreen(
 
     // --- Step 1: Set Uninstall Key Dialog ---
     if (showSetUninstallKeyDialog) {
-        var selectedKeyType by remember { mutableStateOf(KeyType.PASSWORD) }
-        var password by remember { mutableStateOf("") }
         var qrMode by remember { mutableStateOf(0) } // 0 = Random, 1 = Scan External
         val generatedQrToken = remember { UUID.randomUUID().toString() }
         var scannedQrToken by remember { mutableStateOf<String?>(null) }
@@ -692,88 +690,40 @@ fun SettingsScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "To revoke Device Owner and uninstall Brik, you must set either a Password or QR Code key. This key will be tracked in your Keys section.",
+                        text = "To prevent impulsive uninstallation, Device Owner deactivation requires a physical QR code or barcode key. This key will be tracked in your Keys section.",
                         style = typography.bodySmall,
                         color = colorScheme.onSurfaceVariant
                     )
 
                     Spacer(Modifier.height(16.dp))
 
-                    // Key Type Toggle
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Surface(
-                            onClick = { selectedKeyType = KeyType.PASSWORD },
-                            shape = RoundedCornerShape(14.dp),
-                            color = if (selectedKeyType == KeyType.PASSWORD) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(52.dp)
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxSize(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
-                            ) {
-                                Icon(
-                                    painter = painterResource(R.drawable.password_fill0),
-                                    contentDescription = null,
-                                    tint = if (selectedKeyType == KeyType.PASSWORD) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                    text = "Password",
-                                    style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = if (selectedKeyType == KeyType.PASSWORD) colorScheme.onPrimaryContainer else colorScheme.onSurface
-                                )
-                            }
-                        }
-
-                        Surface(
-                            onClick = { selectedKeyType = KeyType.QR_CODE },
-                            shape = RoundedCornerShape(14.dp),
-                            color = if (selectedKeyType == KeyType.QR_CODE) colorScheme.primaryContainer else colorScheme.surfaceContainerLowest,
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(52.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxSize(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
-                            ) {
-                                Icon(
-                                    painter = painterResource(R.drawable.qr_code_fill0),
-                                    contentDescription = null,
-                                    tint = if (selectedKeyType == KeyType.QR_CODE) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                    text = "QR Key",
-                                    style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = if (selectedKeyType == KeyType.QR_CODE) colorScheme.onPrimaryContainer else colorScheme.onSurface
-                                )
-                            }
+                            Icon(
+                                painter = painterResource(R.drawable.qr_code_fill0),
+                                contentDescription = null,
+                                tint = colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                text = "Physical QR / Barcode Key Enforced",
+                                style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = colorScheme.onSurface
+                            )
                         }
                     }
 
                     Spacer(Modifier.height(16.dp))
 
-                    if (selectedKeyType == KeyType.PASSWORD) {
-                        OutlinedTextField(
-                            value = password,
-                            onValueChange = { password = it },
-                            placeholder = { Text("Enter security password") },
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    } else {
-                        // QR Key Sub-mode Selector
+                    // QR Key Sub-mode Selector
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -958,23 +908,14 @@ fun SettingsScreen(
                             }
                         }
                     }
-                }
             },
             confirmButton = {
-                val isFormValid = if (selectedKeyType == KeyType.PASSWORD) {
-                    password.isNotBlank()
-                } else {
-                    if (qrMode == 0) true else scannedQrToken != null
-                }
+                val isFormValid = if (qrMode == 0) true else scannedQrToken != null
 
                 Button(
                     onClick = {
-                        val secret = if (selectedKeyType == KeyType.PASSWORD) {
-                            password.trim()
-                        } else {
-                            if (qrMode == 0) generatedQrToken else scannedQrToken!!
-                        }
-                        keyViewModel.setDpmUninstallLock(selectedKeyType, secret)
+                        val secret = if (qrMode == 0) generatedQrToken else scannedQrToken!!
+                        keyViewModel.setDpmUninstallLock(KeyType.QR_CODE, secret)
                         Toast.makeText(context, "Security key saved in Keys section!", Toast.LENGTH_SHORT).show()
                         showSetUninstallKeyDialog = false
                         showVerifyUninstallKeyDialog = true

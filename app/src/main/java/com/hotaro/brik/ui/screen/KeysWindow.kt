@@ -675,10 +675,9 @@ fun KeysWindow(
                                                 )
 
                                                 val showEditBtn = lock.isSystemKey && !hideEditAndClearInEmergency
-                                                val showQrBtn = isEmergencyActive && lock.keyType == KeyType.QR_CODE && lock.qrToken != null
                                                 val showEmergencyOrClearBtn = isEmergencyActive && !(lock.isSystemKey && isFromCommonKey)
 
-                                                if (showEditBtn || showQrBtn || showEmergencyOrClearBtn) {
+                                                if (showEditBtn || showEmergencyOrClearBtn) {
                                                     Spacer(Modifier.height(10.dp))
 
                                                     Row(
@@ -701,24 +700,6 @@ fun KeysWindow(
                                                                 )
                                                                 Spacer(Modifier.width(6.dp))
                                                                 Text("Edit Key", style = typography.labelMedium)
-                                                            }
-                                                            if (showQrBtn || showEmergencyOrClearBtn) {
-                                                                Spacer(Modifier.width(8.dp))
-                                                            }
-                                                        }
-
-                                                        if (showQrBtn) {
-                                                            OutlinedButton(
-                                                                onClick = { viewQrLock = lock },
-                                                                shape = RoundedCornerShape(12.dp)
-                                                            ) {
-                                                                Icon(
-                                                                    painter = painterResource(R.drawable.qr_code_fill0),
-                                                                    contentDescription = null,
-                                                                    modifier = Modifier.size(16.dp)
-                                                                )
-                                                                Spacer(Modifier.width(6.dp))
-                                                                Text("View QR", style = typography.labelMedium)
                                                             }
                                                             if (showEmergencyOrClearBtn) {
                                                                 Spacer(Modifier.width(8.dp))
@@ -1220,19 +1201,13 @@ fun KeysWindow(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     IconButton(
                                         onClick = {
-                                            if (!isEmergencyActive) {
-                                                Toast.makeText(context, "Activate Emergency Mode to view or copy saved key tokens", Toast.LENGTH_SHORT).show()
-                                            } else {
-                                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                                clipboard.setPrimaryClip(ClipData.newPlainText("Brik Saved Key", key.token))
-                                                Toast.makeText(context, "Key token copied!", Toast.LENGTH_SHORT).show()
-                                            }
+                                            Toast.makeText(context, "Saved key tokens remain confidential to prevent bypass", Toast.LENGTH_SHORT).show()
                                         }
                                     ) {
                                         Icon(
-                                            painter = painterResource(if (isEmergencyActive) R.drawable.content_copy_fill0 else R.drawable.shield_fill0),
-                                            contentDescription = if (isEmergencyActive) "Copy Token" else "Key Protected",
-                                            tint = if (isEmergencyActive) colorScheme.primary else colorScheme.outline,
+                                            painter = painterResource(R.drawable.shield_fill0),
+                                            contentDescription = "Key Protected",
+                                            tint = colorScheme.outline,
                                             modifier = Modifier.size(20.dp)
                                         )
                                     }
@@ -2017,92 +1992,44 @@ fun KeysWindow(
 
                 Spacer(Modifier.height(20.dp))
 
-                if (isEmergencyActive) {
-                    if (qrBitmap != null) {
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = colorScheme.surfaceContainerLowest,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
                         Surface(
-                            shape = RoundedCornerShape(20.dp),
-                            color = Color.White,
-                            modifier = Modifier.size(240.dp)
+                            shape = CircleShape,
+                            color = colorScheme.secondaryContainer,
+                            modifier = Modifier.size(56.dp)
                         ) {
-                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(12.dp)) {
-                                Image(
-                                    bitmap = qrBitmap.asImageBitmap(),
-                                    contentDescription = "QR Code Key",
-                                    modifier = Modifier.fillMaxSize()
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    painter = painterResource(R.drawable.shield_fill0),
+                                    contentDescription = null,
+                                    tint = colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.size(28.dp)
                                 )
                             }
                         }
-                    }
-
-                    Spacer(Modifier.height(16.dp))
-
-                    Text(
-                        text = key.token,
-                        style = typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
-                        color = colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-
-                    Spacer(Modifier.height(14.dp))
-
-                    OutlinedButton(
-                        onClick = {
-                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            clipboard.setPrimaryClip(ClipData.newPlainText("Brik QR Token", key.token))
-                            Toast.makeText(context, "QR Token copied!", Toast.LENGTH_SHORT).show()
-                        },
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.content_copy_fill0),
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
+                        Spacer(Modifier.height(14.dp))
+                        Text(
+                            text = "Key Content Vault Protected",
+                            style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = colorScheme.onSurface
                         )
-                        Spacer(Modifier.width(8.dp))
-                        Text("Copy Token Text")
-                    }
-                } else {
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = colorScheme.surfaceContainerLowest,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(24.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Surface(
-                                shape = CircleShape,
-                                color = colorScheme.secondaryContainer,
-                                modifier = Modifier.size(56.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.shield_fill0),
-                                        contentDescription = null,
-                                        tint = colorScheme.onSecondaryContainer,
-                                        modifier = Modifier.size(28.dp)
-                                    )
-                                }
-                            }
-                            Spacer(Modifier.height(14.dp))
-                            Text(
-                                text = "Key Content Vault Protected",
-                                style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = colorScheme.onSurface
-                            )
-                            Spacer(Modifier.height(6.dp))
-                            Text(
-                                text = "QR visualizer and token contents are hidden to prevent impulsive unlocking.\n\nPull down 3 times rapidly on Keys & Analytics to activate Emergency Mode.",
-                                style = typography.bodySmall,
-                                color = colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center
-                            )
-                        }
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = "QR visualizer and token contents remain strictly hidden to enforce focus protection.",
+                            style = typography.bodySmall,
+                            color = colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
                     }
                 }
             }
@@ -2155,6 +2082,9 @@ fun KeysWindow(
     if (showSetEmergencyKeyDialog) {
         SetEmergencyKeyDialog(
             savedKeys = savedKeys,
+            title = "Set Emergency Key",
+            subtitle = "Configure your physical QR key to enable emergency unfreeze.",
+            forceQrOnly = true,
             onDismiss = { showSetEmergencyKeyDialog = false },
             onKeySet = { showSetEmergencyKeyDialog = false }
         )
@@ -2227,7 +2157,8 @@ fun KeysWindow(
         SetEmergencyKeyDialog(
             savedKeys = savedKeys,
             title = "Edit ${lock.bagName}",
-            subtitle = "Set a new password or QR key for ${lock.bagName}.",
+            subtitle = if (lock.id == "dpm_uninstall_lock") "Physical QR or barcode key required to revoke Device Owner." else "Set a new password or QR key for ${lock.bagName}.",
+            forceQrOnly = lock.id == "dpm_uninstall_lock",
             onDismiss = {
                 showEditSystemKeyDialog = false
                 systemLockToEdit = null

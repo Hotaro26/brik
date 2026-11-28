@@ -1842,6 +1842,7 @@ fun BagsWindow(
     if (showSetEmergencyKeyDialog) {
         SetEmergencyKeyDialog(
             savedKeys = emptyList(),
+            forceQrOnly = true,
             onDismiss = { showSetEmergencyKeyDialog = false },
             onKeySet = { showSetEmergencyKeyDialog = false }
         )
