@@ -3,6 +3,45 @@
     <style name="Theme.Brik" parent="@android:style/Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/splash_bg</item>
         <item name="android:windowSplashScreenBackground">@color/splash_bg</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_brik</item>
+    </style>
+
+    <style name="Theme.Brik.Dynamic" parent="Theme.Brik">
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+    </style>
+
+    <style name="Theme.Brik.Brik" parent="Theme.Brik">
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_brik_alias</item>
+    </style>
+
+    <style name="Theme.Brik.Monochrome" parent="Theme.Brik">
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_monochrome_alias</item>
+    </style>
+
+    <style name="Theme.Brik.Midnight" parent="Theme.Brik">
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_midnight_alias</item>
+    </style>
+
+    <style name="Theme.Brik.Emerald" parent="Theme.Brik">
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_emerald_alias</item>
+    </style>
+
+    <style name="Theme.Brik.Cherry" parent="Theme.Brik">
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_cherry_alias</item>
+    </style>
+
+    <style name="Theme.Brik.Amethyst" parent="Theme.Brik">
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_amethyst_alias</item>
+    </style>
+
+    <style name="Theme.Brik.Solar" parent="Theme.Brik">
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_solar_alias</item>
+    </style>
+
+    <style name="Theme.Brik.Pink" parent="Theme.Brik">
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_pink_alias</item>
+    </style>
+
+    <style name="Theme.Brik.Catppuccin" parent="Theme.Brik">
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_catppuccin_alias</item>
     </style>
 </resources>

@@ -55,10 +55,12 @@ fun MiscWindow(
     onBack: () -> Unit,
     onNavigateToAssistiveSettings: () -> Unit = {},
     onNavigateToKioskSettings: () -> Unit = {},
-    onNavigateToSideloadLock: () -> Unit = {}
+    onNavigateToSideloadLock: () -> Unit = {},
+    onNavigateToReset: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val use24Hour by ThemePreferences.use24HourClock.collectAsState()
+    val resetState by com.hotaro.brik.util.ResetManager.resetState.collectAsState()
 
     Column(
         modifier = Modifier
@@ -403,6 +405,51 @@ fun MiscWindow(
                     }
                 }
             }
+
+            Spacer(Modifier.height(18.dp))
+
+            // SECTION 4: RESET
+            TomatoSectionHeader(title = "RESET")
+
+            TomatoSettingsItem(
+                title = "Reset & Revoke Protection",
+                subtitle = if (resetState.isScheduled) {
+                    "5-day countdown active • Tap to view timer or cancel"
+                } else {
+                    "5-day cooldown to lift all blocks, wipe data & revoke DPM"
+                },
+                leadingIcon = R.drawable.delete_fill0,
+                iconContainerColor = colorScheme.errorContainer,
+                iconTint = colorScheme.onErrorContainer,
+                shape = segmentedItemShape(0, 1),
+                trailingContent = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (resetState.isScheduled) {
+                            Surface(
+                                shape = CircleShape,
+                                color = colorScheme.error
+                            ) {
+                                Text(
+                                    text = "Active",
+                                    style = typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp),
+                                    color = colorScheme.onError,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
+                        Icon(
+                            painter = painterResource(R.drawable.arrow_forward_big),
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                onClick = onNavigateToReset
+            )
 
             Spacer(Modifier.height(100.dp))
         }

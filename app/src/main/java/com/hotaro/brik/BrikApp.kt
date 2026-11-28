@@ -40,6 +40,7 @@ class BrikApp : Application() {
         GrayscaleManager.init(this)
         CommonKeyManager.init(this)
         AppLimitManager.init(this)
+        com.hotaro.brik.util.ResetManager.init(this)
 
         val reconcilePrefs = getSharedPreferences("brik_migration_prefs", Context.MODE_PRIVATE)
         if (!reconcilePrefs.getBoolean("reconcile_orphaned_packages_v215", false)) {
