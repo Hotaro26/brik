@@ -150,6 +150,7 @@ fun ModesWindow(
     var modeToStart by remember { mutableStateOf<FocusMode?>(null) }
     var modeToStop by remember { mutableStateOf<FocusMode?>(null) }
     var modeToDelete by remember { mutableStateOf<FocusMode?>(null) }
+    var modeToConfigureWithKey by remember { mutableStateOf<FocusMode?>(null) }
     var expandedModeId by remember { mutableStateOf<String?>(null) }
 
     // Live countdown timer state
@@ -596,7 +597,13 @@ fun ModesWindow(
                                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
                                             ) {
                                                 Button(
-                                                    onClick = { openDetailWindow(mode) },
+                                                    onClick = {
+                                                        if (!mode.keySecret.isNullOrBlank()) {
+                                                            modeToConfigureWithKey = mode
+                                                        } else {
+                                                            openDetailWindow(mode)
+                                                        }
+                                                    },
                                                     shape = RoundedCornerShape(12.dp),
                                                     modifier = Modifier.weight(1f)
                                                 ) {
@@ -1105,6 +1112,26 @@ fun ModesWindow(
                 containerColor = colorScheme.surfaceContainerHigh
             )
         }
+    }
+
+    // --- Key Verification Dialog to Configure Focus Mode ---
+    if (modeToConfigureWithKey != null) {
+        val m = modeToConfigureWithKey!!
+        VerifyEmergencyKeyDialog(
+            title = "Configure '${m.name}'",
+            subtitle = if (m.keyType == KeyType.QR_CODE) "Scan or enter your QR key to configure this mode." else "Enter your password to configure this mode.",
+            keyTypeOverride = m.keyType,
+            onVerifyCustom = { input ->
+                val target = m.keySecret?.trim() ?: ""
+                input.trim() == target || com.hotaro.brik.util.QrUtils.sha256(input.trim()) == com.hotaro.brik.util.QrUtils.sha256(target)
+            },
+            onDismiss = { modeToConfigureWithKey = null },
+            onVerified = {
+                val toOpen = modeToConfigureWithKey!!
+                modeToConfigureWithKey = null
+                openDetailWindow(toOpen)
+            }
+        )
     }
 }
 
@@ -2105,11 +2132,12 @@ private fun ModeDetailWindow(
                     if (showVerifyKeyBeforeEdit) {
                         VerifyEmergencyKeyDialog(
                             title = "Verify Current Key",
-                            subtitle = "Enter your existing protection key to edit it.",
+                            subtitle = if (selectedKeyType == KeyType.QR_CODE) "Scan or enter your existing QR key to edit it." else "Enter your existing password to edit it.",
                             keyTypeOverride = selectedKeyType,
                             onVerifyCustom = { input ->
-                                input.trim() == passwordSecret.trim() ||
-                                    com.hotaro.brik.util.QrUtils.sha256(input) == com.hotaro.brik.util.QrUtils.sha256(passwordSecret.trim())
+                                val target = currentSecret.trim()
+                                input.trim() == target ||
+                                    com.hotaro.brik.util.QrUtils.sha256(input.trim()) == com.hotaro.brik.util.QrUtils.sha256(target)
                             },
                             onDismiss = { showVerifyKeyBeforeEdit = false },
                             onVerified = {

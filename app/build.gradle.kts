@@ -32,8 +32,8 @@ android {
         applicationId = "com.hotaro.brik"
         minSdk = 26
         targetSdk = 37
-        versionCode = 37
-        versionName = "2.1.8"
+        versionCode = 38
+        versionName = "2.1.9"
     }
 
     buildTypes {
@@ -92,6 +92,7 @@ dependencies {
     implementation(libs.hiddenApiBypass)
     implementation(libs.libsu.core)
     implementation(libs.zxing.core)
+    implementation(libs.mlkit.barcode.scanning)
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)

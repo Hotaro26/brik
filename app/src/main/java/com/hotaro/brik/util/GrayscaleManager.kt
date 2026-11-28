@@ -59,7 +59,7 @@ object GrayscaleManager {
                 .putString(KEY_QR_TOKEN, repoLock.qrToken)
                 .apply()
         }
-        _hasSecurityKey.value = !hash.isNullOrBlank() || repoLock != null || EmergencyManager.hasKey(context) || ZenManager.hasKey(context)
+        _hasSecurityKey.value = !hash.isNullOrBlank() || repoLock != null
 
         // Sync initial state
         evaluateAndApplyGrayscale(context)
@@ -120,6 +120,10 @@ object GrayscaleManager {
     }
 
     fun setKeyGuardEnabled(context: Context, enabled: Boolean) {
+        if (enabled && !hasKey(context)) {
+            _isKeyGuardEnabled.value = false
+            return
+        }
         _isKeyGuardEnabled.value = enabled
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putBoolean(KEY_KEY_GUARD_ENABLED, enabled).apply()
@@ -146,7 +150,7 @@ object GrayscaleManager {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val hash = prefs.getString(KEY_SECRET_HASH, null)
         val repoLock = com.hotaro.brik.data.repository.KeyRepository(context).getSystemSecurityKey("grayscale_security_key")
-        return !hash.isNullOrBlank() || repoLock != null || EmergencyManager.hasKey(context) || ZenManager.hasKey(context)
+        return !hash.isNullOrBlank() || repoLock != null
     }
 
     fun getKeyType(context: Context): KeyType {
@@ -159,7 +163,7 @@ object GrayscaleManager {
         if (repoLock != null) {
             return repoLock.keyType
         }
-        return EmergencyManager.getKeyType(context)
+        return KeyType.PASSWORD
     }
 
     fun verifySecurityKey(context: Context, input: String): Boolean {
@@ -167,7 +171,7 @@ object GrayscaleManager {
         val expectedHash = prefs.getString(KEY_SECRET_HASH, null)
             ?: com.hotaro.brik.data.repository.KeyRepository(context).getSystemSecurityKey("grayscale_security_key")?.secretHash
         if (expectedHash.isNullOrBlank()) {
-            return EmergencyManager.verifyEmergencyKey(context, input) || ZenManager.verifySecurityKey(context, input)
+            return false
         }
         val inputHash = QrUtils.sha256(input)
         return expectedHash.equals(inputHash, ignoreCase = true)
@@ -181,7 +185,8 @@ object GrayscaleManager {
             .remove(KEY_KEY_TYPE)
             .apply()
         com.hotaro.brik.data.repository.KeyRepository(context).removeSystemSecurityKey("grayscale_security_key")
-        _hasSecurityKey.value = EmergencyManager.hasKey(context)
+        _hasSecurityKey.value = false
+        setKeyGuardEnabled(context, false)
     }
 
     fun hasPermission(context: Context): Boolean {

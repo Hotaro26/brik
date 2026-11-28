@@ -1,7 +1,14 @@
 package com.hotaro.brik.util
 
 import android.graphics.Bitmap
+import androidx.annotation.OptIn
+import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageProxy
+import com.google.android.gms.tasks.Tasks
+import com.google.mlkit.vision.barcode.BarcodeScannerOptions
+import com.google.mlkit.vision.barcode.BarcodeScanning
+import com.google.mlkit.vision.barcode.common.Barcode
+import com.google.mlkit.vision.common.InputImage
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.BinaryBitmap
 import com.google.zxing.DecodeHintType
@@ -37,56 +44,146 @@ object QrUtils {
         return bitmap
     }
 
-    private val reader = MultiFormatReader().apply {
+    // ZXing multi-format reader with QR + Book ISBN (EAN-13, EAN-8, UPC, Code 128) support
+    private val zxingReader = MultiFormatReader().apply {
         setHints(
             mapOf(
-                DecodeHintType.POSSIBLE_FORMATS to listOf(BarcodeFormat.QR_CODE),
+                DecodeHintType.POSSIBLE_FORMATS to listOf(
+                    BarcodeFormat.QR_CODE,
+                    BarcodeFormat.EAN_13,  // Standard Book ISBN format
+                    BarcodeFormat.EAN_8,
+                    BarcodeFormat.UPC_A,
+                    BarcodeFormat.UPC_E,
+                    BarcodeFormat.CODE_128
+                ),
                 DecodeHintType.TRY_HARDER to true
             )
         )
     }
 
-    fun decodeImageProxy(image: ImageProxy): String? {
+    // Google ML Kit Barcode Scanner configured for QR Code + Book ISBN (EAN-13) & 1D barcodes
+    private val mlKitScanner by lazy {
+        val options = BarcodeScannerOptions.Builder()
+            .setBarcodeFormats(
+                Barcode.FORMAT_QR_CODE,
+                Barcode.FORMAT_EAN_13,  // Standard Book ISBN
+                Barcode.FORMAT_EAN_8,
+                Barcode.FORMAT_UPC_A,
+                Barcode.FORMAT_UPC_E,
+                Barcode.FORMAT_CODE_128
+            )
+            .build()
+        BarcodeScanning.getClient(options)
+    }
+
+    fun decodeImageProxy(image: ImageProxy, engine: QrEngine = QrEngine.GOOGLE_ML_KIT): String? {
+        return when (engine) {
+            QrEngine.GOOGLE_ML_KIT -> {
+                decodeWithMlKit(image) ?: decodeWithZxing(image)
+            }
+            QrEngine.ZXING -> {
+                decodeWithZxing(image)
+            }
+        }
+    }
+
+    @OptIn(ExperimentalGetImage::class)
+    fun decodeWithMlKit(image: ImageProxy): String? {
+        val mediaImage = image.image ?: return null
+        val inputImage = InputImage.fromMediaImage(mediaImage, image.imageInfo.rotationDegrees)
+        return try {
+            val barcodes = Tasks.await(mlKitScanner.process(inputImage))
+            barcodes.firstOrNull { !it.rawValue.isNullOrBlank() }?.rawValue
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun decodeWithZxing(image: ImageProxy): String? {
         if (image.planes.isEmpty()) return null
         val yPlane = image.planes[0]
         val buffer = yPlane.buffer
         val rowStride = yPlane.rowStride
         val pixelStride = yPlane.pixelStride
-        val width = image.width
-        val height = image.height
+        val rawWidth = image.width
+        val rawHeight = image.height
 
-        val data = ByteArray(width * height)
+        val rawData = ByteArray(rawWidth * rawHeight)
         val row = ByteArray(rowStride)
         var offset = 0
-        for (y in 0 until height) {
+        for (y in 0 until rawHeight) {
             buffer.position(y * rowStride)
             val remaining = buffer.remaining()
-            if (remaining < (width - 1) * pixelStride + 1) return null
+            if (remaining < (rawWidth - 1) * pixelStride + 1) return null
             if (pixelStride == 1) {
-                buffer.get(data, offset, width)
+                buffer.get(rawData, offset, rawWidth)
             } else {
                 buffer.get(row, 0, minOf(rowStride, remaining))
                 var x = 0
-                while (x < width) {
-                    data[offset + x] = row[x * pixelStride]
+                while (x < rawWidth) {
+                    rawData[offset + x] = row[x * pixelStride]
                     x++
                 }
             }
-            offset += width
+            offset += rawWidth
         }
+
+        // Account for sensor rotation
+        val rotation = image.imageInfo.rotationDegrees
+        val (data, width, height) = rotateYPlane(rawData, rawWidth, rawHeight, rotation)
 
         val source = PlanarYUVLuminanceSource(
             data, width, height, 0, 0, width, height, false
         )
         val bitmap = BinaryBitmap(HybridBinarizer(source))
         return try {
-            synchronized(reader) {
-                reader.decodeWithState(bitmap)
+            synchronized(zxingReader) {
+                zxingReader.decodeWithState(bitmap)
             }.text
         } catch (_: Exception) {
-            null
+            // Fallback for dark mode / white-on-black inverted QR codes
+            try {
+                val invertedBitmap = BinaryBitmap(HybridBinarizer(source.invert()))
+                synchronized(zxingReader) {
+                    zxingReader.decodeWithState(invertedBitmap)
+                }.text
+            } catch (_: Exception) {
+                null
+            }
         } finally {
-            reader.reset()
+            zxingReader.reset()
+        }
+    }
+
+    private fun rotateYPlane(data: ByteArray, width: Int, height: Int, rotationDegrees: Int): Triple<ByteArray, Int, Int> {
+        return when (rotationDegrees) {
+            90 -> {
+                val rotated = ByteArray(width * height)
+                for (y in 0 until height) {
+                    for (x in 0 until width) {
+                        rotated[x * height + (height - y - 1)] = data[x + y * width]
+                    }
+                }
+                Triple(rotated, height, width)
+            }
+            180 -> {
+                val rotated = ByteArray(width * height)
+                val total = width * height
+                for (i in 0 until total) {
+                    rotated[total - 1 - i] = data[i]
+                }
+                Triple(rotated, width, height)
+            }
+            270 -> {
+                val rotated = ByteArray(width * height)
+                for (y in 0 until height) {
+                    for (x in 0 until width) {
+                        rotated[(width - x - 1) * height + y] = data[x + y * width]
+                    }
+                }
+                Triple(rotated, height, width)
+            }
+            else -> Triple(data, width, height)
         }
     }
 }

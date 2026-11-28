@@ -94,6 +94,7 @@ import com.hotaro.brik.ui.component.QrScannerView
 import com.hotaro.brik.ui.component.RoundedPullRefreshPage
 import com.hotaro.brik.ui.component.SetEmergencyKeyDialog
 import com.hotaro.brik.ui.component.TomatoSectionHeader
+import com.hotaro.brik.ui.component.TomatoSettingsItem
 import com.hotaro.brik.ui.component.VerifyEmergencyKeyDialog
 import com.hotaro.brik.ui.component.segmentedItemShape
 import com.hotaro.brik.ui.viewmodel.KeyViewModel
@@ -101,7 +102,9 @@ import com.hotaro.brik.util.AppLimitManager
 import com.hotaro.brik.util.CommonKeyManager
 import com.hotaro.brik.util.EmergencyManager
 import com.hotaro.brik.util.GrayscaleManager
+import com.hotaro.brik.util.QrEngine
 import com.hotaro.brik.util.QrUtils
+import com.hotaro.brik.util.ScannerPreferences
 import com.hotaro.brik.util.SideloadLockManager
 import com.hotaro.brik.util.ZenManager
 import kotlinx.coroutines.launch
@@ -1252,7 +1255,54 @@ fun KeysWindow(
             // ==========================================
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    TomatoSectionHeader(title = "QR CODE UTILITIES")
+                    TomatoSectionHeader(title = "QR CODE & SCANNER")
+
+                    // Barcode & QR Scanner Engine Selector
+                    val scannerEngine by ScannerPreferences.engine.collectAsState()
+                    TomatoSettingsItem(
+                        title = "Barcode Scanner Engine",
+                        subtitle = if (scannerEngine == QrEngine.GOOGLE_ML_KIT) {
+                            "Google ML Kit • High speed, handles angles, blur & Book ISBN"
+                        } else {
+                            "ZXing Engine • Classic open-source parser"
+                        },
+                        leadingIcon = R.drawable.qr_code_scanner_fill0,
+                        iconContainerColor = if (scannerEngine == QrEngine.GOOGLE_ML_KIT) colorScheme.primaryContainer else colorScheme.secondaryContainer,
+                        iconTint = if (scannerEngine == QrEngine.GOOGLE_ML_KIT) colorScheme.primary else colorScheme.onSecondaryContainer,
+                        trailingContent = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = if (scannerEngine == QrEngine.GOOGLE_ML_KIT) colorScheme.primary else colorScheme.secondary
+                                ) {
+                                    Text(
+                                        text = if (scannerEngine == QrEngine.GOOGLE_ML_KIT) "ML Kit" else "ZXing",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = colorScheme.onPrimary,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    )
+                                }
+                                BrikSwitch(
+                                    checked = scannerEngine == QrEngine.GOOGLE_ML_KIT,
+                                    onCheckedChange = { isMlKit ->
+                                        ScannerPreferences.setEngine(
+                                            context,
+                                            if (isMlKit) QrEngine.GOOGLE_ML_KIT else QrEngine.ZXING
+                                        )
+                                    }
+                                )
+                            }
+                        },
+                        shape = RoundedCornerShape(20.dp),
+                        onClick = {
+                            val next = if (scannerEngine == QrEngine.GOOGLE_ML_KIT) QrEngine.ZXING else QrEngine.GOOGLE_ML_KIT
+                            ScannerPreferences.setEngine(context, next)
+                        }
+                    )
 
                     ElevatedCard(
                         shape = RoundedCornerShape(20.dp),

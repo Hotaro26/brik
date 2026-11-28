@@ -12,6 +12,7 @@ import com.hotaro.brik.util.CommonKeyManager
 import com.hotaro.brik.util.EmergencyManager
 import com.hotaro.brik.util.GrayscaleManager
 import com.hotaro.brik.util.KioskPreferences
+import com.hotaro.brik.util.ScannerPreferences
 import com.hotaro.brik.util.SideloadLockManager
 import com.hotaro.brik.util.WindDownManager
 import com.hotaro.brik.util.ZenManager
@@ -39,6 +40,7 @@ class BrikApp : Application() {
         WindDownManager.init(this)
         GrayscaleManager.init(this)
         CommonKeyManager.init(this)
+        ScannerPreferences.init(this)
         AppLimitManager.init(this)
         com.hotaro.brik.util.ResetManager.init(this)
 

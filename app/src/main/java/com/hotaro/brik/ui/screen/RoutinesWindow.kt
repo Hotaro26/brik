@@ -173,6 +173,7 @@ fun RoutinesWindow(
     // Toggle / Delete verification dialog states
     var routineToToggle by remember { mutableStateOf<AutomatedRoutine?>(null) }
     var routineToDelete by remember { mutableStateOf<AutomatedRoutine?>(null) }
+    var routineToConfigureWithKey by remember { mutableStateOf<AutomatedRoutine?>(null) }
     var expandedRoutineId by remember { mutableStateOf<String?>(null) }
 
     // Predictive Back gesture handler for RoutineDetailWindow
@@ -661,7 +662,13 @@ fun RoutinesWindow(
                                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
                                             ) {
                                                 Button(
-                                                    onClick = { openDetailWindow(routine) },
+                                                    onClick = {
+                                                        if (!routine.keySecret.isNullOrBlank()) {
+                                                            routineToConfigureWithKey = routine
+                                                        } else {
+                                                            openDetailWindow(routine)
+                                                        }
+                                                    },
                                                     shape = RoundedCornerShape(12.dp),
                                                     modifier = Modifier.weight(1f)
                                                 ) {
@@ -1235,6 +1242,26 @@ fun RoutinesWindow(
                 containerColor = colorScheme.surfaceContainerHigh
             )
         }
+    }
+
+    // --- Key Verification Dialog to Configure Routine ---
+    if (routineToConfigureWithKey != null) {
+        val r = routineToConfigureWithKey!!
+        VerifyEmergencyKeyDialog(
+            title = "Configure '${r.name}'",
+            subtitle = if (r.keyType == KeyType.QR_CODE) "Scan or enter your QR key to configure this routine." else "Enter your password to configure this routine.",
+            keyTypeOverride = r.keyType,
+            onVerifyCustom = { input ->
+                val target = r.keySecret?.trim() ?: ""
+                input.trim() == target || com.hotaro.brik.util.QrUtils.sha256(input.trim()) == com.hotaro.brik.util.QrUtils.sha256(target)
+            },
+            onDismiss = { routineToConfigureWithKey = null },
+            onVerified = {
+                val toOpen = routineToConfigureWithKey!!
+                routineToConfigureWithKey = null
+                openDetailWindow(toOpen)
+            }
+        )
     }
 }
 
@@ -2048,11 +2075,12 @@ private fun RoutineDetailWindow(
                             if (showVerifyKeyBeforeEdit) {
                                 VerifyEmergencyKeyDialog(
                                     title = "Verify Current Key",
-                                    subtitle = "Enter your existing protection key to edit it.",
+                                    subtitle = if (selectedKeyType == KeyType.QR_CODE) "Scan or enter your existing QR key to edit it." else "Enter your existing password to edit it.",
                                     keyTypeOverride = selectedKeyType,
                                     onVerifyCustom = { input ->
-                                        input.trim() == passwordSecret.trim() ||
-                                            com.hotaro.brik.util.QrUtils.sha256(input) == com.hotaro.brik.util.QrUtils.sha256(passwordSecret.trim())
+                                        val target = currentSecret.trim()
+                                        input.trim() == target ||
+                                            com.hotaro.brik.util.QrUtils.sha256(input.trim()) == com.hotaro.brik.util.QrUtils.sha256(target)
                                     },
                                     onDismiss = { showVerifyKeyBeforeEdit = false },
                                     onVerified = {
@@ -2286,6 +2314,10 @@ private fun RoutineDetailWindow(
                 RoutineBreaksWindow(
                     routineName = nameInput.ifBlank { "Routine" },
                     breaks = routineBreaks,
+                    routineStartHour = startHour,
+                    routineStartMinute = startMinute,
+                    routineEndHour = endHour,
+                    routineEndMinute = endMinute,
                     onBreaksChanged = { updatedBreaks -> routineBreaks = updatedBreaks },
                     onBack = { closeBreaksWindow() }
                 )
@@ -2688,6 +2720,10 @@ private fun formatDaysList(days: Set<Int>): String {
 private fun RoutineBreaksWindow(
     routineName: String,
     breaks: List<RoutineBreak>,
+    routineStartHour: Int,
+    routineStartMinute: Int,
+    routineEndHour: Int,
+    routineEndMinute: Int,
     onBreaksChanged: (List<RoutineBreak>) -> Unit,
     onBack: () -> Unit
 ) {
@@ -2940,6 +2976,10 @@ private fun RoutineBreaksWindow(
             existingBreak = editingBreak,
             use24Hour = use24Hour,
             defaultIndex = breaks.size + 1,
+            routineStartHour = routineStartHour,
+            routineStartMinute = routineStartMinute,
+            routineEndHour = routineEndHour,
+            routineEndMinute = routineEndMinute,
             onDismiss = { showAddEditDialog = false },
             onConfirm = { savedBreak ->
                 val updated = if (editingBreak != null) {
@@ -2987,6 +3027,10 @@ private fun AddEditBreakDialog(
     existingBreak: RoutineBreak?,
     use24Hour: Boolean,
     defaultIndex: Int,
+    routineStartHour: Int,
+    routineStartMinute: Int,
+    routineEndHour: Int,
+    routineEndMinute: Int,
     onDismiss: () -> Unit,
     onConfirm: (RoutineBreak) -> Unit
 ) {
@@ -2998,6 +3042,25 @@ private fun AddEditBreakDialog(
 
     var showStartTimePicker by remember { mutableStateOf(false) }
     var showEndTimePicker by remember { mutableStateOf(false) }
+
+    // Validation helpers
+    val routineIntervalMins = calculateDurationMins(routineStartHour, routineStartMinute, routineEndHour, routineEndMinute)
+    val breakDuration = calculateDurationMins(startH, startM, endH, endM)
+    val breakStartMins = startH * 60 + startM
+    val breakEndMins = endH * 60 + endM
+    val routineStartMins = routineStartHour * 60 + routineStartMinute
+    val routineEndMins = routineEndHour * 60 + routineEndMinute
+
+    // Break must be strictly within routine window (for non-overnight routines)
+    val isNonOvernight = routineStartMins < routineEndMins
+    val isBreakWithinRoutine = if (isNonOvernight) {
+        breakStartMins >= routineStartMins && breakEndMins <= routineEndMins
+    } else {
+        // overnight routine — break can straddle midnight; just ensure duration < interval
+        breakDuration < routineIntervalMins
+    }
+    val isDurationValid = breakDuration in 1 until routineIntervalMins
+    val isValid = isDurationValid && isBreakWithinRoutine
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -3099,13 +3162,27 @@ private fun AddEditBreakDialog(
                     }
                 }
 
-                val duration = calculateDurationMins(startH, startM, endH, endM)
                 Text(
-                    text = "Duration: $duration minutes",
+                    text = "Duration: $breakDuration minutes",
                     style = typography.bodySmall,
-                    color = colorScheme.primary,
+                    color = if (isValid) colorScheme.primary else colorScheme.error,
                     fontWeight = FontWeight.SemiBold
                 )
+
+                // Validation hint
+                if (!isValid) {
+                    val hint = when {
+                        breakDuration <= 0 -> "Break end time must be after start time."
+                        !isDurationValid -> "Break ($breakDuration min) must be shorter than the routine window ($routineIntervalMins min)."
+                        !isBreakWithinRoutine -> "Break must fall within the routine's active window (${com.hotaro.brik.ui.theme.ThemePreferences.formatTime(routineStartHour, routineStartMinute)} – ${com.hotaro.brik.ui.theme.ThemePreferences.formatTime(routineEndHour, routineEndMinute)})."
+                        else -> "Invalid break times."
+                    }
+                    Text(
+                        text = hint,
+                        style = typography.bodySmall,
+                        color = colorScheme.error
+                    )
+                }
             }
         },
         confirmButton = {
@@ -3120,6 +3197,7 @@ private fun AddEditBreakDialog(
                     )
                     onConfirm(finalBreak)
                 },
+                enabled = isValid,
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Text(if (existingBreak != null) "Update" else "Add Break")

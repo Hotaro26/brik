@@ -827,10 +827,10 @@ fun GrayscaleWindow(
                                             if (GrayscaleManager.getKeyType(context) == KeyType.PASSWORD) "Password" else "QR Key"
                                         }
                                     } else {
-                                        "Uses System Emergency Key"
+                                        "No key configured"
                                     }
                                     Text(
-                                        text = if (isCommonKey) "Common Key configured for this" else if (hasSecurityKey) "Configured • $grayKeyName" else "Uses System Emergency Key",
+                                        text = if (isCommonKey) "Common Key configured for this" else if (hasSecurityKey) "Configured • $grayKeyName" else "No key configured • Setup required",
                                         style = typography.bodySmall,
                                         color = colorScheme.onSurfaceVariant
                                     )

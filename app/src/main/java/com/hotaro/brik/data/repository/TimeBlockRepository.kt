@@ -22,7 +22,7 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.util.Calendar
-import java.util.UUID
+
 
 class TimeBlockRepository(private val context: Context) {
     private val prefs = context.getSharedPreferences("brik_time_block_pref", Context.MODE_PRIVATE)
@@ -497,7 +497,7 @@ class TimeBlockRepository(private val context: Context) {
             if (currentMin == null || end < currentMin) nearestTime = end
         }
 
-        // 2. Routine start / end transitions within next 24-48 hours
+        // 2. Routine start / end / break transitions within next 7 days
         _routines.value.filter { it.isEnabled }.forEach { routine ->
             for (dayOffset in 0..7) {
                 val checkCal = Calendar.getInstance().apply {
@@ -505,26 +505,49 @@ class TimeBlockRepository(private val context: Context) {
                 }
                 val checkDay = checkCal.get(Calendar.DAY_OF_WEEK)
                 if (routine.daysOfWeek.contains(checkDay)) {
-                    val start = checkCal.apply {
-                        set(Calendar.HOUR_OF_DAY, routine.startHour)
-                        set(Calendar.MINUTE, routine.startMinute)
-                        set(Calendar.SECOND, 0)
-                        set(Calendar.MILLISECOND, 0)
-                    }.timeInMillis
-                    val currentMin1 = nearestTime
-                    if (start > now && (currentMin1 == null || start < currentMin1)) {
-                        nearestTime = start
+                    // Routine start
+                    val start = checkCal.clone() as Calendar
+                    start.set(Calendar.HOUR_OF_DAY, routine.startHour)
+                    start.set(Calendar.MINUTE, routine.startMinute)
+                    start.set(Calendar.SECOND, 0)
+                    start.set(Calendar.MILLISECOND, 0)
+                    val startMs = start.timeInMillis
+                    if (startMs > now && (nearestTime == null || startMs < nearestTime!!)) {
+                        nearestTime = startMs
                     }
 
-                    val end = checkCal.apply {
-                        set(Calendar.HOUR_OF_DAY, routine.endHour)
-                        set(Calendar.MINUTE, routine.endMinute)
-                        set(Calendar.SECOND, 0)
-                        set(Calendar.MILLISECOND, 0)
-                    }.timeInMillis
-                    val currentMin2 = nearestTime
-                    if (end > now && (currentMin2 == null || end < currentMin2)) {
-                        nearestTime = end
+                    // Routine end
+                    val end = checkCal.clone() as Calendar
+                    end.set(Calendar.HOUR_OF_DAY, routine.endHour)
+                    end.set(Calendar.MINUTE, routine.endMinute)
+                    end.set(Calendar.SECOND, 0)
+                    end.set(Calendar.MILLISECOND, 0)
+                    val endMs = end.timeInMillis
+                    if (endMs > now && (nearestTime == null || endMs < nearestTime!!)) {
+                        nearestTime = endMs
+                    }
+
+                    // Break start and end transitions (so app-lock toggles during breaks)
+                    routine.breaks.filter { it.isEnabled }.forEach { b ->
+                        val bStart = checkCal.clone() as Calendar
+                        bStart.set(Calendar.HOUR_OF_DAY, b.startHour)
+                        bStart.set(Calendar.MINUTE, b.startMinute)
+                        bStart.set(Calendar.SECOND, 0)
+                        bStart.set(Calendar.MILLISECOND, 0)
+                        val bStartMs = bStart.timeInMillis
+                        if (bStartMs > now && (nearestTime == null || bStartMs < nearestTime!!)) {
+                            nearestTime = bStartMs
+                        }
+
+                        val bEnd = checkCal.clone() as Calendar
+                        bEnd.set(Calendar.HOUR_OF_DAY, b.endHour)
+                        bEnd.set(Calendar.MINUTE, b.endMinute)
+                        bEnd.set(Calendar.SECOND, 0)
+                        bEnd.set(Calendar.MILLISECOND, 0)
+                        val bEndMs = bEnd.timeInMillis
+                        if (bEndMs > now && (nearestTime == null || bEndMs < nearestTime!!)) {
+                            nearestTime = bEndMs
+                        }
                     }
                 }
             }
