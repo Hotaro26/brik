@@ -844,22 +844,27 @@ fun KeyScreen(
                         color = colorScheme.onSurfaceVariant
                     )
                     Spacer(Modifier.height(16.dp))
-                    QrScannerView(
-                        onQrDetected = { scannedToken ->
-                            keyViewModel.unlockBag(context, lock, scannedToken) { success, err ->
-                                if (success) {
-                                    Toast.makeText(context, "'${lock.bagName}' unlocked via QR Key!", Toast.LENGTH_SHORT).show()
-                                    showQrScannerDialog = false
-                                    selectedLockForUnlock = null
-                                } else {
-                                    Toast.makeText(context, err ?: "Invalid QR Code", Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                        },
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 8.dp)
-                    )
+                            .height(290.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                    ) {
+                        QrScannerView(
+                            onQrDetected = { scannedToken ->
+                                keyViewModel.unlockBag(context, lock, scannedToken) { success, err ->
+                                    if (success) {
+                                        Toast.makeText(context, "'${lock.bagName}' unlocked via QR Key!", Toast.LENGTH_SHORT).show()
+                                        showQrScannerDialog = false
+                                        selectedLockForUnlock = null
+                                    } else {
+                                        Toast.makeText(context, err ?: "Invalid QR Code", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
             },
             confirmButton = {},

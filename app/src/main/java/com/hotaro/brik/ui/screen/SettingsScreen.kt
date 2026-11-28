@@ -1069,23 +1069,28 @@ fun SettingsScreen(
 
                     if (uninstallLock?.keyType == KeyType.QR_CODE) {
                         if (showCameraScanner) {
-                            QrScannerView(
-                                onQrDetected = { scannedToken ->
-                                    keyViewModel.verifyAndDeactivateDeviceOwner(context, scannedToken) { ok, err ->
-                                        if (ok) {
-                                            settingsViewModel.refreshStatus()
-                                            Toast.makeText(context, "Device Owner deactivated! You can now uninstall Brik.", Toast.LENGTH_LONG).show()
-                                            showVerifyUninstallKeyDialog = false
-                                            showCameraScanner = false
-                                        } else {
-                                            errorMessage = err ?: "Invalid QR key"
-                                        }
-                                    }
-                                },
+                            Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(220.dp)
-                            )
+                                    .height(290.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                            ) {
+                                QrScannerView(
+                                    onQrDetected = { scannedToken ->
+                                        keyViewModel.verifyAndDeactivateDeviceOwner(context, scannedToken) { ok, err ->
+                                            if (ok) {
+                                                settingsViewModel.refreshStatus()
+                                                Toast.makeText(context, "Device Owner deactivated! You can now uninstall Brik.", Toast.LENGTH_LONG).show()
+                                                showVerifyUninstallKeyDialog = false
+                                                showCameraScanner = false
+                                            } else {
+                                                errorMessage = err ?: "Invalid QR key"
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
                         } else {
                             Button(
                                 onClick = { showCameraScanner = true },

@@ -451,7 +451,7 @@ fun SetEmergencyKeyDialog(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(260.dp)
+                        .height(290.dp)
                         .clip(RoundedCornerShape(16.dp))
                 ) {
                     QrScannerView(
@@ -527,7 +527,7 @@ fun VerifyEmergencyKeyDialog(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(220.dp)
+                                .height(290.dp)
                                 .clip(RoundedCornerShape(16.dp))
                         ) {
                             QrScannerView(

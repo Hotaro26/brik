@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -99,7 +100,7 @@ fun QrScannerView(
         Box(
             modifier = modifier
                 .fillMaxWidth()
-                .height(260.dp)
+                .defaultMinSize(minHeight = 280.dp)
                 .clip(RoundedCornerShape(20.dp))
                 .background(colorScheme.surfaceContainerHigh),
             contentAlignment = Alignment.Center
@@ -143,8 +144,8 @@ fun QrScannerView(
         Box(
             modifier = modifier
                 .fillMaxWidth()
-                .aspectRatio(1f)
-                .clip(RoundedCornerShape(24.dp))
+                .defaultMinSize(minHeight = 280.dp)
+                .clip(RoundedCornerShape(20.dp))
                 .background(colorScheme.surfaceContainerLowest)
                 .pointerInput(Unit) {
                     detectTransformGestures { _, _, zoom, _ ->
@@ -224,12 +225,12 @@ fun QrScannerView(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(36.dp),
+                    .padding(24.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Box(
                     modifier = Modifier
-                        .size(190.dp)
+                        .size(175.dp)
                         .border(
                             width = 2.dp,
                             color = colorScheme.primary.copy(alpha = 0.85f),
@@ -302,7 +303,7 @@ fun QrScannerView(
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 // Quick Zoom Selection Chips
                 Row(
@@ -318,7 +319,7 @@ fun QrScannerView(
                             },
                             shape = CircleShape,
                             color = if (isSelected) colorScheme.primary else Color.Black.copy(alpha = 0.6f),
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(30.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Text(
