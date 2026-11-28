@@ -1814,7 +1814,7 @@ fun BagsWindow(
                 },
                 keyTypeOverride = lock.keyType,
                 onVerifyCustom = { inputSecret ->
-                    val matches = QrUtils.sha256(inputSecret) == lock.secretHash
+                    val matches = QrUtils.verifyHash(context, inputSecret, lock.secretHash)
                     if (matches) {
                         keyViewModel.unlockBag(context, lock, inputSecret) { success, err ->
                             if (success) {

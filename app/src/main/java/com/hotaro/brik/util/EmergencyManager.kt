@@ -35,6 +35,20 @@ object EmergencyManager {
         _autoDeactivateOnScreenLock.value = prefs.getBoolean(KEY_AUTO_DEACTIVATE_SCREEN_LOCK, true)
         _allowCommonKeyDpm.value = prefs.getBoolean(KEY_ALLOW_COMMON_KEY_DPM, true)
         _hasEmergencyKey.value = hasKey(context)
+        checkTimeout(context)
+    }
+
+    fun checkTimeout(context: Context) {
+        if (!_isEmergencyModeActive.value) return
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val activatedAt = prefs.getLong(KEY_EMERGENCY_ACTIVATED_AT, 0L)
+        val timeoutMinutes = prefs.getInt("pref_emergency_timeout_minutes", 15)
+        if (timeoutMinutes > 0 && activatedAt > 0L) {
+            val elapsed = System.currentTimeMillis() - activatedAt
+            if (elapsed > timeoutMinutes * 60 * 1000L) {
+                setEmergencyModeActive(context, false)
+            }
+        }
     }
 
     fun hasKey(context: Context): Boolean {
@@ -77,7 +91,7 @@ object EmergencyManager {
     }
 
     fun setEmergencyKey(context: Context, keyType: KeyType, secret: String) {
-        val hash = QrUtils.sha256(secret)
+        val hash = QrUtils.hashWithSalt(context, secret)
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit()
             .putString(KEY_EMERGENCY_KEY_TYPE, keyType.name)
@@ -90,23 +104,22 @@ object EmergencyManager {
     fun verifyEmergencyKey(context: Context, inputSecret: String): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val expectedHash = prefs.getString(KEY_EMERGENCY_SECRET_HASH, null)
-        val inputHash = QrUtils.sha256(inputSecret)
-        if (expectedHash != null && expectedHash.equals(inputHash, ignoreCase = true)) {
+        if (expectedHash != null && QrUtils.verifyHash(context, inputSecret, expectedHash)) {
             return true
         }
         if (_allowCommonKeyDpm.value) {
             val dpmLock = KeyRepository(context).getDpmUninstallLock()
-            if (dpmLock != null && dpmLock.secretHash.equals(inputHash, ignoreCase = true)) {
+            if (dpmLock != null && QrUtils.verifyHash(context, inputSecret, dpmLock.secretHash)) {
                 return true
             }
             val dpmPrefs = context.getSharedPreferences("brik_admin_pref", Context.MODE_PRIVATE)
             val dpmHash = dpmPrefs.getString("pref_dpm_uninstall_secret_hash", null)
-            if (!dpmHash.isNullOrBlank() && dpmHash.equals(inputHash, ignoreCase = true)) {
+            if (!dpmHash.isNullOrBlank() && QrUtils.verifyHash(context, inputSecret, dpmHash)) {
                 return true
             }
             val zenPrefs = context.getSharedPreferences("brik_zen_preferences", Context.MODE_PRIVATE)
             val zenHash = zenPrefs.getString("pref_zen_secret_hash", null)
-            if (!zenHash.isNullOrBlank() && zenHash.equals(inputHash, ignoreCase = true)) {
+            if (!zenHash.isNullOrBlank() && QrUtils.verifyHash(context, inputSecret, zenHash)) {
                 return true
             }
         }

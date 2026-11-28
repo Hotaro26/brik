@@ -400,8 +400,9 @@ class TimeBlockRepository(private val context: Context) {
             .filter { it.isRestricted || it.dailyLimitMinutes == 0 }
             .map { it.packageName }
             .toSet()
+        val manualLockedPackages = keyRepository.activeLocks.value.flatMap { it.packageNames }.toSet()
         val allKnownPackages = allBags.flatMap { it.packageNames }.toSet() + packagesToSuspend
-        val packagesToUnsuspend = allKnownPackages - packagesToSuspend - appLimitRestricted
+        val packagesToUnsuspend = allKnownPackages - packagesToSuspend - appLimitRestricted - manualLockedPackages
 
         val suspendList = packagesToSuspend.toList()
         val unsuspendList = packagesToUnsuspend.toList()

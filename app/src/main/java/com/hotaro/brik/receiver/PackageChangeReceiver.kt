@@ -46,6 +46,28 @@ class PackageChangeReceiver : BroadcastReceiver() {
                 }
             }
 
+            Intent.ACTION_PACKAGE_FULLY_REMOVED -> {
+                val packageName = intent.data?.schemeSpecificPart ?: return
+                val pendingResult = goAsync()
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        val bagRepo = com.hotaro.brik.data.repository.BagRepository(appContext)
+                        val allBags = bagRepo.bags.value
+                        allBags.forEach { bag ->
+                            if (bag.packageNames.contains(packageName)) {
+                                val updated = bag.packageNames - packageName
+                                bagRepo.updateBag(bag.copy(packageNames = updated))
+                            }
+                        }
+                        TimeBlockRepository(appContext).syncActiveBlocks(appContext)
+                    } catch (e: Throwable) {
+                        e.printStackTrace()
+                    } finally {
+                        pendingResult.finish()
+                    }
+                }
+            }
+
             Intent.ACTION_BOOT_COMPLETED -> {
                 val pendingResult = goAsync()
                 CoroutineScope(Dispatchers.IO).launch {

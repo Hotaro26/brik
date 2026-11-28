@@ -1,5 +1,6 @@
 package com.hotaro.brik.util
 
+import android.content.Context
 import android.graphics.Bitmap
 import androidx.annotation.OptIn
 import androidx.camera.core.ExperimentalGetImage
@@ -24,6 +25,30 @@ object QrUtils {
     fun sha256(input: String): String {
         val bytes = MessageDigest.getInstance("SHA-256").digest(input.toByteArray(Charsets.UTF_8))
         return bytes.joinToString("") { "%02x".format(it) }
+    }
+
+    fun getDeviceSalt(context: Context): String {
+        val prefs = context.getSharedPreferences("brik_security_salt", Context.MODE_PRIVATE)
+        var salt = prefs.getString("pref_device_salt", null)
+        if (salt.isNullOrBlank()) {
+            salt = java.util.UUID.randomUUID().toString().replace("-", "")
+            prefs.edit().putString("pref_device_salt", salt).apply()
+        }
+        return salt
+    }
+
+    fun hashWithSalt(context: Context, secret: String): String {
+        val salt = getDeviceSalt(context)
+        return "s1:" + sha256("$salt:$secret")
+    }
+
+    fun verifyHash(context: Context, inputSecret: String, expectedHash: String): Boolean {
+        if (expectedHash.startsWith("s1:")) {
+            val salt = getDeviceSalt(context)
+            return expectedHash == ("s1:" + sha256("$salt:$inputSecret"))
+        }
+        // Backwards compatibility for plain SHA-256 hashes
+        return expectedHash.equals(sha256(inputSecret), ignoreCase = true)
     }
 
     fun encodeToBitmap(text: String, sizePx: Int = 512): Bitmap {

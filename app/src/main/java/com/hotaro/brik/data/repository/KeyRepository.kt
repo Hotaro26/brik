@@ -225,7 +225,7 @@ class KeyRepository(private val context: Context) {
             bagName = bagName,
             packages = packages,
             keyType = keyType,
-            secretHash = QrUtils.sha256(secret),
+            secretHash = QrUtils.hashWithSalt(context, secret),
             qrToken = if (keyType == KeyType.QR_CODE) secret else null,
             actionType = actionType
         )
@@ -266,8 +266,8 @@ class KeyRepository(private val context: Context) {
 
     fun verifyAndUnlock(lockId: String, inputSecret: String): Boolean {
         val lock = _activeLocks.value.find { it.id == lockId } ?: return false
-        val inputHash = QrUtils.sha256(inputSecret)
-        if (inputHash == lock.secretHash) {
+        val isValid = QrUtils.verifyHash(context, inputSecret, lock.secretHash)
+        if (isValid) {
             val updated = _activeLocks.value.filterNot { it.id == lockId }
             persistLocks(updated)
 
