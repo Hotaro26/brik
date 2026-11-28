@@ -32,8 +32,8 @@ android {
         applicationId = "com.hotaro.brik"
         minSdk = 26
         targetSdk = 37
-        versionCode = 39
-        versionName = "2.2.0"
+        versionCode = 40
+        versionName = "2.2.1"
 
         ndk {
             abiFilters.add("arm64-v8a")

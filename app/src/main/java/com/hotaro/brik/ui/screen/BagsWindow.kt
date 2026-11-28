@@ -11,6 +11,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -101,7 +103,7 @@ import com.hotaro.brik.util.QrUtils
 import kotlinx.coroutines.launch
 import java.util.UUID
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun BagsWindow(
     onBack: () -> Unit,
@@ -113,6 +115,9 @@ fun BagsWindow(
 
     val bags by viewModel.bags.collectAsState()
     val installedApps by viewModel.installedApps.collectAsState()
+    val activeLocks by keyViewModel.activeLocks.collectAsState()
+    val focusModes by com.hotaro.brik.data.repository.TimeBlockRepository.focusModes.collectAsState()
+    val routines by com.hotaro.brik.data.repository.TimeBlockRepository.routines.collectAsState()
 
     var isRefreshing by remember { mutableStateOf(false) }
     val isEmergencyActive by EmergencyManager.isEmergencyModeActive.collectAsState()
@@ -126,6 +131,8 @@ fun BagsWindow(
     var editingBag by remember { mutableStateOf<AppBag?>(null) }
     // Bag to lock dialog state
     var bagToLock by remember { mutableStateOf<AppBag?>(null) }
+    // Bag to unlock dialog state
+    var bagToUnlock by remember { mutableStateOf<AppBag?>(null) }
     // Bag to delete confirmation state
     var bagToDelete by remember { mutableStateOf<AppBag?>(null) }
     // Attempted to edit a running bag
@@ -265,20 +272,52 @@ fun BagsWindow(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(bags, key = { it.id }) { bag ->
-                            val isLocked = keyViewModel.isBagLocked(bag.id)
-                            val focusModes by com.hotaro.brik.data.repository.TimeBlockRepository.focusModes.collectAsState()
-                            val routines by com.hotaro.brik.data.repository.TimeBlockRepository.routines.collectAsState()
-                            val isActiveInTimeBlock = focusModes.any { it.isRunning && it.targetBagIds.contains(bag.id) } ||
-                                routines.any { it.isActiveNow && it.targetBagIds.contains(bag.id) }
-                            val isBagActive = isLocked || isActiveInTimeBlock
+                            val isLocked = activeLocks.any { it.bagId == bag.id }
+                            val runningFocusModes = focusModes.filter { it.isRunning && it.targetBagIds.contains(bag.id) }
+                            val activeRoutines = routines.filter { it.isActiveNow && it.targetBagIds.contains(bag.id) }
+                            val allActiveStatuses = buildList {
+                                if (isLocked) add("Manual Lock")
+                                runningFocusModes.forEach { add("Focus: ${it.name}") }
+                                activeRoutines.forEach { add("Routine: ${it.name}") }
+                            }
+                            val isBagActive = allActiveStatuses.isNotEmpty()
+                            val singleActiveStatus = allActiveStatuses.firstOrNull()
+
+                            val hasCommonKey by CommonKeyManager.hasCommonKey.collectAsState()
+                            val commonFollowingMap by CommonKeyManager.followingMap.collectAsState()
+                            val usesCommonKey = hasCommonKey && (bag.useCommonKey ?: (commonFollowingMap["bags_common_key"] == true))
+
                             SwipeableBagItemCard(
                                 bag = bag,
                                 isLocked = isLocked,
                                 isBagActive = isBagActive,
+                                activeSource = singleActiveStatus,
+                                onToggleActive = { shouldActivate ->
+                                    if (shouldActivate) {
+                                        if (usesCommonKey) {
+                                            keyViewModel.lockBagWithCommonKey(context, bag) { success, err ->
+                                                if (success) {
+                                                    Toast.makeText(context, "'${bag.name}' locked with Common Key!", Toast.LENGTH_SHORT).show()
+                                                } else {
+                                                    Toast.makeText(context, err ?: "Failed to lock bag", Toast.LENGTH_SHORT).show()
+                                                }
+                                            }
+                                        } else {
+                                            bagToLock = bag
+                                        }
+                                    } else {
+                                        if (isLocked) {
+                                            bagToUnlock = bag
+                                        } else if (allActiveStatuses.isNotEmpty()) {
+                                            val sourcesText = allActiveStatuses.joinToString(", ")
+                                            Toast.makeText(context, "'${bag.name}' is currently enforced by: $sourcesText. Stop those sessions to deactivate.", Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                },
                                 viewModel = viewModel,
                                 onClick = { selectedBagForSheet = bag },
                                 onSwipeDelete = {
-                                    if (isLocked) {
+                                    if (isBagActive) {
                                         bagLockedEditAttempt = bag
                                     } else {
                                         bagToDelete = bag
@@ -336,7 +375,15 @@ fun BagsWindow(
     // --- BAG DETAIL BOTTOM SHEET (Card clicked) ---
     if (selectedBagForSheet != null) {
         val activeBag = bags.find { it.id == selectedBagForSheet!!.id } ?: selectedBagForSheet!!
-        val isLocked = keyViewModel.isBagLocked(activeBag.id)
+        val isLocked = activeLocks.any { it.bagId == activeBag.id }
+        val runningFocusModes = focusModes.filter { it.isRunning && it.targetBagIds.contains(activeBag.id) }
+        val activeRoutines = routines.filter { it.isActiveNow && it.targetBagIds.contains(activeBag.id) }
+        val allActiveStatuses = buildList {
+            if (isLocked) add("Manual Lock")
+            runningFocusModes.forEach { add("Focus: ${it.name}") }
+            activeRoutines.forEach { add("Routine: ${it.name}") }
+        }
+        val isBagActive = allActiveStatuses.isNotEmpty()
         val hasCommonKey by CommonKeyManager.hasCommonKey.collectAsState()
         val commonFollowingMap by CommonKeyManager.followingMap.collectAsState()
         val usesCommonKey = hasCommonKey && (activeBag.useCommonKey ?: (commonFollowingMap["bags_common_key"] == true))
@@ -419,50 +466,63 @@ fun BagsWindow(
                             }
                         }
 
-                        if (!usesCommonKey) {
-                            // Toggle Switch Pill at top
-                            Surface(
-                                shape = CircleShape,
-                                color = if (isLocked) colorScheme.errorContainer else colorScheme.surfaceContainerHighest,
-                                border = BorderStroke(1.dp, if (isLocked) colorScheme.error else colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                                modifier = Modifier.height(38.dp)
+                        // Toggle Switch Pill at top
+                        Surface(
+                            shape = CircleShape,
+                            color = if (isBagActive) colorScheme.errorContainer else colorScheme.surfaceContainerHighest,
+                            border = BorderStroke(1.dp, if (isBagActive) colorScheme.error else colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                            modifier = Modifier.height(38.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 10.dp)
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(horizontal = 10.dp)
-                                ) {
-                                    Icon(
-                                        painter = painterResource(if (isLocked) R.drawable.block_fill0 else R.drawable.backpack_fill0),
-                                        contentDescription = null,
-                                        tint = if (isLocked) colorScheme.error else colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(Modifier.width(6.dp))
-                                    Text(
-                                        text = if (isLocked) "Locked" else "Lock",
-                                        style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                        color = if (isLocked) colorScheme.error else colorScheme.onSurface
-                                    )
-                                    Spacer(Modifier.width(4.dp))
-                                    BrikSwitch(
-                                        checked = isLocked,
-                                        onCheckedChange = { shouldLock ->
-                                            if (shouldLock) {
-                                                bagToLock = activeBag
+                                Icon(
+                                    painter = painterResource(if (isBagActive) R.drawable.block_fill0 else R.drawable.backpack_fill0),
+                                    contentDescription = null,
+                                    tint = if (isBagActive) colorScheme.error else colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    text = if (isBagActive) "Active" else "Lock",
+                                    style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = if (isBagActive) colorScheme.error else colorScheme.onSurface
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                BrikSwitch(
+                                    checked = isBagActive,
+                                    onCheckedChange = { shouldLock ->
+                                        if (shouldLock) {
+                                            if (usesCommonKey) {
+                                                keyViewModel.lockBagWithCommonKey(context, activeBag) { success, err ->
+                                                    if (success) {
+                                                        Toast.makeText(context, "'${activeBag.name}' locked with Common Key!", Toast.LENGTH_SHORT).show()
+                                                    } else {
+                                                        Toast.makeText(context, err ?: "Failed to lock", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                }
                                             } else {
-                                                Toast.makeText(context, "Go to Key window to unlock '${activeBag.name}'", Toast.LENGTH_SHORT).show()
+                                                bagToLock = activeBag
                                             }
-                                        },
-                                        modifier = Modifier.scale(0.75f)
-                                    )
-                                }
+                                        } else {
+                                            if (isLocked) {
+                                                bagToUnlock = activeBag
+                                            } else if (allActiveStatuses.isNotEmpty()) {
+                                                val sourcesText = allActiveStatuses.joinToString(", ")
+                                                Toast.makeText(context, "Bag is currently enforced by: $sourcesText. Stop those sessions to unlock.", Toast.LENGTH_LONG).show()
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.scale(0.75f)
+                                )
                             }
                         }
 
                         // Edit Icon to add/remove apps, change name, etc.
                         Surface(
                             onClick = {
-                                if (isLocked) {
+                                if (isBagActive) {
                                     bagLockedEditAttempt = activeBag
                                 } else {
                                     editingBag = activeBag
@@ -485,6 +545,83 @@ fun BagsWindow(
                 }
 
                 Spacer(Modifier.height(14.dp))
+
+                // Active Status Section in Bottom Sheet (Displays wherever this bag is active)
+                if (allActiveStatuses.isNotEmpty()) {
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = colorScheme.errorContainer.copy(alpha = 0.35f),
+                        border = BorderStroke(1.dp, colorScheme.error.copy(alpha = 0.3f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 12.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = colorScheme.error
+                                ) {
+                                    Text(
+                                        text = "ACTIVE",
+                                        style = typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold, fontSize = 9.sp),
+                                        color = colorScheme.onError,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                                Text(
+                                    text = "Active in ${allActiveStatuses.size} ${if (allActiveStatuses.size == 1) "source" else "sources"}",
+                                    style = typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = colorScheme.onSurface
+                                )
+                            }
+
+                            Spacer(Modifier.height(8.dp))
+
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                allActiveStatuses.forEach { status ->
+                                    val (iconRes, tintColor) = when {
+                                        status.startsWith("Manual Lock") -> Pair(R.drawable.key_fill0, colorScheme.error)
+                                        status.startsWith("Focus:") -> Pair(R.drawable.mode_fill0, colorScheme.primary)
+                                        else -> Pair(R.drawable.schedule_fill0, colorScheme.tertiary)
+                                    }
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = colorScheme.surfaceContainerLowest,
+                                        border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.4f))
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        ) {
+                                            Icon(
+                                                painter = painterResource(iconRes),
+                                                contentDescription = null,
+                                                tint = tintColor,
+                                                modifier = Modifier.size(13.dp)
+                                            )
+                                            Spacer(Modifier.width(5.dp))
+                                            Text(
+                                                text = status,
+                                                style = typography.labelSmall.copy(fontWeight = FontWeight.SemiBold, fontSize = 11.sp),
+                                                color = colorScheme.onSurface
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(14.dp))
+                }
 
                 if (hasCommonKey) {
                     Surface(
@@ -538,10 +675,10 @@ fun BagsWindow(
                                 BrikSwitch(
                                     checked = usesCommonKey,
                                     onCheckedChange = { enable ->
-                                        if (isLocked) {
+                                        if (isBagActive) {
                                             Toast.makeText(
                                                 context,
-                                                "Go to Key window to unlock '${activeBag.name}' first",
+                                                "Unlock or deactivate '${activeBag.name}' first",
                                                 Toast.LENGTH_SHORT
                                             ).show()
                                         } else {
@@ -569,11 +706,22 @@ fun BagsWindow(
                                         Text("Lock Bag with Common Key", fontWeight = FontWeight.Bold)
                                     }
                                 } else {
-                                    Text(
-                                        text = "Locked with Common Key • Unlock in Keys & Analytics",
-                                        style = typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                                        color = colorScheme.error
-                                    )
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "Locked with Common Key",
+                                            style = typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                            color = colorScheme.error
+                                        )
+                                        TextButton(
+                                            onClick = { bagToUnlock = activeBag }
+                                        ) {
+                                            Text("Unlock", color = colorScheme.error, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -762,7 +910,10 @@ fun BagsWindow(
     // --- EDIT BAG BOTTOM SHEET (Change name, add/remove apps) ---
     if (editingBag != null) {
         val targetBag = editingBag!!
-        if (keyViewModel.isBagLocked(targetBag.id)) {
+        val isTargetActive = activeLocks.any { it.bagId == targetBag.id } ||
+            focusModes.any { it.isRunning && it.targetBagIds.contains(targetBag.id) } ||
+            routines.any { it.isActiveNow && it.targetBagIds.contains(targetBag.id) }
+        if (isTargetActive) {
             bagLockedEditAttempt = targetBag
             editingBag = null
         }
@@ -1648,6 +1799,46 @@ fun BagsWindow(
         }
     }
 
+    // --- UNLOCK BAG DIALOG ---
+    if (bagToUnlock != null) {
+        val bag = bagToUnlock!!
+        val activeLocks by keyViewModel.activeLocks.collectAsState()
+        val lock = activeLocks.find { it.bagId == bag.id }
+        if (lock != null) {
+            VerifyEmergencyKeyDialog(
+                title = "Unlock '${bag.name}'",
+                subtitle = if (lock.keyType == KeyType.QR_CODE) {
+                    "Scan the QR key to unlock and restore apps in '${bag.name}'."
+                } else {
+                    "Enter the password to unlock and restore apps in '${bag.name}'."
+                },
+                keyTypeOverride = lock.keyType,
+                onVerifyCustom = { inputSecret ->
+                    val matches = QrUtils.sha256(inputSecret) == lock.secretHash
+                    if (matches) {
+                        keyViewModel.unlockBag(context, lock, inputSecret) { success, err ->
+                            if (success) {
+                                Toast.makeText(context, "'${bag.name}' unlocked successfully!", Toast.LENGTH_SHORT).show()
+                                bagToUnlock = null
+                            } else {
+                                Toast.makeText(context, err ?: "Failed to unlock", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                    matches
+                },
+                onDismiss = { bagToUnlock = null },
+                onVerified = {
+                    bagToUnlock = null
+                }
+            )
+        } else {
+            androidx.compose.runtime.LaunchedEffect(bag.id) {
+                bagToUnlock = null
+            }
+        }
+    }
+
     if (showSetEmergencyKeyDialog) {
         SetEmergencyKeyDialog(
             savedKeys = emptyList(),
@@ -1687,6 +1878,8 @@ private fun SwipeableBagItemCard(
     bag: AppBag,
     isLocked: Boolean,
     isBagActive: Boolean = isLocked,
+    activeSource: String? = null,
+    onToggleActive: (Boolean) -> Unit,
     viewModel: ToolsViewModel,
     onClick: () -> Unit,
     onSwipeDelete: () -> Unit
@@ -1754,14 +1947,14 @@ private fun SwipeableBagItemCard(
                     ) {
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = if (isLocked) colorScheme.errorContainer else colorScheme.primaryContainer,
+                            color = if (isBagActive) colorScheme.errorContainer else colorScheme.primaryContainer,
                             modifier = Modifier.size(40.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
-                                    painter = painterResource(if (isLocked) R.drawable.block_fill0 else R.drawable.backpack_fill0),
+                                    painter = painterResource(if (isBagActive) R.drawable.block_fill0 else R.drawable.backpack_fill0),
                                     contentDescription = null,
-                                    tint = if (isLocked) colorScheme.onErrorContainer else colorScheme.onPrimaryContainer,
+                                    tint = if (isBagActive) colorScheme.onErrorContainer else colorScheme.onPrimaryContainer,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -1769,32 +1962,36 @@ private fun SwipeableBagItemCard(
 
                         Spacer(Modifier.width(12.dp))
 
-                        Column {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
                                 Text(
                                     text = bag.name,
                                     style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                     color = colorScheme.onSurface,
                                     maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false)
                                 )
                                 if (isBagActive) {
-                                    Spacer(Modifier.width(8.dp))
                                     Surface(
                                         shape = CircleShape,
                                         color = colorScheme.error
                                     ) {
                                         Text(
-                                            text = "Active",
+                                            text = if (activeSource != null) "ACTIVE • $activeSource" else "ACTIVE",
                                             style = typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold, fontSize = 9.sp),
                                             color = colorScheme.onError,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
                                             modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                                         )
                                     }
 
                                     val isEmergencyActive by EmergencyManager.isEmergencyModeActive.collectAsState()
                                     if (isLocked && isEmergencyActive) {
-                                        Spacer(Modifier.width(6.dp))
                                         Surface(
                                             shape = CircleShape,
                                             color = colorScheme.errorContainer
@@ -1827,6 +2024,14 @@ private fun SwipeableBagItemCard(
                             )
                         }
                     }
+
+                    Spacer(Modifier.width(8.dp))
+
+                    BrikSwitch(
+                        checked = isBagActive,
+                        onCheckedChange = onToggleActive,
+                        modifier = Modifier.scale(0.85f)
+                    )
                 }
 
                 // Top 3 apps at max

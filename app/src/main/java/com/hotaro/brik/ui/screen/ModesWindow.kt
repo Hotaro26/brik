@@ -2326,12 +2326,22 @@ private fun ModeDetailWindow(
                         Text("No bags found in Tools > Bags.", style = typography.bodyMedium, color = colorScheme.outline)
                     }
                 } else {
+                    val keyRepo = remember(context) { com.hotaro.brik.data.repository.KeyRepository(context) }
+                    val activeLocks by keyRepo.activeLocks.collectAsState()
+                    val allFocusModes by com.hotaro.brik.data.repository.TimeBlockRepository.focusModes.collectAsState()
+                    val allRoutines by com.hotaro.brik.data.repository.TimeBlockRepository.routines.collectAsState()
+
                     LazyColumn(
                         modifier = Modifier.fillMaxWidth().heightIn(max = 380.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(bags, key = { it.id }) { bag ->
                             val isSelected = selectedBags.contains(bag.id)
+                            val isBagLocked = activeLocks.any { it.bagId == bag.id }
+                            val isActiveInBlock = allFocusModes.any { it.isRunning && it.targetBagIds.contains(bag.id) } ||
+                                allRoutines.any { it.isActiveNow && it.targetBagIds.contains(bag.id) }
+                            val isBagActive = isBagLocked || isActiveInBlock
+
                             Surface(
                                 onClick = {
                                     selectedBags = if (isSelected) selectedBags - bag.id else selectedBags + bag.id
@@ -2353,7 +2363,32 @@ private fun ModeDetailWindow(
                                     )
                                     Spacer(Modifier.width(12.dp))
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text(bag.name, style = typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = if (isSelected) colorScheme.onPrimaryContainer else colorScheme.onSurface)
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Text(
+                                                text = bag.name,
+                                                style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = if (isSelected) colorScheme.onPrimaryContainer else colorScheme.onSurface,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f, fill = false)
+                                            )
+                                            if (isBagActive) {
+                                                Surface(
+                                                    shape = CircleShape,
+                                                    color = colorScheme.error
+                                                ) {
+                                                    Text(
+                                                        text = "ACTIVE",
+                                                        style = typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold, fontSize = 9.sp),
+                                                        color = colorScheme.onError,
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
                                         Text("${bag.packageNames.size} apps included", style = typography.bodySmall, color = colorScheme.onSurfaceVariant)
                                     }
                                     Checkbox(
