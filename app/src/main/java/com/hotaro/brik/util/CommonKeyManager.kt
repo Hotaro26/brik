@@ -163,13 +163,23 @@ object CommonKeyManager {
     }
 
     fun clearCommonKey(context: Context) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val editor = prefs.edit()
+        ALL_OPTIONS.forEach { opt ->
+            if (prefs.getBoolean(PREFIX_FOLLOW + opt.id, false)) {
+                clearFeatureKey(context, opt.id)
+                editor.putBoolean(PREFIX_FOLLOW + opt.id, false)
+            }
+        }
+        editor
             .remove(KEY_TYPE)
             .remove(KEY_SECRET_HASH)
             .remove(KEY_QR_TOKEN)
             .apply()
         _hasCommonKey.value = false
         _commonKeyType.value = KeyType.PASSWORD
+        _followingMap.value = ALL_OPTIONS.associate { it.id to false }
+        KeyRepository(context).syncExistingSystemKeys(context)
     }
 
     fun setFollowing(context: Context, featureId: String, follow: Boolean) {
@@ -186,6 +196,29 @@ object CommonKeyManager {
             } else if (!hash.isNullOrBlank()) {
                 syncHashToFeature(context, featureId, type, hash, qr)
             }
+        } else if (!follow) {
+            clearFeatureKey(context, featureId)
+        }
+        KeyRepository(context).syncExistingSystemKeys(context)
+    }
+
+    private fun clearFeatureKey(context: Context, featureId: String) {
+        when (featureId) {
+            "app_manager_security_key" -> AppLimitManager.clearSecurityKey(context)
+            "grayscale_security_key" -> GrayscaleManager.clearSecurityKey(context)
+            "zen_security_key" -> ZenManager.clearSecurityKey(context)
+            "wind_down_security_key" -> {
+                context.getSharedPreferences("brik_wind_down_prefs", Context.MODE_PRIVATE).edit()
+                    .remove("pref_wd_key_type")
+                    .remove("pref_wd_secret_hash")
+                    .remove("pref_wd_qr_token")
+                    .apply()
+                WindDownManager.init(context)
+            }
+            "sideload_adb_lock" -> SideloadLockManager.clearSecurityKey(context)
+            "dns_lock" -> DnsManager.clearSecurityKey(context)
+            "dpm_uninstall_lock" -> KeyRepository(context).removeDpmUninstallLock()
+            "emergency_key" -> EmergencyManager.clearEmergencyKey(context)
         }
     }
 

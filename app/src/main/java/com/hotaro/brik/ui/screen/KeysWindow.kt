@@ -672,7 +672,7 @@ fun KeysWindow(
                                                 )
 
                                                 val showEditBtn = lock.isSystemKey && !hideEditAndClearInEmergency
-                                                val showQrBtn = lock.keyType == KeyType.QR_CODE && lock.qrToken != null
+                                                val showQrBtn = isEmergencyActive && lock.keyType == KeyType.QR_CODE && lock.qrToken != null
                                                 val showEmergencyOrClearBtn = isEmergencyActive && !(lock.isSystemKey && isFromCommonKey)
 
                                                 if (showEditBtn || showQrBtn || showEmergencyOrClearBtn) {
