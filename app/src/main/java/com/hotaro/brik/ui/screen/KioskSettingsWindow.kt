@@ -51,6 +51,7 @@ fun KioskSettingsWindow(onBack: () -> Unit) {
     val allowEmergencyDialer by KioskPreferences.allowEmergencyDialer.collectAsState()
     val autoResumeAfterCall by KioskPreferences.autoResumeAfterCall.collectAsState()
     val allowControlPanelsStatusBar by KioskPreferences.allowControlPanelsStatusBar.collectAsState()
+    val blockAdbInKiosk by KioskPreferences.blockAdbInKiosk.collectAsState()
     val showBatteryIndicator by KioskPreferences.showBatteryIndicator.collectAsState()
     val appNamesAlignment by KioskPreferences.appNamesAlignment.collectAsState()
     val exitHoldSeconds by KioskPreferences.exitHoldSeconds.collectAsState()
@@ -198,6 +199,13 @@ fun KioskSettingsWindow(onBack: () -> Unit) {
                             lockdownNotificationShade = !it
                         )
                     }
+                ),
+                KioskToggleItem(
+                    title = "Block ADB in Kiosk & Zen",
+                    subtitle = "Disables ADB while Kiosk or Zen Mode is active (Reset & Revoke stays available in-app)",
+                    iconRes = R.drawable.block_fill0,
+                    checked = blockAdbInKiosk,
+                    onToggle = { KioskPreferences.setBlockAdbInKiosk(context, it) }
                 )
             )
 

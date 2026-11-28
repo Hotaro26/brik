@@ -42,6 +42,7 @@ data class ResetState(
 
 object ResetManager {
     const val RESET_DURATION_MS = 5L * 24L * 60L * 60L * 1000L // 5 days
+    const val ACTION_START_RESET = "com.hotaro.brik.ACTION_START_RESET"
     const val ACTION_EXECUTE_RESET = "com.hotaro.brik.ACTION_EXECUTE_RESET"
 
     private const val PREFS_NAME = "brik_reset_prefs"
@@ -208,7 +209,7 @@ object ResetManager {
                     } catch (_: Throwable) {}
                 }
 
-                // 4. Lift Private DNS, Grayscale, Sideload/ADB, Zen, WindDown, Emergency
+                // 4. Lift Private DNS, Grayscale, Sideload/ADB, Kiosk ADB, Zen, WindDown, Emergency
                 try { DnsManager.setDns(appCtx, DnsMode.OPPORTUNISTIC, null) } catch (_: Throwable) {}
                 try {
                     GrayscaleManager.setSystemwideEnabled(appCtx, false)
@@ -216,6 +217,7 @@ object ResetManager {
                     GrayscaleManager.applyGrayscale(appCtx, false)
                 } catch (_: Throwable) {}
                 try { SideloadLockManager.clearSecurityKey(appCtx) } catch (_: Throwable) {}
+                try { SideloadLockManager.setTemporaryKioskAdbBlock(appCtx, false) } catch (_: Throwable) {}
                 try {
                     if (StealthUtils.isAppHidden(appCtx)) {
                         StealthUtils.setAppHidden(appCtx, false)
@@ -283,6 +285,28 @@ object ResetManager {
             .setSmallIcon(R.drawable.shield_fill0)
             .setContentTitle("Brik Reset Complete")
             .setContentText("All distractions removed, app data cleared, and Device Owner revoked.")
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .build()
+        nm.notify(NOTIF_ID, notification)
+    }
+
+    fun postStartedNotification(context: Context) {
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                NOTIF_CHANNEL_ID,
+                "Device Reset",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Notifications when the 5-day reset countdown starts or completes"
+            }
+            nm.createNotificationChannel(channel)
+        }
+        val notification = NotificationCompat.Builder(context, NOTIF_CHANNEL_ID)
+            .setSmallIcon(R.drawable.shield_fill0)
+            .setContentTitle("5-Day Reset Countdown Started")
+            .setContentText("Triggered via ADB. All restrictions and Device Owner will be removed in 5 days.")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .build()

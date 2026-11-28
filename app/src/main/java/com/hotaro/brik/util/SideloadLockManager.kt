@@ -230,4 +230,49 @@ object SideloadLockManager {
             }
         }
     }
+
+    private const val KEY_TEMP_KIOSK_ADB_BLOCK = "pref_temp_kiosk_adb_block"
+
+    fun setTemporaryKioskAdbBlock(context: Context, block: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val currentlyTempBlocked = prefs.getBoolean(KEY_TEMP_KIOSK_ADB_BLOCK, false)
+        if (!block && !currentlyTempBlocked) return
+
+        val status = PolicyBridgeManager.getBridgeStatus(context)
+        runCatching {
+            when (status.activeBridge) {
+                BridgeType.DEVICE_OWNER -> {
+                    val dpm = context.getSystemService(DevicePolicyManager::class.java) ?: return
+                    val dar = BrikAdminReceiver.getComponentName(context)
+                    if (block) {
+                        dpm.addUserRestriction(dar, UserManager.DISALLOW_DEBUGGING_FEATURES)
+                        runCatching { dpm.setGlobalSetting(dar, Settings.Global.ADB_ENABLED, "0") }
+                        prefs.edit().putBoolean(KEY_TEMP_KIOSK_ADB_BLOCK, true).apply()
+                    } else {
+                        prefs.edit().putBoolean(KEY_TEMP_KIOSK_ADB_BLOCK, false).apply()
+                        if (!(_isRestrictionActive.value && _restrictDeveloperOptions.value)) {
+                            dpm.clearUserRestriction(dar, UserManager.DISALLOW_DEBUGGING_FEATURES)
+                            runCatching { dpm.setGlobalSetting(dar, Settings.Global.ADB_ENABLED, "1") }
+                        }
+                    }
+                }
+                BridgeType.DHIZUKU -> {
+                    val dpm = PolicyBridgeManager.getDhizukuDpm(context)
+                    val dar = Dhizuku.getOwnerComponent()
+                    if (block) {
+                        dpm.addUserRestriction(dar, UserManager.DISALLOW_DEBUGGING_FEATURES)
+                        runCatching { dpm.setGlobalSetting(dar, Settings.Global.ADB_ENABLED, "0") }
+                        prefs.edit().putBoolean(KEY_TEMP_KIOSK_ADB_BLOCK, true).apply()
+                    } else {
+                        prefs.edit().putBoolean(KEY_TEMP_KIOSK_ADB_BLOCK, false).apply()
+                        if (!(_isRestrictionActive.value && _restrictDeveloperOptions.value)) {
+                            dpm.clearUserRestriction(dar, UserManager.DISALLOW_DEBUGGING_FEATURES)
+                            runCatching { dpm.setGlobalSetting(dar, Settings.Global.ADB_ENABLED, "1") }
+                        }
+                    }
+                }
+                else -> Unit
+            }
+        }
+    }
 }

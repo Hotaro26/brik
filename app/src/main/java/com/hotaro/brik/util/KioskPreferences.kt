@@ -15,6 +15,7 @@ object KioskPreferences {
     private const val KEY_SHOW_BATTERY_INDICATOR = "pref_kiosk_show_battery_indicator"
     private const val KEY_EXIT_HOLD_SECONDS = "pref_kiosk_exit_hold_seconds"
     private const val KEY_APP_NAMES_ALIGNMENT = "pref_kiosk_app_names_alignment"
+    private const val KEY_BLOCK_ADB_IN_KIOSK = "pref_kiosk_block_adb"
 
     private val _allowIncomingCallsWindow = MutableStateFlow(true)
     val allowIncomingCallsWindow: StateFlow<Boolean> = _allowIncomingCallsWindow.asStateFlow()
@@ -40,6 +41,9 @@ object KioskPreferences {
     private val _exitHoldSeconds = MutableStateFlow(3)
     val exitHoldSeconds: StateFlow<Int> = _exitHoldSeconds.asStateFlow()
 
+    private val _blockAdbInKiosk = MutableStateFlow(false)
+    val blockAdbInKiosk: StateFlow<Boolean> = _blockAdbInKiosk.asStateFlow()
+
     fun init(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         _allowIncomingCallsWindow.value = prefs.getBoolean(KEY_ALLOW_CALLS_WINDOW, true)
@@ -50,6 +54,7 @@ object KioskPreferences {
         _showBatteryIndicator.value = prefs.getBoolean(KEY_SHOW_BATTERY_INDICATOR, true)
         _appNamesAlignment.value = prefs.getString(KEY_APP_NAMES_ALIGNMENT, "center") ?: "center"
         _exitHoldSeconds.value = prefs.getInt(KEY_EXIT_HOLD_SECONDS, 3)
+        _blockAdbInKiosk.value = prefs.getBoolean(KEY_BLOCK_ADB_IN_KIOSK, false)
     }
 
     fun setAllowIncomingCallsWindow(context: Context, value: Boolean) {
@@ -106,5 +111,11 @@ object KioskPreferences {
         _exitHoldSeconds.value = value
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit().putInt(KEY_EXIT_HOLD_SECONDS, value).apply()
+    }
+
+    fun setBlockAdbInKiosk(context: Context, value: Boolean) {
+        _blockAdbInKiosk.value = value
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().putBoolean(KEY_BLOCK_ADB_IN_KIOSK, value).apply()
     }
 }

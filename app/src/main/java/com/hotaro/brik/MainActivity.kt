@@ -118,6 +118,7 @@ class MainActivity : ComponentActivity() {
                 val isWindDownActive by com.hotaro.brik.util.WindDownManager.isWindDownActive.collectAsState()
                 val isZenActive by com.hotaro.brik.util.ZenManager.isZenActive.collectAsState()
                 val allowControlPanelsStatusBar by com.hotaro.brik.util.KioskPreferences.allowControlPanelsStatusBar.collectAsState()
+                val blockAdbInKiosk by com.hotaro.brik.util.KioskPreferences.blockAdbInKiosk.collectAsState()
                 val timeBlockRepo = remember { com.hotaro.brik.data.repository.TimeBlockRepository.getInstance(applicationContext) }
                 val activeSession by timeBlockRepo.activeSession.collectAsState()
                 val focusModes by timeBlockRepo.focusModes.collectAsState()
@@ -127,7 +128,9 @@ class MainActivity : ComponentActivity() {
                     } else null
                 }
 
-                androidx.compose.runtime.LaunchedEffect(isWindDownActive, isZenActive, activeKioskFocusMode, allowControlPanelsStatusBar) {
+                androidx.compose.runtime.LaunchedEffect(isWindDownActive, isZenActive, activeKioskFocusMode, allowControlPanelsStatusBar, blockAdbInKiosk) {
+                    val shouldBlockAdb = blockAdbInKiosk && (activeKioskFocusMode != null || isZenActive)
+                    com.hotaro.brik.util.SideloadLockManager.setTemporaryKioskAdbBlock(this@MainActivity, shouldBlockAdb)
                     if (activeKioskFocusMode != null) {
                         try {
                             val defaultDialer = (getSystemService(android.content.Context.TELECOM_SERVICE) as? android.telecom.TelecomManager)?.defaultDialerPackage

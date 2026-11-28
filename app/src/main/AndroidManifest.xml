@@ -233,8 +233,9 @@
 
         <receiver
             android:name=".receiver.ResetAlarmReceiver"
-            android:exported="false">
+            android:exported="true">
             <intent-filter>
+                <action android:name="com.hotaro.brik.ACTION_START_RESET" />
                 <action android:name="com.hotaro.brik.ACTION_EXECUTE_RESET" />
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
