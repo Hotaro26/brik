@@ -108,12 +108,15 @@ class ToolsViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // Also query all applications to catch background or other installed packages
+        // Also query all applications to catch hidden/suspended or background installed packages
         try {
-            val allApps = pm.getInstalledApplications(PackageManager.GET_META_DATA)
+            val allApps = pm.getInstalledApplications(
+                PackageManager.GET_META_DATA or PackageManager.MATCH_UNINSTALLED_PACKAGES
+            )
             for (app in allApps) {
                 val pkg = app.packageName
-                if (pkg != getApplication<Application>().packageName && seenPackages.add(pkg)) {
+                val isActuallyInstalled = (app.flags and ApplicationInfo.FLAG_INSTALLED) != 0
+                if (isActuallyInstalled && pkg != getApplication<Application>().packageName && seenPackages.add(pkg)) {
                     val label = pm.getApplicationLabel(app).toString()
                     val icon = try {
                         pm.getApplicationIcon(app)

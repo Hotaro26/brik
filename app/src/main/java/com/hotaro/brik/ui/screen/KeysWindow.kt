@@ -5,6 +5,15 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Bitmap
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -77,6 +86,7 @@ import com.hotaro.brik.R
 import com.hotaro.brik.data.model.BagLock
 import com.hotaro.brik.data.model.KeyType
 import com.hotaro.brik.data.model.SavedKey
+import com.hotaro.brik.data.repository.BagRepository
 import com.hotaro.brik.data.repository.TimeBlockRepository
 import com.hotaro.brik.policy.DnsManager
 import com.hotaro.brik.ui.component.BrikSwitch
@@ -385,500 +395,623 @@ fun KeysWindow(
             // SECTION 2: ACTIVE PROTECTION KEYS
             // ==========================================
             item {
-                Surface(
-                    onClick = { isActiveKeysExpanded = !isActiveKeysExpanded },
-                    shape = if (isActiveKeysExpanded && activeLocks.isNotEmpty()) {
-                        RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
-                    } else {
-                        RoundedCornerShape(18.dp)
-                    },
-                    color = colorScheme.surfaceContainerHigh,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Surface(
-                                shape = CircleShape,
-                                color = colorScheme.primaryContainer,
-                                modifier = Modifier.size(34.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.key_fill0),
-                                        contentDescription = null,
-                                        tint = colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-                            Column {
-                                Text(
-                                    text = "Active Protection Keys",
-                                    style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = colorScheme.onSurface
-                                )
-                                Text(
-                                    text = if (activeLocks.isEmpty()) "No keys configured" else "${activeLocks.size} key${if (activeLocks.size == 1) "" else "s"} active",
-                                    style = typography.bodySmall.copy(fontSize = 11.sp),
-                                    color = colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            if (activeLocks.isNotEmpty()) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = colorScheme.primary
-                                ) {
-                                    Text(
-                                        text = "${activeLocks.size}",
-                                        style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                        color = colorScheme.onPrimary,
-                                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp)
-                                    )
-                                }
-                            }
-                            Icon(
-                                painter = painterResource(R.drawable.arrow_forward_big),
-                                contentDescription = null,
-                                tint = colorScheme.onSurfaceVariant,
-                                modifier = Modifier
-                                    .size(16.dp)
-                                    .graphicsLayer {
-                                        rotationZ = if (isActiveKeysExpanded) 270f else 90f
-                                    }
-                            )
-                        }
-                    }
-                }
-            }
+                val activeKeysArrowRotation by animateFloatAsState(
+                    targetValue = if (isActiveKeysExpanded) 270f else 90f,
+                    animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                    label = "activeKeysArrow"
+                )
+                val bagRepo = remember(context) { BagRepository(context) }
+                val allBags by bagRepo.bags.collectAsState()
 
-            if (isActiveKeysExpanded) {
-                if (activeLocks.isEmpty()) {
-                    item {
-                        Surface(
-                            shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 18.dp, bottomEnd = 18.dp),
-                            color = colorScheme.surfaceContainerHigh,
-                            modifier = Modifier.fillMaxWidth()
+                Surface(
+                    shape = RoundedCornerShape(22.dp),
+                    color = colorScheme.surfaceContainerHigh,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .animateContentSize(
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioNoBouncy,
+                                stiffness = Spring.StiffnessMediumLow
+                            )
+                        )
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { isActiveKeysExpanded = !isActiveKeysExpanded }
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(28.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 Surface(
                                     shape = CircleShape,
-                                    color = colorScheme.surfaceContainerLowest,
-                                    modifier = Modifier.size(52.dp)
+                                    color = colorScheme.primaryContainer,
+                                    modifier = Modifier.size(34.dp)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Icon(
                                             painter = painterResource(R.drawable.key_fill0),
                                             contentDescription = null,
-                                            tint = colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(26.dp)
+                                            tint = colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.size(16.dp)
                                         )
                                     }
                                 }
-                                Spacer(Modifier.height(12.dp))
-                                Text(
-                                    text = "No Active Keys Configured",
-                                    style = typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "Keys set for Device Owner, Sideload/ADB, DNS, Grayscale, Zen Mode, Focus Modes, and App Bags will appear here.",
-                                    style = typography.bodySmall,
-                                    color = colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(top = 4.dp),
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    itemsIndexed(activeLocks, key = { _, lock -> lock.id }) { index, lock ->
-                    val shape = segmentedItemShape(index, activeLocks.size)
-                    val leadingIconRes = when {
-                        lock.id == "dpm_uninstall_lock" -> R.drawable.shield_fill0
-                        lock.id == "sideload_adb_lock" -> R.drawable.screen_lock_portrait_fill0
-                        lock.id == "dns_lock" -> R.drawable.dns_fill0
-                        lock.id == "grayscale_security_key" -> R.drawable.contrast_fill0
-                        lock.id == "zen_security_key" -> R.drawable.self_improvement_fill0
-                        lock.id == "app_manager_security_key" -> R.drawable.apps_fill0
-                        lock.id.startsWith("focus_mode_") || lock.id.startsWith("routine_") -> R.drawable.schedule_fill0
-                        else -> R.drawable.key_fill0
-                    }
-
-                    val protectionDesc = when (lock.id) {
-                        "dpm_uninstall_lock" -> "Device Owner Uninstall Key • Required to revoke Device Owner"
-                        "sideload_adb_lock" -> "Sideload & ADB Lockdown • Required to modify installation policies"
-                        "dns_lock" -> "Private DNS Guard • Required to alter DNS protection rules"
-                        "grayscale_security_key" -> "Screen Grayscale Guard • Required to disable monochrome filter"
-                        "zen_security_key" -> "Zen Mode Security Key • Required to abort running zen session"
-                        "app_manager_security_key" -> "App Manager Guard • Required to change app restrictions or limits"
-                        else -> {
-                            if (lock.id.startsWith("focus_mode_")) {
-                                "Focus Mode Protection • Key required to abort focus session"
-                            } else if (lock.id.startsWith("routine_")) {
-                                "Routine Protection • Key required to modify or toggle routine"
-                            } else {
-                                "${lock.packageNames.size} packages currently suspended in '${lock.bagName}'"
-                            }
-                        }
-                    }
-
-                    ElevatedCard(
-                        onClick = {
-                            if (lock.isSystemKey) {
-                                systemLockToEdit = lock
-                                showVerifyBeforeEditSystemKeyDialog = true
-                            }
-                        },
-                        shape = shape,
-                        colors = CardDefaults.elevatedCardColors(
-                            containerColor = colorScheme.surfaceContainerHigh
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 1.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = colorScheme.surfaceContainerLowest,
-                                    modifier = Modifier.size(44.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            painter = painterResource(leadingIconRes),
-                                            contentDescription = null,
-                                            tint = if (lock.isSystemKey) colorScheme.primary else colorScheme.tertiary,
-                                            modifier = Modifier.size(22.dp)
-                                        )
-                                    }
-                                }
-
-                                Spacer(Modifier.width(12.dp))
-
-                                Column(Modifier.weight(1f)) {
+                                Column {
                                     Text(
-                                        text = lock.bagName,
+                                        text = "Active Protection Keys",
                                         style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                        color = colorScheme.onSurface,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    val dateStr = SimpleDateFormat("MMM dd, hh:mm a", Locale.getDefault()).format(Date(lock.lockedAt))
-                                    Text(
-                                        text = dateStr,
-                                        style = typography.bodySmall.copy(fontSize = 11.sp),
-                                        color = colorScheme.outline
-                                    )
-                                }
-
-                                Spacer(Modifier.width(8.dp))
-
-                                Surface(
-                                    shape = CircleShape,
-                                    color = if (lock.isSystemKey) colorScheme.primaryContainer else if (lock.keyType == KeyType.QR_CODE) colorScheme.tertiaryContainer else colorScheme.secondaryContainer
-                                ) {
-                                    val keyBadgeText = if (lock.keyType == KeyType.QR_CODE) {
-                                        savedKeys.find { !lock.qrToken.isNullOrBlank() && it.token == lock.qrToken }?.name ?: "QR Key"
-                                    } else {
-                                        "Password"
-                                    }
-                                    Text(
-                                        text = keyBadgeText,
-                                        style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                        color = if (lock.isSystemKey) colorScheme.onPrimaryContainer else if (lock.keyType == KeyType.QR_CODE) colorScheme.onTertiaryContainer else colorScheme.onSecondaryContainer,
-                                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp)
-                                    )
-                                }
-                            }
-
-                            Spacer(Modifier.height(8.dp))
-
-                            Text(
-                                text = protectionDesc,
-                                style = typography.bodySmall,
-                                color = if (lock.isSystemKey) colorScheme.onSurfaceVariant else colorScheme.error
-                            )
-
-                            Spacer(Modifier.height(12.dp))
-
-                            // Action buttons row
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.End,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                if (lock.isSystemKey) {
-                                    FilledTonalButton(
-                                        onClick = {
-                                            systemLockToEdit = lock
-                                            showVerifyBeforeEditSystemKeyDialog = true
-                                        },
-                                        shape = RoundedCornerShape(12.dp)
-                                    ) {
-                                        Icon(
-                                            painter = painterResource(R.drawable.edit_fill0),
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(Modifier.width(6.dp))
-                                        Text("Edit Key", style = typography.labelMedium)
-                                    }
-                                    Spacer(Modifier.width(8.dp))
-                                }
-
-                                if (lock.keyType == KeyType.QR_CODE && lock.qrToken != null) {
-                                    OutlinedButton(
-                                        onClick = { viewQrLock = lock },
-                                        shape = RoundedCornerShape(12.dp)
-                                    ) {
-                                        Icon(
-                                            painter = painterResource(R.drawable.qr_code_fill0),
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(Modifier.width(6.dp))
-                                        Text("View QR", style = typography.labelMedium)
-                                    }
-                                    Spacer(Modifier.width(8.dp))
-                                }
-
-                                // Emergency Unlock or Clear Key is ONLY displayed in Emergency Mode!
-                                if (isEmergencyActive) {
-                                    Button(
-                                        onClick = { emergencyUnlockLock = lock },
-                                        colors = ButtonDefaults.buttonColors(containerColor = colorScheme.errorContainer),
-                                        shape = RoundedCornerShape(12.dp)
-                                    ) {
-                                        Icon(
-                                            painter = painterResource(R.drawable.delete_fill0),
-                                            contentDescription = null,
-                                            tint = colorScheme.onErrorContainer,
-                                            modifier = Modifier.size(15.dp)
-                                        )
-                                        Spacer(Modifier.width(5.dp))
-                                        Text(
-                                            text = if (lock.isSystemKey) "Clear Key" else "Emergency Unlock",
-                                            color = colorScheme.onErrorContainer,
-                                            style = typography.labelMedium
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                } // end else activeLocks.isNotEmpty
-            } // end if isActiveKeysExpanded
-
-            // ==========================================
-            // SECTION 2.5: COMMON KEYS
-            // ==========================================
-            item {
-                Surface(
-                    onClick = { isCommonKeysExpanded = !isCommonKeysExpanded },
-                    shape = RoundedCornerShape(14.dp),
-                    color = Color.Transparent,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        TomatoSectionHeader(title = "COMMON KEYS")
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                shape = CircleShape,
-                                color = if (hasCommonKey) colorScheme.primaryContainer else colorScheme.surfaceContainerHigh,
-                                modifier = Modifier.padding(end = 6.dp)
-                            ) {
-                                Text(
-                                    text = if (hasCommonKey) "Set" else "Off",
-                                    style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = if (hasCommonKey) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp)
-                                )
-                            }
-                            Icon(
-                                painter = painterResource(R.drawable.arrow_forward_big),
-                                contentDescription = if (isCommonKeysExpanded) "Collapse" else "Expand",
-                                tint = colorScheme.onSurfaceVariant,
-                                modifier = Modifier
-                                    .size(16.dp)
-                                    .graphicsLayer {
-                                        rotationZ = if (isCommonKeysExpanded) 270f else 90f
-                                    }
-                            )
-                        }
-                    }
-                }
-            }
-
-            if (isCommonKeysExpanded) {
-                item {
-                    ElevatedCard(
-                        shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.elevatedCardColors(
-                            containerColor = colorScheme.surfaceContainerHigh
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(CircleShape)
-                                        .background(
-                                            if (hasCommonKey) colorScheme.primaryContainer
-                                            else colorScheme.surfaceContainerHighest
-                                        ),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        painter = painterResource(id = R.drawable.key_fill0),
-                                        contentDescription = null,
-                                        tint = if (hasCommonKey) colorScheme.primary else colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = if (hasCommonKey) "Common Key (${commonKeyType.name})" else "No Common Key Configured",
-                                        style = typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
                                         color = colorScheme.onSurface
                                     )
                                     Text(
-                                        text = if (hasCommonKey) {
-                                            "Any toggled feature below will automatically use this key."
-                                        } else {
-                                            "Set one master key and apply it across any feature."
-                                        },
-                                        style = typography.bodySmall,
+                                        text = if (activeLocks.isEmpty()) "No keys configured" else "${activeLocks.size} key${if (activeLocks.size == 1) "" else "s"} active",
+                                        style = typography.bodySmall.copy(fontSize = 11.sp),
                                         color = colorScheme.onSurfaceVariant
                                     )
                                 }
                             }
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                FilledTonalButton(
-                                    onClick = {
-                                        if (hasCommonKey) {
-                                            pendingCommonKeyAction = "edit"
-                                            showVerifyCommonKeyDialog = true
-                                        } else {
-                                            showSetCommonKeyDialog = true
-                                        }
-                                    },
-                                    shape = RoundedCornerShape(12.dp),
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Text(if (hasCommonKey) "Change Common Key" else "Configure Common Key")
-                                }
-                                if (hasCommonKey) {
-                                    OutlinedButton(
-                                        onClick = {
-                                            pendingCommonKeyAction = "remove"
-                                            showVerifyCommonKeyDialog = true
-                                        },
-                                        shape = RoundedCornerShape(12.dp),
-                                        colors = ButtonDefaults.outlinedButtonColors(
-                                            contentColor = colorScheme.error
-                                        )
+                                if (activeLocks.isNotEmpty()) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = colorScheme.primary
                                     ) {
-                                        Text("Remove")
+                                        Text(
+                                            text = "${activeLocks.size}",
+                                            style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                            color = colorScheme.onPrimary,
+                                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp)
+                                        )
+                                    }
+                                }
+                                Icon(
+                                    painter = painterResource(R.drawable.arrow_forward_big),
+                                    contentDescription = null,
+                                    tint = colorScheme.onSurfaceVariant,
+                                    modifier = Modifier
+                                        .size(16.dp)
+                                        .graphicsLayer {
+                                            rotationZ = activeKeysArrowRotation
+                                        }
+                                )
+                            }
+                        }
+
+                        AnimatedVisibility(
+                            visible = isActiveKeysExpanded,
+                            enter = expandVertically(
+                                spring(
+                                    dampingRatio = Spring.DampingRatioNoBouncy,
+                                    stiffness = Spring.StiffnessMediumLow
+                                )
+                            ) + fadeIn(),
+                            exit = shrinkVertically(
+                                spring(
+                                    dampingRatio = Spring.DampingRatioNoBouncy,
+                                    stiffness = Spring.StiffnessMediumLow
+                                )
+                            ) + fadeOut()
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 10.dp, end = 10.dp, bottom = 10.dp),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                if (activeLocks.isEmpty()) {
+                                    Surface(
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = colorScheme.surfaceContainerLowest,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(24.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = colorScheme.surfaceContainerHigh,
+                                                modifier = Modifier.size(48.dp)
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Icon(
+                                                        painter = painterResource(R.drawable.key_fill0),
+                                                        contentDescription = null,
+                                                        tint = colorScheme.onSurfaceVariant,
+                                                        modifier = Modifier.size(22.dp)
+                                                    )
+                                                }
+                                            }
+                                            Spacer(Modifier.height(10.dp))
+                                            Text(
+                                                text = "No Active Keys Configured",
+                                                style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = "Keys set for Device Owner, Sideload/ADB, DNS, Grayscale, Zen Mode, Focus Modes, and App Bags will appear here.",
+                                                style = typography.bodySmall,
+                                                color = colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.padding(top = 4.dp),
+                                                textAlign = TextAlign.Center
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    activeLocks.forEachIndexed { index, lock ->
+                                        val shape = segmentedItemShape(index, activeLocks.size)
+                                        val leadingIconRes = when {
+                                            lock.id == "dpm_uninstall_lock" -> R.drawable.shield_fill0
+                                            lock.id == "sideload_adb_lock" -> R.drawable.screen_lock_portrait_fill0
+                                            lock.id == "dns_lock" -> R.drawable.dns_fill0
+                                            lock.id == "grayscale_security_key" -> R.drawable.contrast_fill0
+                                            lock.id == "zen_security_key" -> R.drawable.self_improvement_fill0
+                                            lock.id == "app_manager_security_key" -> R.drawable.apps_fill0
+                                            lock.id.startsWith("focus_mode_") || lock.id.startsWith("routine_") -> R.drawable.schedule_fill0
+                                            else -> R.drawable.key_fill0
+                                        }
+
+                                        val protectionDesc = when (lock.id) {
+                                            "dpm_uninstall_lock" -> "Device Owner Uninstall Key • Required to revoke Device Owner"
+                                            "sideload_adb_lock" -> "Sideload & ADB Lockdown • Required to modify installation policies"
+                                            "dns_lock" -> "Private DNS Guard • Required to alter DNS protection rules"
+                                            "grayscale_security_key" -> "Screen Grayscale Guard • Required to disable monochrome filter"
+                                            "zen_security_key" -> "Zen Mode Security Key • Required to abort running zen session"
+                                            "app_manager_security_key" -> "App Manager Guard • Required to change app restrictions or limits"
+                                            else -> {
+                                                if (lock.id.startsWith("focus_mode_")) {
+                                                    "Focus Mode Protection • Key required to abort focus session"
+                                                } else if (lock.id.startsWith("routine_")) {
+                                                    "Routine Protection • Key required to modify or toggle routine"
+                                                } else {
+                                                    "${lock.packageNames.size} packages currently suspended in '${lock.bagName}'"
+                                                }
+                                            }
+                                        }
+
+                                        val isFromCommonKey = if (lock.isSystemKey) {
+                                            hasCommonKey &&
+                                                CommonKeyManager.ALL_OPTIONS.any { it.id == lock.id } &&
+                                                (commonFollowingMap[lock.id] == true)
+                                        } else {
+                                            hasCommonKey && allBags.find { it.id == lock.bagId }?.let { bag ->
+                                                bag.useCommonKey ?: (commonFollowingMap["bags_common_key"] == true)
+                                            } == true
+                                        }
+                                        val hideEditAndClearInEmergency = isEmergencyActive && isFromCommonKey
+
+                                        Surface(
+                                            onClick = {
+                                                if (lock.isSystemKey && !hideEditAndClearInEmergency) {
+                                                    systemLockToEdit = lock
+                                                    showVerifyBeforeEditSystemKeyDialog = true
+                                                }
+                                            },
+                                            shape = shape,
+                                            color = colorScheme.surfaceContainerLowest,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(14.dp)
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Surface(
+                                                        shape = RoundedCornerShape(12.dp),
+                                                        color = colorScheme.surfaceContainerHigh,
+                                                        modifier = Modifier.size(42.dp)
+                                                    ) {
+                                                        Box(contentAlignment = Alignment.Center) {
+                                                            Icon(
+                                                                painter = painterResource(leadingIconRes),
+                                                                contentDescription = null,
+                                                                tint = if (lock.isSystemKey) colorScheme.primary else colorScheme.tertiary,
+                                                                modifier = Modifier.size(20.dp)
+                                                            )
+                                                        }
+                                                    }
+
+                                                    Spacer(Modifier.width(12.dp))
+
+                                                    Column(Modifier.weight(1f)) {
+                                                        Text(
+                                                            text = lock.bagName,
+                                                            style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                                            color = colorScheme.onSurface,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                        val dateStr = SimpleDateFormat("MMM dd, hh:mm a", Locale.getDefault()).format(Date(lock.lockedAt))
+                                                        Text(
+                                                            text = dateStr,
+                                                            style = typography.bodySmall.copy(fontSize = 11.sp),
+                                                            color = colorScheme.outline
+                                                        )
+                                                    }
+
+                                                    Spacer(Modifier.width(8.dp))
+
+                                                    Surface(
+                                                        shape = CircleShape,
+                                                        color = if (lock.isSystemKey) colorScheme.primaryContainer else if (lock.keyType == KeyType.QR_CODE) colorScheme.tertiaryContainer else colorScheme.secondaryContainer
+                                                    ) {
+                                                        val keyBadgeText = if (lock.keyType == KeyType.QR_CODE) {
+                                                            savedKeys.find { !lock.qrToken.isNullOrBlank() && it.token == lock.qrToken }?.name ?: "QR Key"
+                                                        } else {
+                                                            "Password"
+                                                        }
+                                                        Text(
+                                                            text = keyBadgeText,
+                                                            style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                            color = if (lock.isSystemKey) colorScheme.onPrimaryContainer else if (lock.keyType == KeyType.QR_CODE) colorScheme.onTertiaryContainer else colorScheme.onSecondaryContainer,
+                                                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp)
+                                                        )
+                                                    }
+                                                }
+
+                                                Spacer(Modifier.height(8.dp))
+
+                                                Text(
+                                                    text = protectionDesc,
+                                                    style = typography.bodySmall,
+                                                    color = if (lock.isSystemKey) colorScheme.onSurfaceVariant else colorScheme.error
+                                                )
+
+                                                val showEditBtn = lock.isSystemKey && !hideEditAndClearInEmergency
+                                                val showQrBtn = lock.keyType == KeyType.QR_CODE && lock.qrToken != null
+                                                val showEmergencyOrClearBtn = isEmergencyActive && !(lock.isSystemKey && isFromCommonKey)
+
+                                                if (showEditBtn || showQrBtn || showEmergencyOrClearBtn) {
+                                                    Spacer(Modifier.height(10.dp))
+
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.End,
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        if (showEditBtn) {
+                                                            FilledTonalButton(
+                                                                onClick = {
+                                                                    systemLockToEdit = lock
+                                                                    showVerifyBeforeEditSystemKeyDialog = true
+                                                                },
+                                                                shape = RoundedCornerShape(12.dp)
+                                                            ) {
+                                                                Icon(
+                                                                    painter = painterResource(R.drawable.edit_fill0),
+                                                                    contentDescription = null,
+                                                                    modifier = Modifier.size(16.dp)
+                                                                )
+                                                                Spacer(Modifier.width(6.dp))
+                                                                Text("Edit Key", style = typography.labelMedium)
+                                                            }
+                                                            if (showQrBtn || showEmergencyOrClearBtn) {
+                                                                Spacer(Modifier.width(8.dp))
+                                                            }
+                                                        }
+
+                                                        if (showQrBtn) {
+                                                            OutlinedButton(
+                                                                onClick = { viewQrLock = lock },
+                                                                shape = RoundedCornerShape(12.dp)
+                                                            ) {
+                                                                Icon(
+                                                                    painter = painterResource(R.drawable.qr_code_fill0),
+                                                                    contentDescription = null,
+                                                                    modifier = Modifier.size(16.dp)
+                                                                )
+                                                                Spacer(Modifier.width(6.dp))
+                                                                Text("View QR", style = typography.labelMedium)
+                                                            }
+                                                            if (showEmergencyOrClearBtn) {
+                                                                Spacer(Modifier.width(8.dp))
+                                                            }
+                                                        }
+
+                                                        if (showEmergencyOrClearBtn) {
+                                                            Button(
+                                                                onClick = { emergencyUnlockLock = lock },
+                                                                colors = ButtonDefaults.buttonColors(containerColor = colorScheme.errorContainer),
+                                                                shape = RoundedCornerShape(12.dp)
+                                                            ) {
+                                                                Icon(
+                                                                    painter = painterResource(R.drawable.delete_fill0),
+                                                                    contentDescription = null,
+                                                                    tint = colorScheme.onErrorContainer,
+                                                                    modifier = Modifier.size(15.dp)
+                                                                )
+                                                                Spacer(Modifier.width(5.dp))
+                                                                Text(
+                                                                    text = if (lock.isSystemKey) "Clear Key" else "Emergency Unlock",
+                                                                    color = colorScheme.onErrorContainer,
+                                                                    style = typography.labelMedium
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
+            }
 
-                itemsIndexed(
-                    CommonKeyManager.ALL_OPTIONS,
-                    key = { _, opt -> "common_opt_${opt.id}" }
-                ) { index, option ->
-                    val isFollowing = commonFollowingMap[option.id] == true
-                    Surface(
-                        shape = segmentedItemShape(index, CommonKeyManager.ALL_OPTIONS.size),
-                        color = colorScheme.surfaceContainer,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
+            // ==========================================
+            // SECTION 2.5: COMMON KEYS
+            // ==========================================
+            item {
+                val commonKeysArrowRotation by animateFloatAsState(
+                    targetValue = if (isCommonKeysExpanded) 270f else 90f,
+                    animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                    label = "commonKeysArrow"
+                )
+
+                Surface(
+                    shape = RoundedCornerShape(22.dp),
+                    color = colorScheme.surfaceContainerHigh,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .animateContentSize(
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioNoBouncy,
+                                stiffness = Spring.StiffnessMediumLow
+                            )
+                        )
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                                .clickable { isCommonKeysExpanded = !isCommonKeysExpanded }
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                                Text(
-                                    text = option.title,
-                                    style = typography.titleSmall.copy(fontWeight = FontWeight.Medium),
-                                    color = colorScheme.onSurface
-                                )
-                                Text(
-                                    text = option.subtitle,
-                                    style = typography.bodySmall,
-                                    color = colorScheme.onSurfaceVariant
-                                )
-                            }
-                            BrikSwitch(
-                                checked = isFollowing,
-                                onCheckedChange = { checked ->
-                                    if (checked && !hasCommonKey) {
-                                        Toast.makeText(
-                                            context,
-                                            "Configure a Common Key first",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                        showSetCommonKeyDialog = true
-                                    } else {
-                                        CommonKeyManager.setFollowing(context, option.id, checked)
-                                        keyViewModel.syncExistingSystemKeys()
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = if (hasCommonKey) colorScheme.primaryContainer else colorScheme.surfaceContainerHighest,
+                                    modifier = Modifier.size(34.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.key_fill0),
+                                            contentDescription = null,
+                                            tint = if (hasCommonKey) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(16.dp)
+                                        )
                                     }
                                 }
-                            )
+                                Column {
+                                    Text(
+                                        text = "Common Keys",
+                                        style = typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = if (hasCommonKey) "Master key (${commonKeyType.name}) configured" else "Set one key across features",
+                                        style = typography.bodySmall.copy(fontSize = 11.sp),
+                                        color = colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = if (hasCommonKey) colorScheme.primary else colorScheme.surfaceContainerLowest
+                                ) {
+                                    Text(
+                                        text = if (hasCommonKey) "Set" else "Off",
+                                        style = typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = if (hasCommonKey) colorScheme.onPrimary else colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp)
+                                    )
+                                }
+                                Icon(
+                                    painter = painterResource(R.drawable.arrow_forward_big),
+                                    contentDescription = if (isCommonKeysExpanded) "Collapse" else "Expand",
+                                    tint = colorScheme.onSurfaceVariant,
+                                    modifier = Modifier
+                                        .size(16.dp)
+                                        .graphicsLayer {
+                                            rotationZ = commonKeysArrowRotation
+                                        }
+                                )
+                            }
+                        }
+
+                        AnimatedVisibility(
+                            visible = isCommonKeysExpanded,
+                            enter = expandVertically(
+                                spring(
+                                    dampingRatio = Spring.DampingRatioNoBouncy,
+                                    stiffness = Spring.StiffnessMediumLow
+                                )
+                            ) + fadeIn(),
+                            exit = shrinkVertically(
+                                spring(
+                                    dampingRatio = Spring.DampingRatioNoBouncy,
+                                    stiffness = Spring.StiffnessMediumLow
+                                )
+                            ) + fadeOut()
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 10.dp, end = 10.dp, bottom = 10.dp),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(
+                                        topStart = 16.dp,
+                                        topEnd = 16.dp,
+                                        bottomStart = 4.dp,
+                                        bottomEnd = 4.dp
+                                    ),
+                                    color = colorScheme.surfaceContainerLowest,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(14.dp),
+                                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(38.dp)
+                                                    .clip(CircleShape)
+                                                    .background(
+                                                        if (hasCommonKey) colorScheme.primaryContainer
+                                                        else colorScheme.surfaceContainerHigh
+                                                    ),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    painter = painterResource(id = R.drawable.key_fill0),
+                                                    contentDescription = null,
+                                                    tint = if (hasCommonKey) colorScheme.primary else colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(12.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = if (hasCommonKey) "Common Key (${commonKeyType.name})" else "No Common Key Configured",
+                                                    style = typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                                                    color = colorScheme.onSurface
+                                                )
+                                                Text(
+                                                    text = if (hasCommonKey) {
+                                                        "Any toggled feature below will automatically use this key."
+                                                    } else {
+                                                        "Set one master key and apply it across any feature."
+                                                    },
+                                                    style = typography.bodySmall,
+                                                    color = colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            FilledTonalButton(
+                                                onClick = {
+                                                    if (hasCommonKey) {
+                                                        pendingCommonKeyAction = "edit"
+                                                        showVerifyCommonKeyDialog = true
+                                                    } else {
+                                                        showSetCommonKeyDialog = true
+                                                    }
+                                                },
+                                                shape = RoundedCornerShape(12.dp),
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Text(if (hasCommonKey) "Change Common Key" else "Configure Common Key")
+                                            }
+                                            if (hasCommonKey) {
+                                                OutlinedButton(
+                                                    onClick = {
+                                                        pendingCommonKeyAction = "remove"
+                                                        showVerifyCommonKeyDialog = true
+                                                    },
+                                                    shape = RoundedCornerShape(12.dp),
+                                                    colors = ButtonDefaults.outlinedButtonColors(
+                                                        contentColor = colorScheme.error
+                                                    )
+                                                ) {
+                                                    Text("Remove")
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                CommonKeyManager.ALL_OPTIONS.forEachIndexed { index, option ->
+                                    val isFollowing = commonFollowingMap[option.id] == true
+                                    val shape = if (index == CommonKeyManager.ALL_OPTIONS.lastIndex) {
+                                        RoundedCornerShape(
+                                            topStart = 4.dp,
+                                            topEnd = 4.dp,
+                                            bottomStart = 16.dp,
+                                            bottomEnd = 16.dp
+                                        )
+                                    } else {
+                                        RoundedCornerShape(4.dp)
+                                    }
+                                    Surface(
+                                        shape = shape,
+                                        color = colorScheme.surfaceContainerLowest,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                                                Text(
+                                                    text = option.title,
+                                                    style = typography.titleSmall.copy(fontWeight = FontWeight.Medium),
+                                                    color = colorScheme.onSurface
+                                                )
+                                                Text(
+                                                    text = option.subtitle,
+                                                    style = typography.bodySmall,
+                                                    color = colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                            BrikSwitch(
+                                                checked = isFollowing,
+                                                onCheckedChange = { checked ->
+                                                    if (checked && !hasCommonKey) {
+                                                        Toast.makeText(
+                                                            context,
+                                                            "Configure a Common Key first",
+                                                            Toast.LENGTH_SHORT
+                                                        ).show()
+                                                        showSetCommonKeyDialog = true
+                                                    } else {
+                                                        CommonKeyManager.setFollowing(context, option.id, checked)
+                                                        keyViewModel.syncExistingSystemKeys()
+                                                    }
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }

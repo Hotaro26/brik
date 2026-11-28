@@ -149,11 +149,8 @@ class KeyViewModel(application: Application) : AndroidViewModel(application) {
                     val packagesToRelease = lock.packageNames.filterNot { protectedPackages.contains(it) }
 
                     if (packagesToRelease.isNotEmpty()) {
-                        if (lock.actionType == com.hotaro.brik.data.model.BagAction.HIDE) {
-                            PolicyBridgeManager.setPackagesHidden(context, packagesToRelease, false)
-                        } else {
-                            PolicyBridgeManager.suspendPackages(context, packagesToRelease, false)
-                        }
+                        PolicyBridgeManager.setPackagesHidden(context, packagesToRelease, false)
+                        PolicyBridgeManager.suspendPackages(context, packagesToRelease, false)
                         PolicyBridgeManager.setUninstallBlocked(context, packagesToRelease, false)
                     }
                 }
@@ -209,9 +206,18 @@ class KeyViewModel(application: Application) : AndroidViewModel(application) {
                             .filter { it.id != lock.id }
                             .flatMap { it.packageNames }
                             .toSet()
-                        val packagesToRelease = lock.packageNames.filterNot { remainingLockedPackages.contains(it) }
+                        val activeTimeBlockPackages = TimeBlockRepository.getInstance(context)
+                            .activeSession.value?.packagesSuspended.orEmpty().toSet()
+                        val appLimitRestricted = com.hotaro.brik.data.repository.AppLimitRepository(context)
+                            .limits.value.values
+                            .filter { it.isRestricted || it.dailyLimitMinutes == 0 }
+                            .map { it.packageName }
+                            .toSet()
+                        val protectedPackages = remainingLockedPackages + activeTimeBlockPackages + appLimitRestricted
+                        val packagesToRelease = lock.packageNames.filterNot { protectedPackages.contains(it) }
 
                         if (packagesToRelease.isNotEmpty()) {
+                            PolicyBridgeManager.setPackagesHidden(context, packagesToRelease, false)
                             PolicyBridgeManager.suspendPackages(context, packagesToRelease, false)
                             PolicyBridgeManager.setUninstallBlocked(context, packagesToRelease, false)
                         }
@@ -232,9 +238,19 @@ class KeyViewModel(application: Application) : AndroidViewModel(application) {
 
     fun syncAllActiveLocks(context: Context) {
         viewModelScope.launch(Dispatchers.IO) {
-            val allLocked = repository.activeLocks.value.flatMap { it.packageNames }.distinct()
+            val locks = repository.activeLocks.value
+            val toHide = locks.filter { it.actionType == com.hotaro.brik.data.model.BagAction.HIDE }
+                .flatMap { it.packageNames }.distinct()
+            val toSuspend = locks.filter { it.actionType != com.hotaro.brik.data.model.BagAction.HIDE }
+                .flatMap { it.packageNames }.distinct()
+            val allLocked = (toHide + toSuspend).distinct()
+            if (toHide.isNotEmpty()) {
+                PolicyBridgeManager.setPackagesHidden(context, toHide, true)
+            }
+            if (toSuspend.isNotEmpty()) {
+                PolicyBridgeManager.suspendPackages(context, toSuspend, true)
+            }
             if (allLocked.isNotEmpty()) {
-                PolicyBridgeManager.suspendPackages(context, allLocked, true)
                 PolicyBridgeManager.setUninstallBlocked(context, allLocked, true)
             }
         }
